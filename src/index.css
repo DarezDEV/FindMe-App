@@ -22,4 +22,60 @@
   body {
     @apply bg-background text-text-primary;
   }
+
+  * {
+    @apply box-border;
+  }
+}
+
+@layer components {
+  /* Input base */
+  .input-field {
+    @apply w-full bg-card border border-border text-text-primary placeholder-text-secondary
+           rounded-lg px-4 py-2.5 text-sm
+           focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20
+           transition-all duration-200;
+  }
+
+  /* Botón primario */
+  .btn-primary {
+    @apply bg-primary hover:bg-primary-hover active:scale-[0.98]
+           text-white font-semibold py-2.5 px-6 rounded-lg text-sm
+           transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed
+           focus:outline-none focus:ring-2 focus:ring-primary/40;
+  }
+
+  /* Botón secundario */
+  .btn-secondary {
+    @apply bg-card hover:bg-primary-soft border border-border hover:border-primary
+           text-text-primary hover:text-primary font-medium py-2.5 px-6 rounded-lg text-sm
+           transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/20;
+  }
+
+  /* Card base */
+  .card {
+    @apply bg-card border border-border rounded-2xl shadow-sm;
+  }
+
+  /* Badge de rol */
+  .badge-user {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium
+           bg-info/10 text-info;
+  }
+  .badge-authority {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium
+           bg-warning/10 text-warning;
+  }
+  .badge-admin {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium
+           bg-primary-soft text-primary;
+  }
+
+  /* Alert feedback */
+  .alert-error {
+    @apply bg-error/8 border border-error/25 text-error text-sm px-4 py-3 rounded-lg;
+  }
+  .alert-success {
+    @apply bg-success/8 border border-success/25 text-success text-sm px-4 py-3 rounded-lg;
+  }
 }

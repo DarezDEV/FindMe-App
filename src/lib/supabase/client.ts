@@ -1,14 +1,10 @@
-function requiredEnv(name: 'VITE_SUPABASE_URL' | 'VITE_SUPABASE_ANON_KEY') {
-  const value = import.meta.env[name]
+import { createClient } from '@supabase/supabase-js'
 
-  if (!value || !value.trim()) {
-    throw new Error(`Missing required environment variable: ${name}`)
-  }
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
-  return value
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables. Check your .env file.')
 }
 
-export const supabaseConfig = {
-  url: requiredEnv('VITE_SUPABASE_URL'),
-  anonKey: requiredEnv('VITE_SUPABASE_ANON_KEY'),
-} as const
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)

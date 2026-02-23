@@ -1,22 +1,19 @@
-import type { PropsWithChildren, ReactNode } from 'react'
-import type { Role } from '../../shared/constants/roles'
-import { useAuth } from '../../features/auth/hooks/useAuth'
+import { Navigate, Outlet } from 'react-router-dom'
+import { useAuth } from '../providers/AuthProvider'
+import { Spinner } from '../../shared/components/ui'
+import type { RoleName } from '../../shared/constants/Roles'
 
-interface RoleRouteProps extends PropsWithChildren {
-  allow: Role[]
-  fallback?: ReactNode
+interface RoleRouteProps {
+  allowedRoles: RoleName[]
 }
 
-export function RoleRoute({ allow, children, fallback = null }: RoleRouteProps) {
-  const { isAuthenticated, role } = useAuth()
+export function RoleRoute({ allowedRoles }: RoleRouteProps) {
+  const { user, loading } = useAuth()
 
-  if (!isAuthenticated || !role) {
-    return <>{fallback}</>
-  }
+  if (loading) return <Spinner fullScreen />
+  if (!user) return <Navigate to="/login" replace />
 
-  if (!allow.includes(role)) {
-    return <>{fallback}</>
-  }
+  const hasRole = user.roles.some((r) => allowedRoles.includes(r as RoleName))
 
-  return <>{children}</>
+  return hasRole ? <Outlet /> : <Navigate to="/unauthorized" replace />
 }

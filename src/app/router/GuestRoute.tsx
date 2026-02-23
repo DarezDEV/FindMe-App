@@ -2,11 +2,15 @@ import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../providers/AuthProvider'
 import { Spinner } from '../../shared/components/ui'
 
-export function ProtectedRoute() {
+export function GuestRoute() {
   const { user, loading } = useAuth()
 
   if (loading) return <Spinner fullScreen />
-  if (!user) return <Navigate to="/login" replace />
+  if (user) {
+    const firstRole = user.roles[0]
+    const redirectPath = firstRole === 'admin' ? '/admin' : firstRole === 'authority' ? '/authority' : '/dashboard'
+    return <Navigate to={redirectPath} replace />
+  }
 
   return <Outlet />
 }
