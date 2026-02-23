@@ -3,7 +3,7 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { loginUser } from '../services'
 import { useAuth } from '../hooks'
 import { Alert } from '../../../shared/components/ui'
-import { ROLES } from '../../../shared/constants/Roles'
+import { ROLES } from '../../../shared/constants/roles'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 
 export default function LoginPage() {
@@ -134,7 +134,7 @@ export default function LoginPage() {
           </div>
 
           {justRegistered && (
-            <Alert type="success" message="✓ Cuenta creada exitosamente. Ya puedes iniciar sesión." />
+            <Alert type="success" message="? Cuenta creada exitosamente. Ya puedes iniciar sesión." />
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -219,3 +219,4 @@ export default function LoginPage() {
     </div>
   )
 }
+

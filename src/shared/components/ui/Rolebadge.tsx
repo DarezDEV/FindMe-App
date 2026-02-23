@@ -1,5 +1,5 @@
-import type { Role } from '../../../features/auth/types'
-import { ROLE_LABELS } from '../../constants/Roles'
+﻿import type { Role } from '../../../features/auth/types'
+import { ROLE_LABELS } from '../../constants/roles'
 
 export function RoleBadge({ role }: { role: Role }) {
   const styles: Record<Role, string> = {
@@ -13,3 +13,4 @@ export function RoleBadge({ role }: { role: Role }) {
     </span>
   )
 }
+

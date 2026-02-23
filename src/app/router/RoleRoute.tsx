@@ -1,7 +1,7 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../providers/AuthProvider'
 import { Spinner } from '../../shared/components/ui'
-import type { RoleName } from '../../shared/constants/Roles'
+import type { RoleName } from '../../shared/constants/roles'
 
 interface RoleRouteProps {
   allowedRoles: RoleName[]
