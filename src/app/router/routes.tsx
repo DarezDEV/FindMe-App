@@ -1,7 +1,7 @@
-import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
+﻿import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import { RoleRoute } from './RoleRoute'
 import { GuestRoute } from './GuestRoute'
-import { ROLES } from '../../shared/constants/Roles'
+import { ROLES } from '../../shared/constants/roles'
 
 import LoginPage from '../../features/auth/pages/LoginPage'
 import RegisterPage from '../../features/auth/pages/RegisterPage'
@@ -20,9 +20,9 @@ function UnauthorizedPage() {
           </svg>
         </div>
         <h2 className="text-xl font-bold text-text-primary">Acceso no autorizado</h2>
-        <p className="text-text-secondary text-sm">No tienes permisos para ver esta página.</p>
+        <p className="text-text-secondary text-sm">No tienes permisos para ver esta pÃ¡gina.</p>
         <a href="/" className="inline-block text-primary hover:text-primary-hover text-sm font-medium transition-colors">
-          ← Volver al inicio
+          â† Volver al inicio
         </a>
       </div>
     </div>
@@ -30,7 +30,7 @@ function UnauthorizedPage() {
 }
 
 const router = createBrowserRouter([
-  // Públicas (solo usuarios NO autenticados)
+  // PÃºblicas (solo usuarios NO autenticados)
   {
     element: <GuestRoute />,
     children: [
@@ -40,7 +40,7 @@ const router = createBrowserRouter([
   },
   { path: '/unauthorized', element: <UnauthorizedPage /> },
 
-  // Usuario común
+  // Usuario comÃºn
   {
     element: <RoleRoute allowedRoles={[ROLES.USER]} />,
     children: [
@@ -64,7 +64,7 @@ const router = createBrowserRouter([
     ],
   },
 
-  // Raíz y fallback van al login
+  // RaÃ­z y fallback van al login
   { path: '/', element: <Navigate to="/login" replace /> },
   { path: '*', element: <Navigate to="/login" replace /> },
 ])
@@ -72,3 +72,4 @@ const router = createBrowserRouter([
 export function AppRouter() {
   return <RouterProvider router={router} />
 }
+
