@@ -134,7 +134,7 @@ export default function LoginPage() {
           </div>
 
           {justRegistered && (
-            <Alert type="success" message="✓ Cuenta creada exitosamente. Ya puedes iniciar sesión." />
+            <Alert type="success" message="? Cuenta creada exitosamente. Ya puedes iniciar sesión." />
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
