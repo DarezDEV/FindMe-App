@@ -1,23 +1,41 @@
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import {
-  MapPin, Bell, MessageCircle, Search, Plus, Heart,
-  Flag, CheckCircle, Menu, X, User, LogOut,
-  Settings, AlertTriangle, UserSearch, ChevronDown, HandHeart
+  AlertTriangle,
+  Bell,
+  CheckCircle,
+  ChevronDown,
+  Flag,
+  HandHeart,
+  LogOut,
+  MapPin,
+  Menu,
+  MessageCircle,
+  Plus,
+  Search,
+  Settings,
+  User,
+  UserSearch,
+  X,
 } from 'lucide-react'
+import { useAuth } from '../../auth/hooks'
+import { supabase } from '../../../lib/supabase/client'
+import { type CasoReciente, useMisCasos } from '../hooks/useMisCasos'
 
-// ── Types ──────────────────────────────────────────────────────────────────
 type DropdownKey = 'notifications' | 'messages' | 'user' | 'publish' | null
 
-interface Notification {
-  id: number
+type NotificationType = 'info' | 'warning' | 'success'
+
+interface NavbarNotification {
+  id: string
   text: string
   time: string
   unread: boolean
-  type: 'match' | 'verified' | 'sighting'
+  type: NotificationType
 }
 
-interface Message {
-  id: number
+interface NavbarMessage {
+  id: string
   from: string
   avatar: string
   preview: string
@@ -25,50 +43,143 @@ interface Message {
   unread: boolean
 }
 
-// ── Mock data ──────────────────────────────────────────────────────────────
-const notifications: Notification[] = [
-  { id: 1, text: 'Posible coincidencia encontrada para caso #1042', time: 'Hace 5 min', unread: true, type: 'match' },
-  { id: 2, text: 'Tu reporte fue verificado por una autoridad', time: 'Hace 1 hora', unread: true, type: 'verified' },
-  { id: 3, text: 'Nuevo avistamiento en tu zona de interés', time: 'Hace 3 horas', unread: false, type: 'sighting' },
+interface PublishOption {
+  key: string
+  label: string
+  desc: string
+  to: string
+  color: string
+  icon: ReactNode
+}
+
+const publishOptions: PublishOption[] = [
+  {
+    key: 'desaparecida',
+    label: 'Persona desaparecida',
+    desc: 'Crear un nuevo reporte',
+    to: '/publicar',
+    color: 'text-error',
+    icon: <UserSearch size={16} />,
+  },
+  {
+    key: 'avistamiento',
+    label: 'Avistamiento',
+    desc: 'Registrar informacion de avistamiento',
+    to: '/reportar',
+    color: 'text-primary',
+    icon: <MapPin size={16} />,
+  },
+  {
+    key: 'contenido',
+    label: 'Reportar contenido',
+    desc: 'Denunciar contenido inapropiado',
+    to: '/reportar',
+    color: 'text-warning',
+    icon: <Flag size={16} />,
+  },
 ]
 
-const messages: Message[] = [
-  { id: 1, from: 'Autoridad Zona Norte', avatar: 'AZ', preview: 'Necesitamos más detalles sobre el caso…', time: '10:32', unread: true },
-  { id: 2, from: 'María González', avatar: 'MG', preview: 'Gracias por la información proporcionada', time: 'Ayer', unread: false },
-]
+function getInitials(name: string, lastName: string) {
+  const first = name.trim().charAt(0).toUpperCase()
+  const second = lastName.trim().charAt(0).toUpperCase()
+  return `${first}${second}`.trim() || 'U'
+}
 
-const notifIcon = (type: Notification['type']) => {
-  if (type === 'match') return <AlertTriangle size={14} className="text-warning" />
-  if (type === 'verified') return <CheckCircle size={14} className="text-success" />
+function formatTime(value: string | null) {
+  if (!value) return 'Reciente'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Reciente'
+
+  const diff = Date.now() - date.getTime()
+  const minute = 60 * 1000
+  const hour = 60 * minute
+  const day = 24 * hour
+
+  if (diff < minute) return 'Hace un momento'
+  if (diff < hour) return `Hace ${Math.max(1, Math.floor(diff / minute))} min`
+  if (diff < day) return `Hace ${Math.max(1, Math.floor(diff / hour))} h`
+  return date.toLocaleDateString()
+}
+
+function buildNotifications(cases: CasoReciente[]): NavbarNotification[] {
+  return cases.slice(0, 5).map(caso => {
+    if (caso.status === 'avistado') {
+      return {
+        id: `notif-${caso.id}`,
+        text: `Nuevo avistamiento en ${caso.numero_caso}.`,
+        time: formatTime(caso.created_at),
+        unread: true,
+        type: 'warning' as const,
+      }
+    }
+
+    if (caso.status === 'encontrado') {
+      return {
+        id: `notif-${caso.id}`,
+        text: `El caso ${caso.numero_caso} fue marcado como encontrado.`,
+        time: formatTime(caso.created_at),
+        unread: false,
+        type: 'success' as const,
+      }
+    }
+
+    if (caso.status === 'en_revision') {
+      return {
+        id: `notif-${caso.id}`,
+        text: `El caso ${caso.numero_caso} esta en revision de autoridad.`,
+        time: formatTime(caso.created_at),
+        unread: true,
+        type: 'info' as const,
+      }
+    }
+
+    return {
+      id: `notif-${caso.id}`,
+      text: `Caso ${caso.numero_caso} activo.`,
+      time: formatTime(caso.created_at),
+      unread: false,
+      type: 'info' as const,
+    }
+  })
+}
+
+function buildMessages(cases: CasoReciente[]): NavbarMessage[] {
+  return cases
+    .filter(caso => caso.total_avistamientos > 0)
+    .slice(0, 5)
+    .map(caso => ({
+      id: `msg-${caso.id}`,
+      from: `${caso.nombres} ${caso.apellidos}`.trim(),
+      avatar: getInitials(caso.nombres, caso.apellidos),
+      preview: `${caso.total_avistamientos} avistamiento(s) reportado(s) en ${caso.numero_caso}.`,
+      time: formatTime(caso.created_at),
+      unread: caso.status !== 'encontrado',
+    }))
+}
+
+function notifIcon(type: NotificationType) {
+  if (type === 'warning') return <AlertTriangle size={14} className="text-warning" />
+  if (type === 'success') return <CheckCircle size={14} className="text-success" />
   return <MapPin size={14} className="text-primary" />
 }
 
-const publishOptions = [
-  { icon: <UserSearch size={16} />, label: 'Persona desaparecida', desc: 'Reportar a alguien que no se encuentra', color: 'text-error' },
-  { icon: <CheckCircle size={16} />, label: 'Persona encontrada', desc: 'Marcar un caso como resuelto', color: 'text-success' },
-  { icon: <MapPin size={16} />, label: 'Avistamiento', desc: 'Informar sobre un posible avistamiento', color: 'text-primary' },
-]
-
-// ── Badge counter ──────────────────────────────────────────────────────────
 function Badge({ count }: { count: number }) {
   if (!count) return null
   return (
-    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center
-                     bg-error text-white text-[10px] font-bold rounded-full leading-none pointer-events-none">
+    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-error text-white text-[10px] font-bold rounded-full leading-none pointer-events-none">
       {count > 9 ? '9+' : count}
     </span>
   )
 }
 
-// ── Icon button ────────────────────────────────────────────────────────────
 function IconBtn({
-  children,
   active = false,
+  badge = 0,
+  children,
   onClick,
   title,
-  badge = 0,
 }: {
-  children: React.ReactNode
+  children: ReactNode
   active?: boolean
   onClick?: () => void
   title?: string
@@ -78,10 +189,9 @@ function IconBtn({
     <button
       onClick={onClick}
       title={title}
-      className={`relative flex items-center justify-center w-9 h-9 rounded-lg
-                  text-text-secondary hover:text-primary hover:bg-primary-soft
-                  transition-all duration-150 cursor-pointer
-                  ${active ? 'bg-primary-soft text-primary' : ''}`}
+      className={`relative flex items-center justify-center w-9 h-9 rounded-lg text-text-secondary hover:text-primary hover:bg-primary-soft transition-all duration-150 cursor-pointer ${
+        active ? 'bg-primary-soft text-primary' : ''
+      }`}
     >
       {children}
       <Badge count={badge} />
@@ -89,34 +199,62 @@ function IconBtn({
   )
 }
 
-// ── Dropdown panel ─────────────────────────────────────────────────────────
-function DropdownPanel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+function DropdownPanel({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
     <div
-      className={`absolute top-full mt-2 bg-card border border-border rounded-xl shadow-lg z-50
-                  origin-top-right animate-dropdown ${className}`}
+      className={`absolute top-full mt-2 bg-card border border-border rounded-xl shadow-lg z-50 origin-top-right animate-dropdown ${className}`}
     >
       {children}
     </div>
   )
 }
 
-// ── Main Navbar ────────────────────────────────────────────────────────────
 export default function UserNavbar() {
+  const navigate = useNavigate()
+  const { user } = useAuth()
   const [open, setOpen] = useState<DropdownKey>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
-  const unreadNotifs = notifications.filter(n => n.unread).length
-  const unreadMsgs = messages.filter(m => m.unread).length
+  const { data: myCases = [], isLoading: casesLoading } = useMisCasos(user?.id ?? '', 6)
+
+  const notifications = useMemo(() => buildNotifications(myCases), [myCases])
+  const messages = useMemo(() => buildMessages(myCases), [myCases])
+
+  const unreadNotifs = notifications.filter(item => item.unread).length
+  const unreadMsgs = messages.filter(item => item.unread).length
+
+  const userName = user?.name ?? 'Usuario'
+  const userLastName = user?.last_nmae ?? ''
+  const userEmail = user?.email ?? 'sin-correo'
+  const userInitials = getInitials(userName, userLastName)
 
   const toggle = (key: DropdownKey) => setOpen(prev => (prev === key ? null : key))
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(null)
+  const closeAll = () => {
+    setOpen(null)
+    setMobileOpen(false)
+  }
+
+  const handleLogout = async () => {
+    if (loggingOut) return
+    setLoggingOut(true)
+    try {
+      await supabase.auth.signOut()
+      closeAll()
+      navigate('/login', { replace: true })
+    } finally {
+      setLoggingOut(false)
     }
+  }
+
+  useEffect(() => {
+    const handler = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(null)
+    }
+
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
@@ -132,7 +270,7 @@ export default function UserNavbar() {
       <style>{`
         @keyframes dropdown {
           from { opacity: 0; transform: scale(0.96) translateY(-6px); }
-          to   { opacity: 1; transform: scale(1)    translateY(0);    }
+          to { opacity: 1; transform: scale(1) translateY(0); }
         }
         .animate-dropdown { animation: dropdown 0.15s ease-out forwards; }
       `}</style>
@@ -145,19 +283,15 @@ export default function UserNavbar() {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16 gap-3">
-
-            {/* ── Logo ── */}
-            <a href="/" className="flex items-center gap-2 shrink-0 group">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center
-                              group-hover:bg-primary-hover transition-colors duration-200">
+            <Link to="/user" className="flex items-center gap-2 shrink-0 group" onClick={closeAll}>
+              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center group-hover:bg-primary-hover transition-colors duration-200">
                 <MapPin size={16} className="text-white" strokeWidth={2.5} />
               </div>
               <span className="font-bold text-lg text-text-primary tracking-tight hidden sm:block">
                 Find<span className="text-primary">Me</span>
               </span>
-            </a>
+            </Link>
 
-            {/* ── Search ── */}
             <div className="flex-1 max-w-md hidden md:block">
               <div className="relative">
                 <Search
@@ -166,27 +300,22 @@ export default function UserNavbar() {
                 />
                 <input
                   type="text"
-                  placeholder="Buscar casos, nombres, ubicaciones…"
+                  placeholder="Buscar casos por nombre o numero"
                   className="input-field pl-9 py-2 text-sm"
                 />
               </div>
             </div>
 
-            {/* ── Right actions ── */}
             <div className="flex items-center gap-0.5">
-
-           
-              {/* Donate */}
-              <a
-                href="/donate"
-                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium
-                           text-text-secondary hover:text-primary hover:bg-primary-soft transition-all duration-150"
+              <Link
+                to="/donar"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-text-secondary hover:text-primary hover:bg-primary-soft transition-all duration-150"
+                onClick={closeAll}
               >
                 <HandHeart size={16} />
                 <span className="hidden lg:block">Donar</span>
-              </a>
+              </Link>
 
-              {/* ── Publish dropdown ── */}
               <div className="relative ml-1">
                 <button
                   onClick={() => toggle('publish')}
@@ -196,35 +325,39 @@ export default function UserNavbar() {
                   <span className="hidden sm:block">Publicar</span>
                   <ChevronDown
                     size={14}
-                    className={`hidden sm:block transition-transform duration-200 ${open === 'publish' ? 'rotate-180' : ''}`}
+                    className={`hidden sm:block transition-transform duration-200 ${
+                      open === 'publish' ? 'rotate-180' : ''
+                    }`}
                   />
                 </button>
 
                 {open === 'publish' && (
                   <DropdownPanel className="right-0 w-72 p-2">
                     <p className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider px-3 pt-1 pb-2">
-                      ¿Qué deseas publicar?
+                      Que deseas publicar?
                     </p>
-                    {publishOptions.map(opt => (
-                      <button
-                        key={opt.label}
-                        className="w-full flex items-start gap-3 px-3 py-2.5 rounded-lg
-                                   hover:bg-background transition-colors duration-150 text-left group"
+                    {publishOptions.map(option => (
+                      <Link
+                        key={option.key}
+                        to={option.to}
+                        onClick={closeAll}
+                        className="w-full flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-background transition-colors duration-150 text-left group"
                       >
-                        <span className={`mt-0.5 ${opt.color} group-hover:scale-110 transition-transform duration-150`}>
-                          {opt.icon}
+                        <span
+                          className={`mt-0.5 ${option.color} group-hover:scale-110 transition-transform duration-150`}
+                        >
+                          {option.icon}
                         </span>
                         <div>
-                          <p className="text-sm font-medium text-text-primary">{opt.label}</p>
-                          <p className="text-xs text-text-secondary">{opt.desc}</p>
+                          <p className="text-sm font-medium text-text-primary">{option.label}</p>
+                          <p className="text-xs text-text-secondary">{option.desc}</p>
                         </div>
-                      </button>
+                      </Link>
                     ))}
                   </DropdownPanel>
                 )}
               </div>
 
-              {/* ── Notifications ── */}
               <div className="relative ml-0.5">
                 <IconBtn
                   active={open === 'notifications'}
@@ -239,110 +372,170 @@ export default function UserNavbar() {
                   <DropdownPanel className="right-0 w-80">
                     <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                       <span className="font-semibold text-sm text-text-primary">Notificaciones</span>
-                      {unreadNotifs > 0 && (
-                        <button className="text-xs text-primary hover:text-primary-hover font-medium transition-colors">
-                          Marcar todo leído
-                        </button>
-                      )}
+                      <Link
+                        to="/notificaciones"
+                        onClick={closeAll}
+                        className="text-xs text-primary hover:text-primary-hover font-medium transition-colors"
+                      >
+                        Ver todas
+                      </Link>
                     </div>
                     <div className="max-h-72 overflow-y-auto divide-y divide-border">
-                      {notifications.map(n => (
-                        <div
-                          key={n.id}
-                          className={`flex items-start gap-3 px-4 py-3 hover:bg-background
-                                      transition-colors cursor-pointer ${n.unread ? 'bg-primary-soft/40' : ''}`}
-                        >
-                          <div className="mt-0.5 shrink-0">{notifIcon(n.type)}</div>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-xs leading-snug ${n.unread ? 'font-medium text-text-primary' : 'text-text-secondary'}`}>
-                              {n.text}
-                            </p>
-                            <p className="text-[11px] text-text-secondary mt-1">{n.time}</p>
+                      {casesLoading && <p className="px-4 py-3 text-xs text-text-secondary">Cargando...</p>}
+                      {!casesLoading && notifications.length === 0 && (
+                        <p className="px-4 py-3 text-xs text-text-secondary">No hay notificaciones recientes.</p>
+                      )}
+                      {!casesLoading &&
+                        notifications.map(item => (
+                          <div
+                            key={item.id}
+                            className={`flex items-start gap-3 px-4 py-3 hover:bg-background transition-colors ${
+                              item.unread ? 'bg-primary-soft/40' : ''
+                            }`}
+                          >
+                            <div className="mt-0.5 shrink-0">{notifIcon(item.type)}</div>
+                            <div className="flex-1 min-w-0">
+                              <p
+                                className={`text-xs leading-snug ${
+                                  item.unread ? 'font-medium text-text-primary' : 'text-text-secondary'
+                                }`}
+                              >
+                                {item.text}
+                              </p>
+                              <p className="text-[11px] text-text-secondary mt-1">{item.time}</p>
+                            </div>
+                            {item.unread && <div className="w-2 h-2 rounded-full bg-primary mt-1 shrink-0" />}
                           </div>
-                          {n.unread && <div className="w-2 h-2 rounded-full bg-primary mt-1 shrink-0" />}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="px-4 py-2.5 border-t border-border">
-                      <a href="/notifications" className="text-xs text-primary hover:text-primary-hover font-medium transition-colors">
-                        Ver todas las notificaciones →
-                      </a>
+                        ))}
                     </div>
                   </DropdownPanel>
                 )}
               </div>
 
-            
+              <div className="relative ml-0.5">
+                <IconBtn
+                  active={open === 'messages'}
+                  onClick={() => toggle('messages')}
+                  badge={unreadMsgs}
+                  title="Mensajes"
+                >
+                  <MessageCircle size={18} />
+                </IconBtn>
 
-              {/* Report */}
-              <IconBtn title="Reportar contenido inapropiado">
-                <Flag size={18} />
-              </IconBtn>
+                {open === 'messages' && (
+                  <DropdownPanel className="right-0 w-80">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                      <span className="font-semibold text-sm text-text-primary">Mensajes</span>
+                      <Link
+                        to="/mensajes"
+                        onClick={closeAll}
+                        className="text-xs text-primary hover:text-primary-hover font-medium transition-colors"
+                      >
+                        Ver todos
+                      </Link>
+                    </div>
+                    <div className="max-h-72 overflow-y-auto divide-y divide-border">
+                      {casesLoading && <p className="px-4 py-3 text-xs text-text-secondary">Cargando...</p>}
+                      {!casesLoading && messages.length === 0 && (
+                        <p className="px-4 py-3 text-xs text-text-secondary">No hay mensajes recientes.</p>
+                      )}
+                      {!casesLoading &&
+                        messages.map(message => (
+                          <div
+                            key={message.id}
+                            className={`flex items-start gap-3 px-4 py-3 hover:bg-background transition-colors ${
+                              message.unread ? 'bg-primary-soft/40' : ''
+                            }`}
+                          >
+                            <div className="w-8 h-8 rounded-full bg-primary-soft text-primary text-[11px] font-bold flex items-center justify-center shrink-0">
+                              {message.avatar}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p
+                                className={`text-xs ${
+                                  message.unread ? 'font-semibold text-text-primary' : 'text-text-secondary'
+                                }`}
+                              >
+                                {message.from}
+                              </p>
+                              <p className="text-xs text-text-secondary truncate mt-0.5">{message.preview}</p>
+                            </div>
+                            <div className="shrink-0 text-[11px] text-text-secondary">{message.time}</div>
+                          </div>
+                        ))}
+                    </div>
+                  </DropdownPanel>
+                )}
+              </div>
 
-              {/* ── User menu ── */}
+              <Link to="/reportar" onClick={closeAll}>
+                <IconBtn title="Reportar contenido">
+                  <Flag size={18} />
+                </IconBtn>
+              </Link>
+
               <div className="relative ml-1">
                 <button
                   onClick={() => toggle('user')}
-                  className={`flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg
-                              hover:bg-background transition-colors duration-150
-                              ${open === 'user' ? 'bg-background' : ''}`}
+                  className={`flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg hover:bg-background transition-colors duration-150 ${
+                    open === 'user' ? 'bg-background' : ''
+                  }`}
                 >
                   <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
-                    <span className="text-white text-xs font-bold select-none">JD</span>
+                    <span className="text-white text-xs font-bold select-none">{userInitials}</span>
                   </div>
                   <ChevronDown
                     size={14}
-                    className={`text-text-secondary hidden sm:block transition-transform duration-200
-                                ${open === 'user' ? 'rotate-180' : ''}`}
+                    className={`text-text-secondary hidden sm:block transition-transform duration-200 ${
+                      open === 'user' ? 'rotate-180' : ''
+                    }`}
                   />
                 </button>
 
                 {open === 'user' && (
                   <DropdownPanel className="right-0 w-56">
                     <div className="px-4 py-3 border-b border-border">
-                      <p className="text-sm font-semibold text-text-primary">Juan Díaz</p>
-                      <p className="text-xs text-text-secondary">juan@email.com</p>
-                      <span className="badge-user mt-1.5 inline-flex">👤 Usuario</span>
+                      <p className="text-sm font-semibold text-text-primary">
+                        {userName} {userLastName}
+                      </p>
+                      <p className="text-xs text-text-secondary">{userEmail}</p>
+                      <span className="badge-user mt-1.5 inline-flex">Usuario</span>
                     </div>
                     <div className="p-1.5">
                       {[
-                        { icon: <User size={15} />, label: 'Mi perfil', href: '/profile' },
-                        { icon: <CheckCircle size={15} />, label: 'Mis casos', href: '/my-cases' },
-                        { icon: <Heart size={15} />, label: 'Donaciones', href: '/donate' },
-                        { icon: <Settings size={15} />, label: 'Configuración', href: '/settings' },
+                        { icon: <User size={15} />, label: 'Mi perfil', to: '/perfil' },
+                        { icon: <CheckCircle size={15} />, label: 'Mis casos', to: '/mis-casos' },
+                        { icon: <Settings size={15} />, label: 'Configuracion', to: '/configuracion' },
                       ].map(item => (
-                        <a
+                        <Link
                           key={item.label}
-                          href={item.href}
-                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm
-                                     text-text-secondary hover:bg-background hover:text-text-primary
-                                     transition-colors duration-150"
+                          to={item.to}
+                          onClick={closeAll}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-text-secondary hover:bg-background hover:text-text-primary transition-colors duration-150"
                         >
                           {item.icon}
                           {item.label}
-                        </a>
+                        </Link>
                       ))}
                     </div>
                     <div className="p-1.5 border-t border-border">
                       <button
-                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm
-                                   text-error hover:bg-error/5 transition-colors duration-150"
+                        onClick={handleLogout}
+                        disabled={loggingOut}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-error hover:bg-error/5 transition-colors duration-150 disabled:opacity-60"
                       >
                         <LogOut size={15} />
-                        Cerrar sesión
+                        {loggingOut ? 'Cerrando...' : 'Cerrar sesion'}
                       </button>
                     </div>
                   </DropdownPanel>
                 )}
               </div>
 
-              {/* Mobile toggle */}
               <button
-                className="relative flex items-center justify-center w-9 h-9 rounded-lg
-                           text-text-secondary hover:text-primary hover:bg-primary-soft
-                           transition-all duration-150 md:hidden ml-1"
-                onClick={() => setMobileOpen(p => !p)}
-                aria-label="Menú"
+                className="relative flex items-center justify-center w-9 h-9 rounded-lg text-text-secondary hover:text-primary hover:bg-primary-soft transition-all duration-150 md:hidden ml-1"
+                onClick={() => setMobileOpen(prev => !prev)}
+                aria-label="Menu"
               >
                 {mobileOpen ? <X size={20} /> : <Menu size={20} />}
               </button>
@@ -350,7 +543,6 @@ export default function UserNavbar() {
           </div>
         </div>
 
-        {/* ── Mobile expanded menu ── */}
         {mobileOpen && (
           <div className="md:hidden border-t border-border bg-card px-4 py-3 space-y-1">
             <div className="relative mb-3">
@@ -358,28 +550,24 @@ export default function UserNavbar() {
                 size={15}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none"
               />
-              <input
-                type="text"
-                placeholder="Buscar casos, nombres…"
-                className="input-field pl-9 py-2 text-sm"
-              />
+              <input type="text" placeholder="Buscar casos" className="input-field pl-9 py-2 text-sm" />
             </div>
             {[
-              { icon: <MapPin size={16} />, label: 'Explorar mapa', href: '/map' },
-              { icon: <HandHeart size={16} />, label: 'Realizar donación', href: '/donate' },
-              { icon: <Flag size={16} />, label: 'Reportar contenido', href: '/report' },
-              { icon: <CheckCircle size={16} />, label: 'Mis casos', href: '/my-cases' },
+              { icon: <UserSearch size={16} />, label: 'Nuevo reporte', to: '/publicar' },
+              { icon: <MapPin size={16} />, label: 'Explorar mapa', to: '/mapa' },
+              { icon: <Bell size={16} />, label: 'Notificaciones', to: '/notificaciones' },
+              { icon: <Flag size={16} />, label: 'Reportar contenido', to: '/reportar' },
+              { icon: <CheckCircle size={16} />, label: 'Mis casos', to: '/mis-casos' },
             ].map(item => (
-              <a
+              <Link
                 key={item.label}
-                href={item.href}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm
-                           text-text-secondary hover:bg-background hover:text-text-primary
-                           transition-colors duration-150"
+                to={item.to}
+                onClick={closeAll}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-secondary hover:bg-background hover:text-text-primary transition-colors duration-150"
               >
                 {item.icon}
                 {item.label}
-              </a>
+              </Link>
             ))}
           </div>
         )}

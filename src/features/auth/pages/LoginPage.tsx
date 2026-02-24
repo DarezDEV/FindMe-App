@@ -3,7 +3,7 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { loginUser } from '../services'
 import { useAuth } from '../hooks'
 import { Alert } from '../../../shared/components/ui'
-import { ROLES } from '../../../shared/constants/Roles'
+import { ROLES } from '../../../shared/constants/roles'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 
 export default function LoginPage() {
@@ -33,7 +33,7 @@ export default function LoginPage() {
       } else if (profile?.roles.includes(ROLES.AUTHORITY)) {
         navigate('/authority', { replace: true })
       } else {
-        navigate('/dashboard', { replace: true })
+        navigate('/user', { replace: true })
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al iniciar sesión.'

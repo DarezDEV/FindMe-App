@@ -8,7 +8,7 @@ export function GuestRoute() {
   if (loading) return <Spinner fullScreen />
   if (user) {
     const firstRole = user.roles[0]
-    const redirectPath = firstRole === 'admin' ? '/admin' : firstRole === 'authority' ? '/authority' : '/dashboard'
+    const redirectPath = firstRole === 'admin' ? '/admin' : firstRole === 'authority' ? '/authority' : '/user'
     return <Navigate to={redirectPath} replace />
   }
 
