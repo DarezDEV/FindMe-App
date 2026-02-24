@@ -107,7 +107,7 @@ export default function ComponentName({ title, onSubmit }: ComponentProps) {
 
     try {
       await loginUser({ email, password })
-      navigate('/dashboard')
+      navigate('/user')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Default error message'
       setError(message)

@@ -44,7 +44,7 @@ const router = createBrowserRouter([
   {
     element: <RoleRoute allowedRoles={[ROLES.USER]} />,
     children: [
-      { path: '/dashboard', element: <UserHome /> },
+      { path: '/user', element: <UserHome /> },
     ],
   },
 

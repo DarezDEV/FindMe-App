@@ -1,12 +1,10 @@
 import { useAuth } from '../../auth/hooks'
-import { AuthorityLayout } from '../../../shared/components/layout/AuthorityLayout'
 
 export default function AuthorityPage() {
   const { user } = useAuth()
 
   return (
-    <AuthorityLayout>
-      <div className="max-w-6xl mx-auto p-4 md:p-6">
+    <div className="max-w-6xl mx-auto p-4 md:p-6">
         <div className="card p-8 mb-6">
           <div className="flex items-center gap-4 mb-6">
             <div className="w-14 h-14 bg-warning rounded-xl flex items-center justify-center">
@@ -50,7 +48,6 @@ export default function AuthorityPage() {
           </p>
         </div>
       </div>
-    </AuthorityLayout>
   )
 }
 

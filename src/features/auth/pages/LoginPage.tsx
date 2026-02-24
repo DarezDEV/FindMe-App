@@ -33,7 +33,7 @@ export default function LoginPage() {
       } else if (profile?.roles.includes(ROLES.AUTHORITY)) {
         navigate('/authority', { replace: true })
       } else {
-        navigate('/dashboard', { replace: true })
+        navigate('/user', { replace: true })
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al iniciar sesión.'
