@@ -1,9 +1,12 @@
 import { useAuth } from '../../auth/hooks'
+import AdminSidebar from '../components/Adminsidebar'
 
 export default function AdminPage() {
   const { user } = useAuth()
 
   return (
+    <>
+    <AdminSidebar />
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-6xl mx-auto">
         <div className="card p-8 mb-6">
@@ -41,5 +44,6 @@ export default function AdminPage() {
         </div>
       </div>
     </div>
+    </>
   )
 }
