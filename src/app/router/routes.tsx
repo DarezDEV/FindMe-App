@@ -8,6 +8,7 @@ import RegisterPage from '../../features/auth/pages/RegisterPage'
 import UserHome from '../../features/user/pages/UserHome'
 import AdminHome from '../../features/admin/pages/AdminHome'
 import AuthorityHome from '../../features/authority/pages/AuthorityHome'
+import AuthorityCases from '../../features/authority/pages/AuthorityCases'
 
 function UnauthorizedPage() {
   return (
@@ -61,6 +62,7 @@ const router = createBrowserRouter([
     element: <RoleRoute allowedRoles={[ROLES.AUTHORITY, ROLES.ADMIN]} />,
     children: [
       { path: '/authority', element: <AuthorityHome /> },
+      { path: '/authority/cases', element: <AuthorityCases /> },
     ],
   },
 
