@@ -9,6 +9,7 @@ import UserHome from '../../features/user/pages/UserHome'
 import AdminHome from '../../features/admin/pages/AdminHome'
 import AuthorityHome from '../../features/authority/pages/AuthorityHome'
 import AuthorityCases from '../../features/authority/pages/AuthorityCases'
+import PendingCasesPage from '../../features/authority/pages/PendingCasesPage'
 
 function UnauthorizedPage() {
   return (
@@ -63,6 +64,7 @@ const router = createBrowserRouter([
     children: [
       { path: '/authority', element: <AuthorityHome /> },
       { path: '/authority/cases', element: <AuthorityCases /> },
+      { path: '/authority/cases/pending', element: <PendingCasesPage /> },
     ],
   },
 

@@ -5,6 +5,7 @@ import { Bell, FileSearch, LayoutDashboard, Menu, ShieldCheck, X, LogOut } from 
 const authorityNavItems = [
   { to: '/authority', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/authority/cases', label: 'Casos', icon: FileSearch },
+  { to: '/authority/cases/pending', label: 'Revision', icon: Bell },
   { label: 'Alertas', icon: Bell },
 ] as const
 
