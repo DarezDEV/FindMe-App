@@ -311,6 +311,99 @@ export async function deleteCaseComment(commentId: string): Promise<void> {
   }
 }
 
+export async function getCasePhotoUrlFromStorage(caseId: string): Promise<string | null> {
+  const bucketCandidates = ['casos-media', 'missing-persons']
+  const pathCandidates = [
+    `images/${caseId}/images`,
+    `images/${caseId}`,
+    `${caseId}/images`,
+    `cases/${caseId}`,
+    caseId,
+    `caso/${caseId}`,
+  ]
+
+  for (const bucket of bucketCandidates) {
+    for (const basePath of pathCandidates) {
+      const { data, error } = await withRetry(() =>
+        supabase.storage
+          .from(bucket)
+          .list(basePath, {
+            limit: 100,
+            offset: 0,
+          }),
+      )
+
+      if (error) {
+        continue
+      }
+
+      const directFiles = (data ?? []).filter((item) => item.name && !item.name.endsWith('/'))
+      let filesWithPath: Array<{ fullPath: string; updatedAt?: string | null; createdAt?: string | null }> =
+        directFiles.map((item) => ({
+          fullPath: `${basePath}/${item.name}`,
+          updatedAt: item.updated_at,
+          createdAt: item.created_at,
+        }))
+
+      const folders = (data ?? []).filter((item) => !item.metadata)
+
+      for (const folder of folders) {
+        const nestedPath = `${basePath}/${folder.name}`
+        const nested = await withRetry(() =>
+          supabase.storage
+            .from(bucket)
+            .list(nestedPath, {
+              limit: 100,
+              offset: 0,
+            }),
+        )
+
+        if (nested.error || !nested.data?.length) {
+          continue
+        }
+
+        const nestedFiles = nested.data.filter((item) => item.name && !item.name.endsWith('/'))
+        filesWithPath = filesWithPath.concat(
+          nestedFiles.map((item) => ({
+            fullPath: `${nestedPath}/${item.name}`,
+            updatedAt: item.updated_at,
+            createdAt: item.created_at,
+          })),
+        )
+      }
+
+      if (filesWithPath.length === 0) {
+        continue
+      }
+
+      const latestFile = [...filesWithPath].sort((a, b) => {
+        const aTime = new Date(a.updatedAt ?? a.createdAt ?? 0).getTime()
+        const bTime = new Date(b.updatedAt ?? b.createdAt ?? 0).getTime()
+        return bTime - aTime
+      })[0]
+
+      const fullPath = latestFile.fullPath
+
+      const signed = await withRetry(() =>
+        supabase.storage
+          .from(bucket)
+          .createSignedUrl(fullPath, 60 * 60),
+      )
+
+      if (!signed.error && signed.data?.signedUrl) {
+        return signed.data.signedUrl
+      }
+
+      const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(fullPath)
+      if (publicData.publicUrl) {
+        return publicData.publicUrl
+      }
+    }
+  }
+
+  return null
+}
+
 export async function getAuthorityDashboardSummary(): Promise<AuthorityDashboardSummary> {
   const { data, error } = await withRetry(
     () =>
