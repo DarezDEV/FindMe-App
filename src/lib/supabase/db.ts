@@ -244,20 +244,70 @@ export async function getCaseComments(caseIds: string[]): Promise<CaseCommentRow
   return (data ?? []) as CaseCommentRow[]
 }
 
-export async function createCaseComment(casoId: string, autorId: string, comentario: string): Promise<void> {
-  const { error } = await withRetry(() =>
+export async function createCaseComment(
+  caseId: string,
+  authorId: string,
+  comment: string,
+): Promise<{ id: string }> {
+  const { data, error } = await withRetry(() =>
     supabase
       .from('caso_comentarios')
       .insert({
-        caso_id: casoId,
-        autor_id: autorId,
-        comentario,
-      }),
+        caso_id: caseId,
+        autor_id: authorId,
+        comentario: comment,
+      })
+      .select('id')
+      .single(),
   )
 
   if (error) {
     console.error('[createCaseComment] Error:', error)
     throw error
+  }
+
+  return data as { id: string }
+}
+
+
+export async function updateCaseComment(commentId: string, newText: string): Promise<void> {
+  const { data, error } = await withRetry(() =>
+    supabase
+      .from('caso_comentarios')
+      .update({ comentario: newText })
+      .eq('id', commentId)
+      .select('id')
+      .maybeSingle(),
+  )
+
+  if (error) {
+    console.error('[updateCaseComment] Error:', error)
+    throw error
+  }
+
+  if (!data) {
+    throw new Error('No se pudo actualizar el comentario en la base de datos.')
+  }
+}
+
+
+export async function deleteCaseComment(commentId: string): Promise<void> {
+  const { data, error } = await withRetry(() =>
+    supabase
+      .from('caso_comentarios')
+      .delete()
+      .eq('id', commentId)
+      .select('id')
+      .maybeSingle(),
+  )
+
+  if (error) {
+    console.error('[deleteCaseComment] Error:', error)
+    throw error
+  }
+
+  if (!data) {
+    throw new Error('No se pudo eliminar el comentario en la base de datos.')
   }
 }
 
