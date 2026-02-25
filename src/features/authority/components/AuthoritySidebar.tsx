@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { NavLink } from 'react-router-dom'
-import { Bell, FileSearch, LayoutDashboard, Menu, ShieldCheck, X, LogOut } from 'lucide-react'
+import { NavLink, useNavigate } from 'react-router-dom'
+import { Bell, FileSearch, LayoutDashboard, LogOut, Menu, ShieldCheck, X } from 'lucide-react'
+import { logoutUser } from '../../auth/services'
 
 const authorityNavItems = [
   { to: '/authority', label: 'Dashboard', icon: LayoutDashboard },
@@ -11,13 +12,13 @@ const authorityNavItems = [
 
 interface SidebarBodyProps {
   onNavigate?: () => void
+  onLogout: () => void
+  logoutLoading: boolean
 }
 
-function SidebarBody({ onNavigate }: SidebarBodyProps) {
+function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) {
   return (
     <div className="h-full bg-card border-r border-border flex flex-col">
-
-      {/* Header / Brand */}
       <div className="h-20 border-b border-border px-5 flex items-center gap-4 shrink-0">
         <div className="w-11 h-11 rounded-xl bg-primary-soft text-primary flex items-center justify-center shadow-sm border border-border">
           <img
@@ -41,14 +42,12 @@ function SidebarBody({ onNavigate }: SidebarBodyProps) {
         </div>
       </div>
 
-      {/* Nav label */}
       <div className="px-5 pt-5 pb-2">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-text-secondary/50 select-none">
-          Navegación
+          Navegacion
         </p>
       </div>
 
-      {/* Nav items */}
       <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
         {authorityNavItems.map((item) => {
           const { label, icon: Icon } = item
@@ -79,9 +78,7 @@ function SidebarBody({ onNavigate }: SidebarBodyProps) {
                       <Icon size={16} />
                     </span>
                     <span>{label}</span>
-                    {isActive && (
-                      <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
-                    )}
+                    {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
                   </>
                 )}
               </NavLink>
@@ -107,16 +104,17 @@ function SidebarBody({ onNavigate }: SidebarBodyProps) {
         })}
       </nav>
 
-      {/* Footer */}
       <div className="px-3 pb-4 pt-3 border-t border-border shrink-0">
         <button
           type="button"
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-secondary hover:bg-red-50 hover:text-red-500 transition-all duration-150 group"
+          onClick={onLogout}
+          disabled={logoutLoading}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-secondary hover:bg-red-50 hover:text-red-500 transition-all duration-150 group disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <span className="flex items-center justify-center w-7 h-7 rounded-md group-hover:text-red-500 text-text-secondary/60 transition-colors">
             <LogOut size={16} />
           </span>
-          <span>Cerrar sesión</span>
+          <span>{logoutLoading ? 'Cerrando sesion...' : 'Cerrar sesion'}</span>
         </button>
       </div>
     </div>
@@ -124,35 +122,47 @@ function SidebarBody({ onNavigate }: SidebarBodyProps) {
 }
 
 export function AuthoritySidebar() {
+  const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [logoutLoading, setLogoutLoading] = useState(false)
+
+  const handleLogout = async () => {
+    setLogoutLoading(true)
+    try {
+      await logoutUser()
+      setMobileOpen(false)
+      navigate('/login', { replace: true })
+    } catch (err) {
+      console.error('Error al cerrar sesion:', err)
+    } finally {
+      setLogoutLoading(false)
+    }
+  }
 
   return (
     <>
-      {/* Desktop sidebar */}
       <aside className="hidden md:block md:w-64 md:shrink-0">
         <div className="h-full">
-          <SidebarBody />
+          <SidebarBody onLogout={() => void handleLogout()} logoutLoading={logoutLoading} />
         </div>
       </aside>
 
-      {/* Mobile toggle button */}
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
         className="md:hidden fixed top-4 left-4 z-40 bg-card border border-border rounded-xl p-2.5 text-text-primary shadow-md transition-all hover:shadow-lg"
-        aria-label="Abrir menú lateral"
+        aria-label="Abrir menu lateral"
       >
         <Menu size={20} />
       </button>
 
-      {/* Mobile overlay + sidebar */}
       {mobileOpen && (
         <>
           <button
             type="button"
             className="md:hidden fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
-            aria-label="Cerrar menú lateral"
+            aria-label="Cerrar menu lateral"
           />
 
           <aside className="md:hidden fixed inset-y-0 left-0 z-50 w-64 shadow-2xl animate-in slide-in-from-left duration-200">
@@ -160,11 +170,15 @@ export function AuthoritySidebar() {
               type="button"
               onClick={() => setMobileOpen(false)}
               className="absolute top-4 right-4 z-10 bg-card border border-border rounded-lg p-1.5 text-text-secondary hover:text-text-primary transition-colors"
-              aria-label="Cerrar menú lateral"
+              aria-label="Cerrar menu lateral"
             >
               <X size={16} />
             </button>
-            <SidebarBody onNavigate={() => setMobileOpen(false)} />
+            <SidebarBody
+              onNavigate={() => setMobileOpen(false)}
+              onLogout={() => void handleLogout()}
+              logoutLoading={logoutLoading}
+            />
           </aside>
         </>
       )}
