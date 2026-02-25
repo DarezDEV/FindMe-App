@@ -1,5 +1,11 @@
 export {
+  exchangeRecoveryCode,
   registerUser,
+  resendVerificationOtp,
+  sendPasswordResetEmail,
+  updateUserPassword,
+  verifyEmailOtp,
+  verifyRecoveryToken,
   loginUser,
   logoutUser,
   getCurrentSession,

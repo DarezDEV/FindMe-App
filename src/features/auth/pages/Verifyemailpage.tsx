@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ShieldCheck, RotateCcw, ArrowLeft, Mail } from 'lucide-react'
 import { verifyEmailOtp, resendVerificationOtp } from '../../../lib/supabase/auth'
+import { ROLES } from '../../../shared/constants/roles'
+import { useAuth } from '../hooks'
 
 interface Props {
   email: string
@@ -12,6 +14,7 @@ const RESEND_COOLDOWN = 60 // segundos
 
 export default function VerifyEmailPage({ email, onBack }: Props) {
   const navigate = useNavigate()
+  const { refreshUser } = useAuth()
   const [codes, setCodes] = useState(['', '', '', '', '', ''])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -83,6 +86,15 @@ export default function VerifyEmailPage({ email, onBack }: Props) {
     if (paste.length === 6) submitCode(paste)
   }
 
+  const refreshUserWithRetry = async () => {
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const profile = await refreshUser()
+      if (profile) return profile
+      await new Promise((resolve) => window.setTimeout(resolve, 250))
+    }
+    return null
+  }
+
   const submitCode = async (token: string) => {
     if (loading) return
     setLoading(true)
@@ -90,8 +102,20 @@ export default function VerifyEmailPage({ email, onBack }: Props) {
 
     try {
       await verifyEmailOtp(email, token)
-      // Redirigir a login con mensaje de éxito
-      navigate('/login?verified=true')
+      const profile = await refreshUserWithRetry()
+
+      if (!profile) {
+        navigate('/login?verified=true', { replace: true })
+        return
+      }
+
+      if (profile.roles.includes(ROLES.ADMIN)) {
+        navigate('/admin', { replace: true })
+      } else if (profile.roles.includes(ROLES.AUTHORITY)) {
+        navigate('/authority', { replace: true })
+      } else {
+        navigate('/user', { replace: true })
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Código inválido.'
       setError(message)

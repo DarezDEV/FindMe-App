@@ -1,5 +1,5 @@
-import { useState, type FormEvent, type ChangeEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, type FormEvent, type ChangeEvent, type MouseEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { registerUser } from '../services'
 import { Alert } from '../../../shared/components/ui'
 import type { RegisterFormData } from '../types'
@@ -82,11 +82,13 @@ function InputWithIcon({
 }
 
 export default function RegisterPage() {
+  const navigate = useNavigate()
   const [form, setForm] = useState<RegisterFormData>(INITIAL_FORM)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [isLeaving, setIsLeaving] = useState(false)
 
   // ── Paso de verificación ──────────────────────────────────────────────────
   const [step, setStep] = useState<'register' | 'verify'>('register')
@@ -127,6 +129,14 @@ export default function RegisterPage() {
     }
   }
 
+  const handleGoToLogin = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (e.button !== 0 || e.metaKey || e.altKey || e.ctrlKey || e.shiftKey) return
+    e.preventDefault()
+    if (isLeaving) return
+    setIsLeaving(true)
+    window.setTimeout(() => navigate('/login'), 240)
+  }
+
   const passwordMismatch = !!form.confirm && form.confirm !== form.password
 
   // ── Renderizar verificación si el registro fue exitoso ───────────────────
@@ -141,7 +151,11 @@ export default function RegisterPage() {
 
   // ── Formulario de registro ────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-background flex">
+    <div
+      className={`min-h-screen bg-background flex auth-transition ${
+        isLeaving ? 'auth-transition-exit-right' : 'auth-transition-enter'
+      }`}
+    >
       {/* Panel izquierdo — decorativo */}
       <div className="hidden lg:flex lg:w-[45%] bg-primary flex-col justify-between p-12 relative overflow-hidden">
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-white/5 rounded-full" />
@@ -322,7 +336,11 @@ export default function RegisterPage() {
 
           <p className="text-center text-text-secondary text-sm">
             ¿Ya tienes cuenta?{' '}
-            <Link to="/login" className="text-primary hover:text-primary-hover font-medium transition-colors">
+            <Link
+              to="/login"
+              onClick={handleGoToLogin}
+              className="text-primary hover:text-primary-hover font-medium transition-colors"
+            >
               Inicia sesión aquí
             </Link>
           </p>

@@ -34,6 +34,16 @@ const mapAuthError = (message: string): string => {
   if (msg.includes('too many requests') || msg.includes('rate limit')) {
     return 'Demasiados intentos fallidos. Espera unos minutos e intenta de nuevo.'
   }
+  if (
+    msg.includes('over_email_send_rate_limit') ||
+    msg.includes('email rate limit exceeded') ||
+    msg.includes('for security purposes')
+  ) {
+    return 'Ya enviamos un correo hace poco. Espera 60 segundos antes de intentar de nuevo.'
+  }
+  if (msg.includes('invalid grant')) {
+    return 'Correo electrónico o contraseña incorrectos.'
+  }
   if (msg.includes('otp') || msg.includes('token') || msg.includes('expired')) {
     return 'El código es inválido o ha expirado. Solicita uno nuevo.'
   }
@@ -78,7 +88,7 @@ export async function registerUser({ name, last_name, email, password }: Registe
 
 /**
  * Verifica el código OTP de 6 dígitos enviado al correo del usuario.
- * Si es correcto, la cuenta queda confirmada pero NO inicia sesión.
+ * Si es correcto, Supabase confirma la cuenta y crea la sesión automáticamente.
  */
 export async function verifyEmailOtp(email: string, token: string) {
   const { data, error } = await withTimeout(
@@ -90,9 +100,6 @@ export async function verifyEmailOtp(email: string, token: string) {
   )
 
   if (error) throw new Error(mapAuthError(error.message))
-
-  // Cerrar sesión para que el usuario inicie sesión manualmente
-  await supabase.auth.signOut()
 
   return data
 }
@@ -109,6 +116,50 @@ export async function resendVerificationOtp(email: string) {
   )
 
   if (error) throw new Error(mapAuthError(error.message))
+}
+
+/** Envía un enlace de recuperación de contraseña al correo del usuario */
+export async function sendPasswordResetEmail(email: string) {
+  const redirectTo = `${window.location.origin}/reset-password`
+  const { error } = await withTimeout(
+    supabase.auth.resetPasswordForEmail(email, { redirectTo }),
+    12000
+  )
+
+  if (error) throw new Error(mapAuthError(error.message))
+}
+
+/** Intercambia el `code` del enlace por una sesión válida (flujo PKCE) */
+export async function exchangeRecoveryCode(code: string) {
+  const { data, error } = await withTimeout(
+    supabase.auth.exchangeCodeForSession(code)
+  )
+
+  if (error) throw new Error(mapAuthError(error.message))
+  return data
+}
+
+/** Verifica token_hash de recuperación y crea sesión temporal */
+export async function verifyRecoveryToken(tokenHash: string) {
+  const { data, error } = await withTimeout(
+    supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: 'recovery',
+    })
+  )
+
+  if (error) throw new Error(mapAuthError(error.message))
+  return data
+}
+
+/** Actualiza la contraseña del usuario autenticado */
+export async function updateUserPassword(password: string) {
+  const { data, error } = await withTimeout(
+    supabase.auth.updateUser({ password })
+  )
+
+  if (error) throw new Error(mapAuthError(error.message))
+  return data
 }
 
 /** Inicia sesión con email y contraseña */
