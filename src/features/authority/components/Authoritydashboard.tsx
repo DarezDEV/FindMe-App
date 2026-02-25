@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ShieldCheck,
@@ -74,7 +74,7 @@ export function AuthorityDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const loadSummary = async () => {
+  const loadSummary = useCallback(async () => {
     setLoading(true)
     setError(null)
 
@@ -87,11 +87,11 @@ export function AuthorityDashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     void loadSummary()
-  }, [])
+  }, [loadSummary])
 
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-6 space-y-6">

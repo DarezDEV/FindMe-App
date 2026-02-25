@@ -4,9 +4,9 @@ import { Bell, FileSearch, LayoutDashboard, LogOut, Menu, ShieldCheck, X } from 
 import { logoutUser } from '../../auth/services'
 
 const authorityNavItems = [
-  { to: '/authority', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/authority/cases', label: 'Casos', icon: FileSearch },
-  { to: '/authority/cases/pending', label: 'Revision', icon: Bell },
+  { to: '/authority', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { to: '/authority/cases', label: 'Casos', icon: FileSearch, exact: true },
+  { to: '/authority/cases/pending', label: 'Revision', icon: Bell, exact: true },
   { label: 'Alertas', icon: Bell },
 ] as const
 
@@ -18,9 +18,9 @@ interface SidebarBodyProps {
 
 function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) {
   return (
-    <div className="h-full bg-card border-r border-border flex flex-col">
-      <div className="h-20 border-b border-border px-5 flex items-center gap-4 shrink-0">
-        <div className="w-11 h-11 rounded-xl bg-primary-soft text-primary flex items-center justify-center shadow-sm border border-border">
+    <div className="h-full bg-card border-r border-border/90 flex flex-col">
+      <div className="h-20 border-b border-border/80 px-5 flex items-center gap-4 shrink-0">
+        <div className="w-11 h-11 rounded-xl bg-primary-soft/60 text-primary flex items-center justify-center border border-border/70">
           <img
             src="/findMeLogo.svg"
             alt="FindMe"
@@ -34,21 +34,21 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) 
           <ShieldCheck size={22} className="hidden text-primary" />
         </div>
         <div className="flex flex-col gap-0.5">
-          <p className="text-sm font-bold tracking-wide text-text-primary leading-none">FindMe</p>
-          <span className="inline-flex items-center gap-1 text-[10px] font-medium tracking-widest uppercase text-primary bg-primary-soft px-2 py-0.5 rounded-full w-fit">
+          <p className="text-sm font-semibold tracking-wide text-text-primary leading-none">FindMe</p>
+          <span className="inline-flex items-center gap-1 text-[10px] font-medium tracking-[0.18em] uppercase text-primary bg-primary-soft/80 px-2 py-0.5 rounded-full w-fit">
             <ShieldCheck size={9} />
             Authority
           </span>
         </div>
       </div>
 
-      <div className="px-5 pt-5 pb-2">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-text-secondary/50 select-none">
+      <div className="px-5 pt-6 pb-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary/55 select-none">
           Navegacion
         </p>
       </div>
 
-      <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
         {authorityNavItems.map((item) => {
           const { label, icon: Icon } = item
 
@@ -57,28 +57,33 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) 
               <NavLink
                 key={label}
                 to={item.to}
+                end={item.exact}
                 onClick={onNavigate}
                 className={({ isActive }) =>
-                  `group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 ${
+                  `group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors border ${
                     isActive
-                      ? 'bg-primary-soft text-primary font-semibold shadow-sm'
-                      : 'text-text-secondary hover:bg-primary-soft/60 hover:text-text-primary'
+                      ? 'bg-primary-soft/45 text-text-primary border-primary/25'
+                      : 'text-text-secondary border-transparent hover:bg-primary-soft/25 hover:text-text-primary'
                   }`
                 }
               >
                 {({ isActive }) => (
                   <>
                     <span
+                      className={`h-5 w-0.5 rounded-full ${
+                        isActive ? 'bg-primary' : 'bg-transparent group-hover:bg-primary/35'
+                      }`}
+                    />
+                    <span
                       className={`flex items-center justify-center w-7 h-7 rounded-md transition-colors ${
                         isActive
-                          ? 'bg-primary/10 text-primary'
+                          ? 'bg-primary/12 text-primary'
                           : 'text-text-secondary group-hover:text-text-primary'
                       }`}
                     >
                       <Icon size={16} />
                     </span>
-                    <span>{label}</span>
-                    {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />}
+                    <span className={isActive ? 'font-medium' : 'font-normal'}>{label}</span>
                   </>
                 )}
               </NavLink>
@@ -90,8 +95,9 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) 
               key={label}
               type="button"
               onClick={onNavigate}
-              className="group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-secondary/60 hover:bg-primary-soft/40 hover:text-text-secondary transition-all duration-150 cursor-not-allowed"
+              className="group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-secondary/60 border border-transparent hover:bg-primary-soft/20 hover:text-text-secondary transition-colors cursor-not-allowed"
             >
+              <span className="h-5 w-0.5 rounded-full bg-transparent" />
               <span className="flex items-center justify-center w-7 h-7 rounded-md text-text-secondary/50">
                 <Icon size={16} />
               </span>
@@ -104,13 +110,14 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) 
         })}
       </nav>
 
-      <div className="px-3 pb-4 pt-3 border-t border-border shrink-0">
+      <div className="px-3 pb-4 pt-3 border-t border-border/80 shrink-0">
         <button
           type="button"
           onClick={onLogout}
           disabled={logoutLoading}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-secondary hover:bg-red-50 hover:text-red-500 transition-all duration-150 group disabled:opacity-60 disabled:cursor-not-allowed"
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-secondary border border-transparent hover:bg-red-50/70 hover:text-red-500 transition-colors group disabled:opacity-60 disabled:cursor-not-allowed"
         >
+          <span className="h-5 w-0.5 rounded-full bg-transparent group-hover:bg-red-300/80" />
           <span className="flex items-center justify-center w-7 h-7 rounded-md group-hover:text-red-500 text-text-secondary/60 transition-colors">
             <LogOut size={16} />
           </span>
