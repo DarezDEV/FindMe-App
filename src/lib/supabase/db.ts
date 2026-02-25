@@ -17,12 +17,14 @@ export interface AuthorityCaseRow {
   numero_caso: string
   status: CaseStatus | string
   workflow_status: CaseWorkflowStatus | null
+  publicado_por?: string | null
   nombres: string
   apellidos: string
   edad: number | null
   ciudad: string | null
   estado_provincia: string | null
   lugar_ultima_vez: string | null
+  descripcion_general?: string | null
   fecha_desaparicion: string | null
   created_at: string
 }
@@ -173,6 +175,29 @@ export async function softDeleteCase(caseId: string): Promise<void> {
     console.error('[softDeleteCase] Error:', error)
     throw error
   }
+}
+
+export async function getPendingModerationCases(limit = 200): Promise<AuthorityCaseRow[]> {
+  const { data, error } = await withRetry(
+    () =>
+      supabase
+        .from('casos')
+        .select(
+          'id, numero_caso, status, workflow_status, publicado_por, nombres, apellidos, edad, ciudad, estado_provincia, lugar_ultima_vez, descripcion_general, created_at',
+        )
+        .eq('eliminado', false)
+        .or('workflow_status.is.null,workflow_status.eq.pending')
+        .order('created_at', { ascending: false })
+        .limit(limit),
+    { timeoutMs: 30000, retries: 1 },
+  )
+
+  if (error) {
+    console.error('[getPendingModerationCases] Error:', error)
+    throw error
+  }
+
+  return (data ?? []) as AuthorityCaseRow[]
 }
 
 export async function updateCaseWorkflowStatus(caseId: string, status: CaseWorkflowStatus): Promise<void> {
