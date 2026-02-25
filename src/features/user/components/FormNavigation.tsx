@@ -1,16 +1,16 @@
-import { ChevronLeft, ChevronRight, Check } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Check, Loader2 } from 'lucide-react'
 import { STEPS } from '../types/constants'
 
 interface Props {
   step: number
   canNext: boolean
+  loading?: boolean
   onPrev: () => void
   onNext: () => void
   onSubmit: () => void
-  isSubmitting?: boolean
 }
 
-export function FormNavigation({ step, canNext, onPrev, onNext, onSubmit, isSubmitting = false }: Props) {
+export function FormNavigation({ step, canNext, loading = false, onPrev, onNext, onSubmit }: Props) {
   const isLast = step === STEPS.length
 
   return (
@@ -18,7 +18,7 @@ export function FormNavigation({ step, canNext, onPrev, onNext, onSubmit, isSubm
 
       <button
         onClick={onPrev}
-        disabled={step === 1 || isSubmitting}
+        disabled={step === 1 || loading}
         className="btn-secondary flex items-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
       >
         <ChevronLeft size={16} /> Anterior
@@ -31,7 +31,7 @@ export function FormNavigation({ step, canNext, onPrev, onNext, onSubmit, isSubm
       {!isLast ? (
         <button
           onClick={onNext}
-          disabled={!canNext || isSubmitting}
+          disabled={!canNext || loading}
           className="btn-primary flex items-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Siguiente <ChevronRight size={16} />
@@ -39,10 +39,19 @@ export function FormNavigation({ step, canNext, onPrev, onNext, onSubmit, isSubm
       ) : (
         <button
           onClick={onSubmit}
-          disabled={!canNext || isSubmitting}
-          className="btn-primary flex items-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+          disabled={!canNext || loading}
+          className="btn-primary flex items-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed min-w-[140px] justify-center"
         >
-          <Check size={16} /> {isSubmitting ? 'Publicando...' : 'Publicar caso'}
+          {loading ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              Publicando...
+            </>
+          ) : (
+            <>
+              <Check size={16} /> Publicar caso
+            </>
+          )}
         </button>
       )}
 

@@ -41,6 +41,11 @@ interface CasoMediaInsertRow {
   mime_type: string | null
 }
 
+interface UploadedMedia {
+  row: CasoMediaInsertRow
+  path: string
+}
+
 interface CreatedCaseRow {
   id: string
   numero_caso: string
@@ -51,9 +56,14 @@ interface PublishCaseResult {
   caseNumber: string
 }
 
-const CASES_BUCKET = 'missing-persons'
+const CASES_BUCKET = 'casos-media'
 const CONFIGURED_CASES_BUCKET = (import.meta.env.VITE_CASES_BUCKET as string | undefined)?.trim()
 const ACTIVE_CASES_BUCKET = CONFIGURED_CASES_BUCKET || CASES_BUCKET
+
+const MAX_PHOTOS = 10
+const MAX_PHOTO_SIZE = 10 * 1024 * 1024
+const MAX_VIDEO_SIZE = 50 * 1024 * 1024
+const UPLOAD_CONCURRENCY = 3
 
 function nullableText(value: string) {
   const normalized = value.trim()
@@ -107,6 +117,7 @@ function parseCityAndCountry(location: string) {
 
   if (parts.length === 0) return { ciudad: null, pais: null }
   if (parts.length === 1) return { ciudad: parts[0], pais: null }
+
   return {
     ciudad: parts[parts.length - 2] ?? null,
     pais: parts[parts.length - 1] ?? null,
@@ -121,16 +132,20 @@ function buildCaseNumber() {
 function getFileExtension(file: File, fallback: string) {
   const fromName = file.name.split('.').pop()?.toLowerCase()
   if (fromName) return fromName
-  if (file.type.includes('/')) {
-    return file.type.split('/')[1] ?? fallback
-  }
+  if (file.type.includes('/')) return file.type.split('/')[1] ?? fallback
   return fallback
+}
+
+function createMediaToken() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`
 }
 
 function buildUbicacion(formData: FormData) {
   if (!formData.coordenadas) return null
   const { lat, lng } = formData.coordenadas
-  // PostGIS expects geometry text; store WKT POINT(longitude latitude).
   return `POINT(${lng} ${lat})`
 }
 
@@ -139,70 +154,162 @@ function buildStorageBucketMessage() {
 }
 
 function mapStorageErrorMessage(message: string) {
-  if (message.toLowerCase().includes('bucket not found')) {
+  const lower = message.toLowerCase()
+
+  if (lower.includes('bucket not found')) {
     return buildStorageBucketMessage()
   }
+
+  if (lower.includes('row-level security policy')) {
+    return `No tienes permisos para subir archivos al bucket "${ACTIVE_CASES_BUCKET}". Revisa las policies de storage.objects (INSERT/SELECT para usuarios autenticados).`
+  }
+
   return message
+}
+
+function validateMediaPayload(formData: FormData) {
+  if (formData.fotos.length > MAX_PHOTOS) {
+    throw new Error(`Solo se permiten ${MAX_PHOTOS} fotos por caso.`)
+  }
+
+  const invalidPhoto = formData.fotos.find(file => !file.type.startsWith('image/'))
+  if (invalidPhoto) {
+    throw new Error(`"${invalidPhoto.name}" no es una imagen valida.`)
+  }
+
+  const largePhoto = formData.fotos.find(file => file.size > MAX_PHOTO_SIZE)
+  if (largePhoto) {
+    throw new Error(`"${largePhoto.name}" supera el limite de 10 MB.`)
+  }
+
+  if (formData.video) {
+    if (!formData.video.type.startsWith('video/')) {
+      throw new Error('El archivo de video no tiene un formato valido.')
+    }
+    if (formData.video.size > MAX_VIDEO_SIZE) {
+      throw new Error('El video supera el limite de 50 MB.')
+    }
+  }
+}
+
+async function runWithConcurrency<T>(
+  tasks: Array<() => Promise<T>>,
+  concurrency: number
+): Promise<Array<PromiseSettledResult<T>>> {
+  const results: Array<PromiseSettledResult<T>> = new Array(tasks.length)
+  let cursor = 0
+
+  async function worker() {
+    while (true) {
+      const index = cursor
+      cursor += 1
+      if (index >= tasks.length) return
+
+      try {
+        const value = await tasks[index]()
+        results[index] = { status: 'fulfilled', value }
+      } catch (error) {
+        results[index] = { status: 'rejected', reason: error }
+      }
+    }
+  }
+
+  const totalWorkers = Math.max(1, Math.min(concurrency, tasks.length))
+  await Promise.all(Array.from({ length: totalWorkers }, () => worker()))
+  return results
+}
+
+async function deleteUploadedFiles(paths: string[]) {
+  if (paths.length === 0) return
+  const { error } = await supabase.storage.from(ACTIVE_CASES_BUCKET).remove(paths)
+  if (error) {
+    console.warn('[publicarCaso] No se pudieron limpiar archivos subidos:', error.message)
+  }
 }
 
 async function uploadCaseMedia(caseId: string, formData: FormData) {
   if (formData.fotos.length === 0 && !formData.video) return
 
-  const mediaRows: CasoMediaInsertRow[] = []
+  const tasks: Array<() => Promise<UploadedMedia>> = []
 
   for (const [index, file] of formData.fotos.entries()) {
-    const ext = getFileExtension(file, 'jpg')
-    const path = `cases/${caseId}/images/${Date.now()}-${index}.${ext}`
-    let url: string
+    tasks.push(async () => {
+      const ext = getFileExtension(file, 'jpg')
+      const path = `cases/${caseId}/images/${createMediaToken()}-${index}.${ext}`
+      const url = await uploadFile(ACTIVE_CASES_BUCKET, path, file)
 
-    try {
-      url = await uploadFile(ACTIVE_CASES_BUCKET, path, file)
-    } catch (error) {
-      const message = error instanceof Error ? mapStorageErrorMessage(error.message) : 'Error al subir foto del caso.'
-      throw new Error(message)
-    }
-
-    mediaRows.push({
-      caso_id: caseId,
-      tipo: 'foto',
-      url,
-      es_principal: index === 0,
-      orden: index + 1,
-      mime_type: file.type || null,
+      return {
+        path,
+        row: {
+          caso_id: caseId,
+          tipo: 'foto',
+          url,
+          es_principal: index === 0,
+          orden: index + 1,
+          mime_type: file.type || null,
+        },
+      }
     })
   }
 
   if (formData.video) {
-    const ext = getFileExtension(formData.video, 'mp4')
-    const path = `cases/${caseId}/videos/${Date.now()}.${ext}`
-    let url: string
+    tasks.push(async () => {
+      const ext = getFileExtension(formData.video as File, 'mp4')
+      const path = `cases/${caseId}/videos/${createMediaToken()}.${ext}`
+      const url = await uploadFile(ACTIVE_CASES_BUCKET, path, formData.video as File)
 
-    try {
-      url = await uploadFile(ACTIVE_CASES_BUCKET, path, formData.video)
-    } catch (error) {
-      const message = error instanceof Error ? mapStorageErrorMessage(error.message) : 'Error al subir video del caso.'
-      throw new Error(message)
-    }
-
-    mediaRows.push({
-      caso_id: caseId,
-      tipo: 'video',
-      url,
-      es_principal: false,
-      orden: formData.fotos.length + 1,
-      mime_type: formData.video.type || null,
+      return {
+        path,
+        row: {
+          caso_id: caseId,
+          tipo: 'video',
+          url,
+          es_principal: false,
+          orden: formData.fotos.length + 1,
+          mime_type: formData.video?.type || null,
+        },
+      }
     })
   }
 
+  const settled = await runWithConcurrency(tasks, UPLOAD_CONCURRENCY)
+  const successfulUploads = settled
+    .filter((result): result is PromiseFulfilledResult<UploadedMedia> => result.status === 'fulfilled')
+    .map(result => result.value)
+
+  const firstFailure = settled.find(
+    (result): result is PromiseRejectedResult => result.status === 'rejected'
+  )
+
+  if (firstFailure) {
+    await deleteUploadedFiles(successfulUploads.map(upload => upload.path))
+    const message =
+      firstFailure.reason instanceof Error
+        ? mapStorageErrorMessage(firstFailure.reason.message)
+        : 'Error al subir archivos del caso.'
+    throw new Error(message)
+  }
+
+  const mediaRows = successfulUploads.map(upload => upload.row)
   if (mediaRows.length === 0) return
 
   const { error } = await supabase.from('caso_media').insert(mediaRows)
   if (error) {
+    await deleteUploadedFiles(successfulUploads.map(upload => upload.path))
     throw new Error(`No se pudo guardar la media del caso: ${mapStorageErrorMessage(error.message)}`)
   }
 }
 
+async function rollbackCase(caseId: string) {
+  const { error } = await supabase.from('casos').delete().eq('id', caseId)
+  if (error) {
+    console.warn('[publicarCaso] No se pudo revertir caso fallido:', error.message)
+  }
+}
+
 export async function publicarCaso(formData: FormData): Promise<PublishCaseResult> {
+  validateMediaPayload(formData)
+
   const { data, error: userError } = await supabase.auth.getUser()
   if (userError) {
     throw new Error('No se pudo validar la sesion del usuario.')
@@ -257,7 +364,13 @@ export async function publicarCaso(formData: FormData): Promise<PublishCaseResul
   }
 
   const caseRow = createdCase as CreatedCaseRow
-  await uploadCaseMedia(caseRow.id, formData)
+
+  try {
+    await uploadCaseMedia(caseRow.id, formData)
+  } catch (error) {
+    await rollbackCase(caseRow.id)
+    throw error
+  }
 
   return {
     caseId: caseRow.id,

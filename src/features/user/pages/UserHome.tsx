@@ -111,48 +111,55 @@ export default function UserHome() {
           )}
 
           {!casosLoading && !casosError && casosGenerales.length > 0 && (
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {casosGenerales.map(caso => (
                 <Link
                   key={caso.id}
                   to={`/caso/${caso.id}`}
-                  className="card p-4 flex items-center gap-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group"
+                  className="card overflow-hidden hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-primary-soft flex items-center justify-center shrink-0 overflow-hidden">
+                  <div className="aspect-[4/3] bg-primary-soft flex items-center justify-center overflow-hidden">
                     {caso.foto_principal_url ? (
-                      <img src={caso.foto_principal_url} alt="" className="w-full h-full object-cover" />
+                      <img
+                        src={caso.foto_principal_url}
+                        alt={`${caso.nombres} ${caso.apellidos}`}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
                     ) : (
-                      <UserSearch size={20} className="text-primary" />
+                      <UserSearch size={28} className="text-primary" />
                     )}
                   </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-semibold text-text-primary">
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-base font-semibold text-text-primary leading-tight">
                         {caso.nombres} {caso.apellidos}
                       </p>
                       <StatusBadge status={caso.status} />
                     </div>
-                    <div className="flex items-center gap-3 mt-1 flex-wrap">
+
+                    <p className="text-[11px] font-mono text-text-secondary">{caso.numero_caso}</p>
+
+                    <div className="flex items-center gap-3 flex-wrap text-[11px] text-text-secondary">
                       {caso.ciudad && (
-                        <span className="text-[11px] text-text-secondary flex items-center gap-1">
+                        <span className="inline-flex items-center gap-1">
                           <MapPin size={11} /> {caso.ciudad}
                         </span>
                       )}
-                      <span className="text-[11px] text-text-secondary flex items-center gap-1">
+                      <span className="inline-flex items-center gap-1">
                         <Eye size={11} /> {caso.vistas} vistas
                       </span>
-                      <span className="text-[11px] text-text-secondary flex items-center gap-1">
+                      <span className="inline-flex items-center gap-1">
                         <UserSearch size={11} /> {caso.total_fotos} fotos
                       </span>
                     </div>
+
+                    <div className="pt-1">
+                      <span className="text-xs text-primary inline-flex items-center gap-1.5 font-medium">
+                        Ver detalle <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+                      </span>
+                    </div>
                   </div>
-
-                  <span className="text-[11px] font-mono text-text-secondary shrink-0 hidden sm:block">
-                    {caso.numero_caso}
-                  </span>
-
-                  <ChevronRight size={16} className="text-border group-hover:text-primary transition-colors shrink-0" />
                 </Link>
               ))}
             </div>

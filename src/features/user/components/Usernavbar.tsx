@@ -6,7 +6,6 @@ import {
   CheckCircle,
   ChevronDown,
   Flag,
-  HandHeart,
   LogOut,
   MapPin,
   Menu,
@@ -307,15 +306,7 @@ export default function UserNavbar() {
             </div>
 
             <div className="flex items-center gap-0.5">
-              <Link
-                to="/donar"
-                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-text-secondary hover:text-primary hover:bg-primary-soft transition-all duration-150"
-                onClick={closeAll}
-              >
-                <HandHeart size={16} />
-                <span className="hidden lg:block">Donar</span>
-              </Link>
-
+              
               <div className="relative ml-1">
                 <button
                   onClick={() => toggle('publish')}

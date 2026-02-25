@@ -9,6 +9,7 @@ import LoginPage from '../../features/auth/pages/LoginPage'
 import RegisterPage from '../../features/auth/pages/RegisterPage'
 import UserHome from '../../features/user/pages/UserHome'
 import PublicarPersonaPerdidaPage from '../../features/user/pages/PublicarPersonaPerdidaPage'
+import CasoDetallePage from '../../features/user/pages/CasoDetallePage'
 import AdminHome from '../../features/admin/pages/AdminHome'
 import AuthorityHome from '../../features/authority/pages/AuthorityHome'
 
@@ -69,7 +70,7 @@ const router = createBrowserRouter([
       { path: '/donar', element: <Navigate to="/user" replace /> },
       { path: '/perfil', element: <Navigate to="/user" replace /> },
       { path: '/configuracion', element: <Navigate to="/user" replace /> },
-      { path: '/caso/:id', element: <Navigate to="/user" replace /> },
+      { path: '/caso/:id', element: <CasoDetallePage /> },
     ],
   },
 
