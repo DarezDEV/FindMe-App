@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
-  ShieldCheck,
   FileSearch,
   Eye,
   Settings,
@@ -15,6 +14,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useAuth } from "../../auth/hooks";
+import { logoutUser } from "../../auth/services";
 
 const navItems = [
   {
@@ -27,13 +27,12 @@ const navItems = [
     section: "Gestión",
     items: [
       { label: "Usuarios", icon: Users, href: "/admin/users", badge: null },
-      { label: "Roles & Permisos", icon: ShieldCheck, href: "/admin/roles", badge: null },
     ],
   },
   {
     section: "Casos",
     items: [
-      { label: "Todos los Casos", icon: FileSearch, href: "/admin/cases", badge: { count: 12, type: "primary" } },
+      { label: "Casos", icon: FileSearch, href: "/admin/cases", badge: { count: 12, type: "primary" } },
       { label: "Avistamientos", icon: Eye, href: "/admin/sightings", badge: { count: 3, type: "warning" } },
       { label: "Alertas", icon: AlertTriangle, href: "/admin/alerts", badge: { count: 2, type: "error" } },
     ],
@@ -58,13 +57,22 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ children }: AdminSidebarProps) {
   const [open, setOpen] = useState(false);
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const initials = user
     ? `${user.name?.[0] ?? ""}${user.last_nmae?.[0] ?? ""}`.toUpperCase()
     : "AD";
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+      navigate("/login");
+    } catch (err) {
+      console.error("Error al cerrar sesión:", err);
+    }
+  };
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -211,7 +219,7 @@ export default function AdminSidebar({ children }: AdminSidebarProps) {
               </p>
             </div>
             <button
-              onClick={signOut}
+              onClick={handleLogout}
               className="p-1 rounded-md text-text-secondary hover:text-error
                          hover:bg-error/10 transition-all"
               title="Cerrar sesión"
