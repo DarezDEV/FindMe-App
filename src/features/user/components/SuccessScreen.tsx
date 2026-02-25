@@ -10,7 +10,7 @@ interface Props {
 
 export function SuccessScreen({ data, caseNumber, onReset }: Props) {
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+    <div className="flex items-center justify-center py-8">
       <div className="card p-10 text-center space-y-5 max-w-md w-full">
 
         <div className="w-20 h-20 bg-success/10 rounded-full flex items-center justify-center mx-auto">

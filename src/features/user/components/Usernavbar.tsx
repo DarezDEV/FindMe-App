@@ -145,13 +145,13 @@ function buildNotifications(cases: CasoReciente[]): NavbarNotification[] {
 
 function buildMessages(cases: CasoReciente[]): NavbarMessage[] {
   return cases
-    .filter(caso => caso.total_avistamientos > 0)
+    .filter(caso => caso.total_fotos > 0)
     .slice(0, 5)
     .map(caso => ({
       id: `msg-${caso.id}`,
       from: `${caso.nombres} ${caso.apellidos}`.trim(),
       avatar: getInitials(caso.nombres, caso.apellidos),
-      preview: `${caso.total_avistamientos} avistamiento(s) reportado(s) en ${caso.numero_caso}.`,
+      preview: `${caso.total_fotos} archivo(s) multimedia en ${caso.numero_caso}.`,
       time: formatTime(caso.created_at),
       unread: caso.status !== 'encontrado',
     }))

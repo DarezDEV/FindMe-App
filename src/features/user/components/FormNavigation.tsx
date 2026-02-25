@@ -7,9 +7,10 @@ interface Props {
   onPrev: () => void
   onNext: () => void
   onSubmit: () => void
+  isSubmitting?: boolean
 }
 
-export function FormNavigation({ step, canNext, onPrev, onNext, onSubmit }: Props) {
+export function FormNavigation({ step, canNext, onPrev, onNext, onSubmit, isSubmitting = false }: Props) {
   const isLast = step === STEPS.length
 
   return (
@@ -17,7 +18,7 @@ export function FormNavigation({ step, canNext, onPrev, onNext, onSubmit }: Prop
 
       <button
         onClick={onPrev}
-        disabled={step === 1}
+        disabled={step === 1 || isSubmitting}
         className="btn-secondary flex items-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
       >
         <ChevronLeft size={16} /> Anterior
@@ -30,7 +31,7 @@ export function FormNavigation({ step, canNext, onPrev, onNext, onSubmit }: Prop
       {!isLast ? (
         <button
           onClick={onNext}
-          disabled={!canNext}
+          disabled={!canNext || isSubmitting}
           className="btn-primary flex items-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Siguiente <ChevronRight size={16} />
@@ -38,10 +39,10 @@ export function FormNavigation({ step, canNext, onPrev, onNext, onSubmit }: Prop
       ) : (
         <button
           onClick={onSubmit}
-          disabled={!canNext}
+          disabled={!canNext || isSubmitting}
           className="btn-primary flex items-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          <Check size={16} /> Publicar caso
+          <Check size={16} /> {isSubmitting ? 'Publicando...' : 'Publicar caso'}
         </button>
       )}
 

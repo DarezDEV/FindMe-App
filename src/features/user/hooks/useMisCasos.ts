@@ -13,7 +13,6 @@ export interface CasoReciente {
   ciudad: string | null
   foto_principal_url: string | null
   vistas: number
-  total_avistamientos: number
   total_fotos: number
   created_at: string | null
 }
@@ -33,22 +32,24 @@ const CASOS_SELECT = `
   ciudad,
   foto_principal_url,
   vistas,
-  total_avistamientos,
   total_fotos,
   created_at
 `
 
 const QUERY_STALE_TIME = 1000 * 60 * 2
 
-async function fetchCasos(limit: number, userId?: string): Promise<CasoReciente[]> {
+async function fetchCasos(limit?: number, userId?: string): Promise<CasoReciente[]> {
   let query = supabase
     .from('casos_con_media')
     .select(CASOS_SELECT)
     .order('created_at', { ascending: false })
-    .limit(limit)
 
   if (userId) {
     query = query.eq('publicado_por', userId)
+  }
+
+  if (typeof limit === 'number') {
+    query = query.limit(limit)
   }
 
   const { data, error } = await query
@@ -66,7 +67,7 @@ export function useMisCasos(userId: string, limit = 3) {
   })
 }
 
-export function useCasosGenerales(limit = 6) {
+export function useCasosGenerales(limit?: number) {
   return useQuery({
     queryKey: ['casos-generales', limit],
     queryFn: () => fetchCasos(limit),
