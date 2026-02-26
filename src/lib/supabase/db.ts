@@ -183,7 +183,7 @@ export async function getPendingModerationCases(limit = 200): Promise<AuthorityC
       supabase
         .from('casos')
         .select(
-          'id, numero_caso, status, workflow_status, publicado_por, nombres, apellidos, edad, ciudad, estado_provincia, lugar_ultima_vez, descripcion_general, created_at',
+          'id, numero_caso, status, workflow_status, publicado_por, nombres, apellidos, edad, ciudad, estado_provincia, lugar_ultima_vez, descripcion_general, fecha_desaparicion, created_at',
         )
         .eq('eliminado', false)
         .or('workflow_status.is.null,workflow_status.eq.pending')
