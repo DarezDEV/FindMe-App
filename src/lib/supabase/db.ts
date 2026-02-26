@@ -21,12 +21,23 @@ export interface AuthorityCaseRow {
   nombres: string
   apellidos: string
   edad: number | null
+  genero?: string | null
+  telefono_contacto?: string | null
+  email_contacto?: string | null
+  fecha_nacimiento?: string | null
   ciudad: string | null
   estado_provincia: string | null
   lugar_ultima_vez: string | null
   descripcion_general?: string | null
   fecha_desaparicion: string | null
   created_at: string
+}
+
+export interface ProfileBasicRow {
+  id: string
+  name: string | null
+  last_name: string | null
+  email: string | null
 }
 
 export interface AuthorityDashboardSummary {
@@ -183,7 +194,7 @@ export async function getPendingModerationCases(limit = 200): Promise<AuthorityC
       supabase
         .from('casos')
         .select(
-          'id, numero_caso, status, workflow_status, publicado_por, nombres, apellidos, edad, ciudad, estado_provincia, lugar_ultima_vez, descripcion_general, created_at',
+          'id, numero_caso, status, workflow_status, publicado_por, nombres, apellidos, edad, genero, telefono_contacto, email_contacto, fecha_nacimiento, ciudad, estado_provincia, lugar_ultima_vez, descripcion_general, fecha_desaparicion, created_at',
         )
         .eq('eliminado', false)
         .or('workflow_status.is.null,workflow_status.eq.pending')
@@ -198,6 +209,27 @@ export async function getPendingModerationCases(limit = 200): Promise<AuthorityC
   }
 
   return (data ?? []) as AuthorityCaseRow[]
+}
+
+export async function getProfilesBasicByIds(userIds: string[]): Promise<ProfileBasicRow[]> {
+  if (userIds.length === 0) return []
+
+  const uniqueIds = [...new Set(userIds.filter(Boolean))]
+  if (uniqueIds.length === 0) return []
+
+  const { data, error } = await withRetry(() =>
+    supabase
+      .from('profiles')
+      .select('id, name, last_name, email')
+      .in('id', uniqueIds),
+  )
+
+  if (error) {
+    console.error('[getProfilesBasicByIds] Error:', error)
+    throw error
+  }
+
+  return (data ?? []) as ProfileBasicRow[]
 }
 
 export async function updateCaseWorkflowStatus(caseId: string, status: CaseWorkflowStatus): Promise<void> {
@@ -309,6 +341,99 @@ export async function deleteCaseComment(commentId: string): Promise<void> {
   if (!data) {
     throw new Error('No se pudo eliminar el comentario en la base de datos.')
   }
+}
+
+export async function getCasePhotoUrlFromStorage(caseId: string): Promise<string | null> {
+  const bucketCandidates = ['casos-media', 'missing-persons']
+  const pathCandidates = [
+    `images/${caseId}/images`,
+    `images/${caseId}`,
+    `${caseId}/images`,
+    `cases/${caseId}`,
+    caseId,
+    `caso/${caseId}`,
+  ]
+
+  for (const bucket of bucketCandidates) {
+    for (const basePath of pathCandidates) {
+      const { data, error } = await withRetry(() =>
+        supabase.storage
+          .from(bucket)
+          .list(basePath, {
+            limit: 100,
+            offset: 0,
+          }),
+      )
+
+      if (error) {
+        continue
+      }
+
+      const directFiles = (data ?? []).filter((item) => item.name && !item.name.endsWith('/'))
+      let filesWithPath: Array<{ fullPath: string; updatedAt?: string | null; createdAt?: string | null }> =
+        directFiles.map((item) => ({
+          fullPath: `${basePath}/${item.name}`,
+          updatedAt: item.updated_at,
+          createdAt: item.created_at,
+        }))
+
+      const folders = (data ?? []).filter((item) => !item.metadata)
+
+      for (const folder of folders) {
+        const nestedPath = `${basePath}/${folder.name}`
+        const nested = await withRetry(() =>
+          supabase.storage
+            .from(bucket)
+            .list(nestedPath, {
+              limit: 100,
+              offset: 0,
+            }),
+        )
+
+        if (nested.error || !nested.data?.length) {
+          continue
+        }
+
+        const nestedFiles = nested.data.filter((item) => item.name && !item.name.endsWith('/'))
+        filesWithPath = filesWithPath.concat(
+          nestedFiles.map((item) => ({
+            fullPath: `${nestedPath}/${item.name}`,
+            updatedAt: item.updated_at,
+            createdAt: item.created_at,
+          })),
+        )
+      }
+
+      if (filesWithPath.length === 0) {
+        continue
+      }
+
+      const latestFile = [...filesWithPath].sort((a, b) => {
+        const aTime = new Date(a.updatedAt ?? a.createdAt ?? 0).getTime()
+        const bTime = new Date(b.updatedAt ?? b.createdAt ?? 0).getTime()
+        return bTime - aTime
+      })[0]
+
+      const fullPath = latestFile.fullPath
+
+      const signed = await withRetry(() =>
+        supabase.storage
+          .from(bucket)
+          .createSignedUrl(fullPath, 60 * 60),
+      )
+
+      if (!signed.error && signed.data?.signedUrl) {
+        return signed.data.signedUrl
+      }
+
+      const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(fullPath)
+      if (publicData.publicUrl) {
+        return publicData.publicUrl
+      }
+    }
+  }
+
+  return null
 }
 
 export async function getAuthorityDashboardSummary(): Promise<AuthorityDashboardSummary> {
