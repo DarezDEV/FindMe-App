@@ -10,6 +10,7 @@ import AdminHome from '../../features/admin/pages/AdminHome'
 import AuthorityHome from '../../features/authority/pages/AuthorityHome'
 import AuthorityCases from '../../features/authority/pages/AuthorityCases'
 import PendingCasesPage from '../../features/authority/pages/PendingCasesPage'
+import LandingPage from '../../features/public/pages/LandingPage'
 
 function UnauthorizedPage() {
   return (
@@ -33,6 +34,7 @@ function UnauthorizedPage() {
 
 const router = createBrowserRouter([
   // PÃºblicas (solo usuarios NO autenticados)
+  { path: '/', element: <LandingPage /> },
   {
     element: <GuestRoute />,
     children: [
@@ -68,9 +70,8 @@ const router = createBrowserRouter([
     ],
   },
 
-  // RaÃ­z y fallback van al login
-  { path: '/', element: <Navigate to="/login" replace /> },
-  { path: '*', element: <Navigate to="/login" replace /> },
+  // Fallback
+  { path: '*', element: <Navigate to="/" replace /> },
 ])
 
 export function AppRouter() {
