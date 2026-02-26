@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Alert, Spinner } from '../../../shared/components/ui'
-import { useAuth } from '../../auth/hooks'
-import { AuthoritySidebar } from '../components/AuthoritySidebar'
+import { useAuth} from '../../auth/hooks'
+import{ AuthorityHome } from './AuthorityHome'
 import { CaseDetailPanel } from '../components/moderation/CaseDetailPanel'
 import { CommentItem } from '../components/moderation/CommentItem'
 import { CommentModal } from '../components/moderation/CommentModal'
@@ -21,11 +21,15 @@ import {
   updateCaseWorkflowStatus,
 } from '../../../lib/supabase/db'
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 type CaseComment = {
   id: string
   text: string
   authorId: string
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatDate(dateIso: string) {
   const parsed = new Date(dateIso)
@@ -75,6 +79,8 @@ function formatWorkflowStatus(status: string | null | undefined) {
       return 'Pendiente'
   }
 }
+
+// ─── CommentItem ──────────────────────────────────────────────────────────────
 
 export default function PendingCasesPage() {
   const { user } = useAuth()
@@ -376,7 +382,11 @@ export default function PendingCasesPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-4">
-              <PendingList cases={pendingCases} selectedCaseId={selectedCaseId} onSelectCase={setSelectedCaseId} />
+              <PendingList
+                cases={pendingCases}
+                selectedCaseId={selectedCaseId}
+                onSelectCase={setSelectedCaseId}
+              />
 
               <div className="space-y-4">
                 <CaseDetailPanel selectedCase={selectedCaseWithPhoto} />

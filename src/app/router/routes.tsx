@@ -1,4 +1,4 @@
-﻿import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import { RoleRoute } from './RoleRoute'
 import { GuestRoute } from './GuestRoute'
 import { ROLES } from '../../shared/constants/roles'
@@ -23,9 +23,9 @@ function UnauthorizedPage() {
           </svg>
         </div>
         <h2 className="text-xl font-bold text-text-primary">Acceso no autorizado</h2>
-        <p className="text-text-secondary text-sm">No tienes permisos para ver esta pÃ¡gina.</p>
+        <p className="text-text-secondary text-sm">No tienes permisos para ver esta página.</p>
         <a href="/" className="inline-block text-primary hover:text-primary-hover text-sm font-medium transition-colors">
-          â† Volver al inicio
+          ← Volver al inicio
         </a>
       </div>
     </div>
@@ -33,7 +33,7 @@ function UnauthorizedPage() {
 }
 
 const router = createBrowserRouter([
-  // PÃºblicas (solo usuarios NO autenticados)
+  // Públicas (solo usuarios NO autenticados)
   { path: '/', element: <LandingPage /> },
   {
     element: <GuestRoute />,
@@ -44,7 +44,7 @@ const router = createBrowserRouter([
   },
   { path: '/unauthorized', element: <UnauthorizedPage /> },
 
-  // Usuario comÃºn
+  // Usuario común
   {
     element: <RoleRoute allowedRoles={[ROLES.USER]} />,
     children: [
