@@ -21,12 +21,23 @@ export interface AuthorityCaseRow {
   nombres: string
   apellidos: string
   edad: number | null
+  genero?: string | null
+  telefono_contacto?: string | null
+  email_contacto?: string | null
+  fecha_nacimiento?: string | null
   ciudad: string | null
   estado_provincia: string | null
   lugar_ultima_vez: string | null
   descripcion_general?: string | null
   fecha_desaparicion: string | null
   created_at: string
+}
+
+export interface ProfileBasicRow {
+  id: string
+  name: string | null
+  last_name: string | null
+  email: string | null
 }
 
 export interface AuthorityDashboardSummary {
@@ -183,7 +194,7 @@ export async function getPendingModerationCases(limit = 200): Promise<AuthorityC
       supabase
         .from('casos')
         .select(
-          'id, numero_caso, status, workflow_status, publicado_por, nombres, apellidos, edad, ciudad, estado_provincia, lugar_ultima_vez, descripcion_general, fecha_desaparicion, created_at',
+          'id, numero_caso, status, workflow_status, publicado_por, nombres, apellidos, edad, genero, telefono_contacto, email_contacto, fecha_nacimiento, ciudad, estado_provincia, lugar_ultima_vez, descripcion_general, fecha_desaparicion, created_at',
         )
         .eq('eliminado', false)
         .or('workflow_status.is.null,workflow_status.eq.pending')
@@ -198,6 +209,27 @@ export async function getPendingModerationCases(limit = 200): Promise<AuthorityC
   }
 
   return (data ?? []) as AuthorityCaseRow[]
+}
+
+export async function getProfilesBasicByIds(userIds: string[]): Promise<ProfileBasicRow[]> {
+  if (userIds.length === 0) return []
+
+  const uniqueIds = [...new Set(userIds.filter(Boolean))]
+  if (uniqueIds.length === 0) return []
+
+  const { data, error } = await withRetry(() =>
+    supabase
+      .from('profiles')
+      .select('id, name, last_name, email')
+      .in('id', uniqueIds),
+  )
+
+  if (error) {
+    console.error('[getProfilesBasicByIds] Error:', error)
+    throw error
+  }
+
+  return (data ?? []) as ProfileBasicRow[]
 }
 
 export async function updateCaseWorkflowStatus(caseId: string, status: CaseWorkflowStatus): Promise<void> {
