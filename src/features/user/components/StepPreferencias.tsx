@@ -39,6 +39,7 @@ export function StepPreferencias({ data, set }: Props) {
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
           {IDIOMAS.map(lang => (
             <button
+              type="button"
               key={lang.code}
               onClick={() => set('idioma', lang.code)}
               className={`px-3 py-2.5 rounded-lg border text-sm font-medium transition-all duration-150
@@ -61,6 +62,7 @@ export function StepPreferencias({ data, set }: Props) {
             const active = data.visibilidadContacto === opt.value
             return (
               <button
+                type="button"
                 key={opt.value}
                 onClick={() => set('visibilidadContacto', opt.value)}
                 className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl border text-left

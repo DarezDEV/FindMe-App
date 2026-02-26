@@ -15,8 +15,9 @@ export async function uploadFile(
   file: File
 ): Promise<string> {
   const { error } = await supabase.storage.from(bucket).upload(path, file, {
-    upsert: true,
+    upsert: false,
     cacheControl: '3600',
+    contentType: file.type || undefined,
   })
   if (error) throw error
 

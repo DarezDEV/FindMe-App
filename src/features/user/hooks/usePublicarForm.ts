@@ -15,7 +15,16 @@ export function usePublicarForm() {
     setData(prev => ({ ...prev, [key]: value }))
 
   const canNext = (): boolean => {
-    if (step === 1) return !!(data.nombres && data.apellidos && data.edad && data.genero && data.descripcion)
+    if (step === 1) {
+      return !!(
+        data.nombres.trim() &&
+        data.apellidos.trim() &&
+        data.edad.trim() &&
+        data.genero.trim() &&
+        data.estatura.trim() &&
+        data.descripcion.trim()
+      )
+    }
     if (step === 3) return !!data.lugarDesaparicion
     if (step === 4) return !!(data.fechaDesaparicion && data.lugarUltimaVez && data.descripcionCircunstancias)
     if (step === 5) return data.aceptaTerminos

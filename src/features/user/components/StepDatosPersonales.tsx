@@ -57,11 +57,14 @@ export function StepDatosPersonales({ data, set }: Props) {
           />
         </div>
         <div>
-          <Label>Estatura (cm)</Label>
+          <Label required>Estatura (cm o m)</Label>
           <input
             className="input-field"
             type="number"
-            placeholder="170"
+            placeholder="170 o 1.70"
+            min={1}
+            max={300}
+            step={0.01}
             value={data.estatura}
             onChange={e => set('estatura', e.target.value)}
           />
@@ -72,6 +75,9 @@ export function StepDatosPersonales({ data, set }: Props) {
             className="input-field"
             type="number"
             placeholder="65"
+            min={2}
+            max={500}
+            step={0.1}
             value={data.peso}
             onChange={e => set('peso', e.target.value)}
           />

@@ -17,6 +17,7 @@ export function FormNavigation({ step, canNext, loading = false, onPrev, onNext,
     <div className="flex items-center justify-between mt-8 pt-5 border-t border-border">
 
       <button
+        type="button"
         onClick={onPrev}
         disabled={step === 1 || loading}
         className="btn-secondary flex items-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
@@ -30,6 +31,7 @@ export function FormNavigation({ step, canNext, loading = false, onPrev, onNext,
 
       {!isLast ? (
         <button
+          type="button"
           onClick={onNext}
           disabled={!canNext || loading}
           className="btn-primary flex items-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
@@ -38,6 +40,7 @@ export function FormNavigation({ step, canNext, loading = false, onPrev, onNext,
         </button>
       ) : (
         <button
+          type="button"
           onClick={onSubmit}
           disabled={!canNext || loading}
           className="btn-primary flex items-center gap-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed min-w-[140px] justify-center"

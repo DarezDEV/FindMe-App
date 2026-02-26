@@ -34,6 +34,8 @@ interface CasoInsertRow {
 
 interface CasoMediaInsertRow {
   caso_id: string
+  subido_por: string
+  storage_path: string
   tipo: 'foto' | 'video'
   url: string
   es_principal: boolean
@@ -63,7 +65,10 @@ const ACTIVE_CASES_BUCKET = CONFIGURED_CASES_BUCKET || CASES_BUCKET
 const MAX_PHOTOS = 10
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024
 const MAX_VIDEO_SIZE = 50 * 1024 * 1024
-const UPLOAD_CONCURRENCY = 3
+const UPLOAD_CONCURRENCY = 1
+const QUERY_TIMEOUT_MS = 25_000
+const UPLOAD_TIMEOUT_MS = 60_000
+const CLEANUP_TIMEOUT_MS = 12_000
 
 function nullableText(value: string) {
   const normalized = value.trim()
@@ -81,8 +86,23 @@ function normalizeEnumValue(value: string) {
 
 function nullableNumber(value: string) {
   if (!value.trim()) return null
-  const parsed = Number(value)
+  const parsed = Number(value.replace(',', '.'))
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function normalizeHeightCm(value: string) {
+  const parsed = nullableNumber(value)
+  if (parsed === null) return null
+
+  // If user typed meters (e.g. 1.70), convert to centimeters.
+  const normalized = parsed > 0 && parsed <= 3 ? parsed * 100 : parsed
+  return Math.round(normalized)
+}
+
+function normalizeWeightKg(value: string) {
+  const parsed = nullableNumber(value)
+  if (parsed === null) return null
+  return Math.round(parsed * 10) / 10
 }
 
 function normalizeGenero(value: string) {
@@ -167,6 +187,51 @@ function mapStorageErrorMessage(message: string) {
   return message
 }
 
+function mapCasoMediaInsertErrorMessage(message: string) {
+  const lower = message.toLowerCase()
+
+  if (lower.includes('row-level security policy')) {
+    return 'No tienes permisos para registrar la media en la tabla "caso_media". Revisa policies INSERT/SELECT en public.caso_media para usuarios autenticados.'
+  }
+
+  if (lower.includes('storage_path') && lower.includes('not-null')) {
+    return 'No se pudo registrar la ruta del archivo (storage_path) en caso_media.'
+  }
+
+  if (lower.includes('subido_por') && lower.includes('not-null')) {
+    return 'No se pudo registrar el usuario que sube la media (subido_por) en caso_media.'
+  }
+
+  if (lower.includes('foreign key')) {
+    return 'No se pudo relacionar la media con el caso. Verifica que el caso exista y que la referencia caso_id sea valida.'
+  }
+
+  const missingColumnMatch = message.match(/null value in column "([^"]+)"/i)
+  if (lower.includes('not-null constraint') && missingColumnMatch?.[1]) {
+    return `Falta un campo obligatorio en caso_media: ${missingColumnMatch[1]}.`
+  }
+
+  return message
+}
+
+function mapCasoInsertErrorMessage(message: string) {
+  const lower = message.toLowerCase()
+
+  if (lower.includes('casos_estatura_cm_check')) {
+    return 'La estatura no cumple el formato permitido. Ingresa estatura en cm (ejemplo: 170) o en metros (1.70).'
+  }
+
+  if (lower.includes('casos_peso_kg_check')) {
+    return 'El peso no cumple el formato permitido. Ingresa el peso en kg (ejemplo: 65).'
+  }
+
+  if (lower.includes('check constraint')) {
+    return 'Uno de los datos numericos no cumple las reglas del caso. Revisa edad, estatura y peso.'
+  }
+
+  return mapStorageErrorMessage(message)
+}
+
 function validateMediaPayload(formData: FormData) {
   if (formData.fotos.length > MAX_PHOTOS) {
     throw new Error(`Solo se permiten ${MAX_PHOTOS} fotos por caso.`)
@@ -189,6 +254,46 @@ function validateMediaPayload(formData: FormData) {
     if (formData.video.size > MAX_VIDEO_SIZE) {
       throw new Error('El video supera el limite de 50 MB.')
     }
+  }
+}
+
+function validateBodyMetrics(formData: FormData) {
+  const rawHeight = formData.estatura.trim()
+  if (!rawHeight) {
+    throw new Error('La estatura es obligatoria para publicar el caso.')
+  }
+
+  const height = normalizeHeightCm(rawHeight)
+  if (height === null) {
+    throw new Error('La estatura debe ser un numero valido.')
+  }
+
+  if (height < 40 || height > 300) {
+    throw new Error('La estatura debe estar entre 40 cm y 300 cm.')
+  }
+
+  const weight = normalizeWeightKg(formData.peso)
+  if (weight !== null && (weight < 2 || weight > 500)) {
+    throw new Error('El peso debe estar entre 2 kg y 500 kg.')
+  }
+}
+
+async function withTimeout<T>(
+  operation: PromiseLike<T> | T,
+  timeoutMs: number,
+  timeoutMessage: string
+) {
+  let timer: ReturnType<typeof setTimeout> | null = null
+
+  try {
+    return await Promise.race([
+      Promise.resolve(operation),
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
   }
 }
 
@@ -221,13 +326,22 @@ async function runWithConcurrency<T>(
 
 async function deleteUploadedFiles(paths: string[]) {
   if (paths.length === 0) return
-  const { error } = await supabase.storage.from(ACTIVE_CASES_BUCKET).remove(paths)
-  if (error) {
-    console.warn('[publicarCaso] No se pudieron limpiar archivos subidos:', error.message)
+  try {
+    const { error } = await withTimeout(
+      Promise.resolve(supabase.storage.from(ACTIVE_CASES_BUCKET).remove(paths)),
+      CLEANUP_TIMEOUT_MS,
+      'Timeout limpiando archivos temporales.'
+    )
+    if (error) {
+      console.warn('[publicarCaso] No se pudieron limpiar archivos subidos:', error.message)
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Error desconocido en limpieza de archivos.'
+    console.warn('[publicarCaso] No se pudieron limpiar archivos subidos:', message)
   }
 }
 
-async function uploadCaseMedia(caseId: string, formData: FormData) {
+async function uploadCaseMedia(caseId: string, uploadedBy: string, formData: FormData) {
   if (formData.fotos.length === 0 && !formData.video) return
 
   const tasks: Array<() => Promise<UploadedMedia>> = []
@@ -236,12 +350,18 @@ async function uploadCaseMedia(caseId: string, formData: FormData) {
     tasks.push(async () => {
       const ext = getFileExtension(file, 'jpg')
       const path = `cases/${caseId}/images/${createMediaToken()}-${index}.${ext}`
-      const url = await uploadFile(ACTIVE_CASES_BUCKET, path, file)
+      const url = await withTimeout(
+        uploadFile(ACTIVE_CASES_BUCKET, path, file),
+        UPLOAD_TIMEOUT_MS,
+        `Se agoto el tiempo al subir "${file.name}". Intenta nuevamente con mejor conexion o con un archivo mas pequeno.`
+      )
 
       return {
         path,
         row: {
           caso_id: caseId,
+          subido_por: uploadedBy,
+          storage_path: path,
           tipo: 'foto',
           url,
           es_principal: index === 0,
@@ -256,12 +376,18 @@ async function uploadCaseMedia(caseId: string, formData: FormData) {
     tasks.push(async () => {
       const ext = getFileExtension(formData.video as File, 'mp4')
       const path = `cases/${caseId}/videos/${createMediaToken()}.${ext}`
-      const url = await uploadFile(ACTIVE_CASES_BUCKET, path, formData.video as File)
+      const url = await withTimeout(
+        uploadFile(ACTIVE_CASES_BUCKET, path, formData.video as File),
+        UPLOAD_TIMEOUT_MS,
+        `Se agoto el tiempo al subir el video "${formData.video?.name ?? 'sin-nombre'}". Intenta nuevamente con mejor conexion o menor tamano.`
+      )
 
       return {
         path,
         row: {
           caso_id: caseId,
+          subido_por: uploadedBy,
+          storage_path: path,
           tipo: 'video',
           url,
           es_principal: false,
@@ -293,24 +419,42 @@ async function uploadCaseMedia(caseId: string, formData: FormData) {
   const mediaRows = successfulUploads.map(upload => upload.row)
   if (mediaRows.length === 0) return
 
-  const { error } = await supabase.from('caso_media').insert(mediaRows)
+  const { error } = await withTimeout(
+    Promise.resolve(supabase.from('caso_media').insert(mediaRows)),
+    QUERY_TIMEOUT_MS,
+    'Se agoto el tiempo al guardar la media del caso.'
+  )
   if (error) {
     await deleteUploadedFiles(successfulUploads.map(upload => upload.path))
-    throw new Error(`No se pudo guardar la media del caso: ${mapStorageErrorMessage(error.message)}`)
+    throw new Error(`No se pudo guardar la media del caso: ${mapCasoMediaInsertErrorMessage(error.message)}`)
   }
 }
 
 async function rollbackCase(caseId: string) {
-  const { error } = await supabase.from('casos').delete().eq('id', caseId)
-  if (error) {
-    console.warn('[publicarCaso] No se pudo revertir caso fallido:', error.message)
+  try {
+    const { error } = await withTimeout(
+      Promise.resolve(supabase.from('casos').delete().eq('id', caseId)),
+      QUERY_TIMEOUT_MS,
+      'Timeout al revertir caso fallido.'
+    )
+    if (error) {
+      console.warn('[publicarCaso] No se pudo revertir caso fallido:', error.message)
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Error desconocido al revertir caso fallido.'
+    console.warn('[publicarCaso] No se pudo revertir caso fallido:', message)
   }
 }
 
 export async function publicarCaso(formData: FormData): Promise<PublishCaseResult> {
   validateMediaPayload(formData)
+  validateBodyMetrics(formData)
 
-  const { data, error: userError } = await supabase.auth.getUser()
+  const { data, error: userError } = await withTimeout(
+    supabase.auth.getUser(),
+    QUERY_TIMEOUT_MS,
+    'Se agoto el tiempo al validar la sesion. Recarga la pagina e intenta de nuevo.'
+  )
   if (userError) {
     throw new Error('No se pudo validar la sesion del usuario.')
   }
@@ -330,8 +474,8 @@ export async function publicarCaso(formData: FormData): Promise<PublishCaseResul
     apellidos: formData.apellidos.trim(),
     edad: nullableNumber(formData.edad),
     genero: normalizeGenero(formData.genero),
-    estatura_cm: nullableNumber(formData.estatura),
-    peso_kg: nullableNumber(formData.peso),
+    estatura_cm: normalizeHeightCm(formData.estatura),
+    peso_kg: normalizeWeightKg(formData.peso),
     color_piel: normalizeColorPiel(formData.colorPiel),
     color_cabello: normalizeColorCabello(formData.colorCabello),
     color_ojos: normalizeColorOjos(formData.colorOjos),
@@ -353,20 +497,26 @@ export async function publicarCaso(formData: FormData): Promise<PublishCaseResul
     status: 'activo',
   }
 
-  const { data: createdCase, error: caseError } = await supabase
-    .from('casos')
-    .insert(payload)
-    .select('id, numero_caso')
-    .single()
+  const { data: createdCase, error: caseError } = await withTimeout(
+    Promise.resolve(
+      supabase
+        .from('casos')
+        .insert(payload)
+        .select('id, numero_caso')
+        .single()
+    ),
+    QUERY_TIMEOUT_MS,
+    'Se agoto el tiempo al crear el caso. Intenta nuevamente.'
+  )
 
   if (caseError) {
-    throw new Error(`No se pudo crear el caso: ${mapStorageErrorMessage(caseError.message)}`)
+    throw new Error(`No se pudo crear el caso: ${mapCasoInsertErrorMessage(caseError.message)}`)
   }
 
   const caseRow = createdCase as CreatedCaseRow
 
   try {
-    await uploadCaseMedia(caseRow.id, formData)
+    await uploadCaseMedia(caseRow.id, user.id, formData)
   } catch (error) {
     await rollbackCase(caseRow.id)
     throw error
