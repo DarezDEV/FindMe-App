@@ -4,9 +4,13 @@ import { RoleRoute } from './RoleRoute'
 import { ROLES } from '../../shared/constants/roles'
 import LoginPage from '../../features/auth/pages/LoginPage'
 import RegisterPage from '../../features/auth/pages/RegisterPage'
+import ForgotPasswordPage from '../../features/auth/pages/ForgotPasswordPage'
+import ResetPasswordPage from '../../features/auth/pages/ResetPasswordPage'
+import UserHome from '../../features/user/pages/UserHome'
 import AdminHome from '../../features/admin/pages/AdminHome'
 import UserHome from '../../features/user/pages/UserHome'
 import AuthorityHome from '../../features/authority/pages/AuthorityHome'
+import AdminUsers from '../../features/admin/pages/AdminUsers'
 import AuthorityCases from '../../features/authority/pages/AuthorityCases'
 import PendingCasesPage from '../../features/authority/pages/PendingCasesPage'
 import LandingPage from '../../features/public/pages/LandingPage'
@@ -50,6 +54,7 @@ const router = createBrowserRouter([
     children: [
       { path: '/login', element: <LoginPage /> },
       { path: '/register', element: <RegisterPage /> },
+      { path: '/forgot-password', element: <ForgotPasswordPage /> },
     ],
   },
 
@@ -57,12 +62,18 @@ const router = createBrowserRouter([
   {
     element: <RoleRoute allowedRoles={[ROLES.USER]} />,
     children: [{ path: '/dashboard', element: <UserHome /> }],
+    children: [
+      { path: '/user', element: <UserHome /> },
+    ],
   },
 
   // Solo admin
   {
     element: <RoleRoute allowedRoles={[ROLES.ADMIN]} />,
-    children: [{ path: '/admin', element: <AdminHome /> }],
+    children: [
+      { path: '/admin/dashboard', element: <AdminHome /> },
+      { path: '/admin/users', element: <AdminUsers /> },
+    ],
   },
 
   // Autoridad o admin
