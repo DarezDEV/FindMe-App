@@ -48,6 +48,14 @@ export interface CasoMedia {
   created_at: string | null
 }
 
+export interface CasoComentario {
+  id: string
+  autor: string
+  contenido: string
+  estado: string | null
+  created_at: string | null
+}
+
 interface CasoStatsRow {
   status: CasoStatus
   vistas: number | null
@@ -201,6 +209,116 @@ function isViewErrorRecoverable(message: string) {
   )
 }
 
+function normalizeText(value: unknown) {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim()
+  return normalized.length > 0 ? normalized : null
+}
+
+function pickText(row: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = normalizeText(row[key])
+    if (value) return value
+  }
+  return null
+}
+
+function toCommentId(value: unknown, fallback: string) {
+  if (typeof value === 'string' && value.trim()) return value
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return fallback
+}
+
+function normalizeCommentRow(row: Record<string, unknown>, index: number): CasoComentario | null {
+  const contenido = pickText(row, [
+    'comentario',
+    'contenido',
+    'mensaje',
+    'texto',
+    'detalle',
+    'descripcion',
+    'observacion',
+    'nota',
+  ])
+
+  if (!contenido) return null
+
+  const autoridadNombre = pickText(row, [
+    'autoridad_nombre',
+    'nombre_autoridad',
+    'autor',
+    'author_name',
+    'creado_por_nombre',
+    'created_by_name',
+  ])
+
+  const autoridadId = pickText(row, ['autoridad_id', 'creado_por', 'created_by', 'user_id'])
+  const autor = autoridadNombre ?? (autoridadId ? `Autoridad ${autoridadId.slice(0, 8)}` : 'Autoridad')
+
+  return {
+    id: toCommentId(row.id, `comentario-${index + 1}`),
+    autor,
+    contenido,
+    estado: pickText(row, ['estado', 'status', 'tipo']),
+    created_at: pickText(row, ['created_at', 'fecha', 'fecha_comentario', 'comentado_en', 'updated_at']),
+  }
+}
+
+function isCommentListRecoverableError(message: string) {
+  const lowered = message.toLowerCase()
+  return (
+    lowered.includes('row-level security policy') ||
+    lowered.includes('permission denied') ||
+    lowered.includes('relation') ||
+    lowered.includes('does not exist')
+  )
+}
+
+async function fetchCaseComments(caseId: string) {
+  const queries = [
+    () =>
+      supabase
+        .from('caso_comentarios')
+        .select('*')
+        .eq('caso_id', caseId)
+        .order('created_at', { ascending: false }),
+    () =>
+      supabase
+        .from('caso_comentarios')
+        .select('*')
+        .eq('caso_id', caseId)
+        .order('id', { ascending: false }),
+    () =>
+      supabase
+        .from('caso_comentarios')
+        .select('*')
+        .eq('caso_id', caseId),
+  ] as const
+
+  for (const runQuery of queries) {
+    const response = await runQuery()
+
+    if (!response.error) {
+      return (response.data ?? [])
+        .map((row, index) => normalizeCommentRow(row as Record<string, unknown>, index))
+        .filter((row): row is CasoComentario => row !== null)
+    }
+
+    const message = response.error.message.toLowerCase()
+    if (message.includes('column') && message.includes('does not exist')) {
+      continue
+    }
+
+    if (isCommentListRecoverableError(response.error.message)) {
+      return [] as CasoComentario[]
+    }
+
+    throw response.error
+  }
+
+  return [] as CasoComentario[]
+}
+
 async function fetchMediaForCases(caseIds: string[]) {
   if (caseIds.length === 0) return [] as CasoMedia[]
 
@@ -314,7 +432,7 @@ export function useCasoDetalle(caseId: string) {
     enabled: !!caseId,
     staleTime: QUERY_STALE_TIME,
     queryFn: async () => {
-      const [caseResponse, mediaResponse] = await Promise.all([
+      const [caseResponse, mediaResponse, comentarios] = await Promise.all([
         supabase
           .from('casos_con_media')
           .select(CASO_DETALLE_SELECT)
@@ -325,6 +443,7 @@ export function useCasoDetalle(caseId: string) {
           .select(MEDIA_SELECT)
           .eq('caso_id', caseId)
           .order('orden', { ascending: true }),
+        fetchCaseComments(caseId),
       ])
 
       if (caseResponse.error) {
@@ -383,7 +502,7 @@ export function useCasoDetalle(caseId: string) {
           created_at: fallbackCase.created_at,
         }
 
-        return { caso, media: safeMedia }
+        return { caso, media: safeMedia, comentarios }
       }
 
       if (mediaResponse.error) {
@@ -396,7 +515,7 @@ export function useCasoDetalle(caseId: string) {
       const caso = caseResponse.data as CasoDetalle
       const media = (mediaResponse.data ?? []) as CasoMedia[]
 
-      return { caso, media }
+      return { caso, media, comentarios }
     },
   })
 }

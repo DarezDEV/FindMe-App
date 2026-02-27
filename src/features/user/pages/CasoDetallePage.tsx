@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
-import { ChevronLeft, Eye, Mail, MapPin, Phone, UserSearch, Video } from 'lucide-react'
+import { ChevronLeft, Eye, Mail, MapPin, MessageSquare, Phone, UserSearch, Video } from 'lucide-react'
 import UserNavbar from '../components/Usernavbar'
 import { Spinner } from '../../../shared/components/ui'
 import { useCasoDetalle } from '../hooks/useMisCasos'
@@ -11,6 +11,26 @@ function LabelValue({ label, value }: { label: string; value: string | number | 
       <p className="text-sm text-text-primary mt-1">{value ?? 'No disponible'}</p>
     </div>
   )
+}
+
+function formatDateTime(value: string | null) {
+  if (!value) return 'Sin fecha'
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+
+  return parsed.toLocaleString('es-DO', {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatEstado(value: string | null) {
+  if (!value) return null
+  return value.replace(/_/g, ' ')
 }
 
 export default function CasoDetallePage() {
@@ -50,7 +70,7 @@ export default function CasoDetallePage() {
     )
   }
 
-  const { caso, media } = data
+  const { caso, media, comentarios } = data
   const photos = media.filter(item => item.tipo === 'foto')
   const video = media.find(item => item.tipo === 'video')
   const mainPhoto = photos.find(item => item.es_principal)?.url ?? caso.foto_principal_url ?? photos[0]?.url ?? null
@@ -147,39 +167,77 @@ export default function CasoDetallePage() {
             </div>
           </section>
 
-          {(photos.length > 0 || video) && (
-            <section className="space-y-4">
-              <h2 className="text-lg font-semibold text-text-primary">Media del caso</h2>
+          <section className="card p-5 space-y-4">
+            <h2 className="text-lg font-semibold text-text-primary inline-flex items-center gap-2">
+              <MessageSquare size={18} className="text-primary" />
+              Comentarios de autoridad
+            </h2>
 
-              {photos.length > 0 && (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                  {photos.map(photo => (
-                    <a
-                      key={photo.id}
-                      href={photo.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="card overflow-hidden aspect-square hover:shadow-md transition-shadow"
-                    >
-                      <img src={photo.url} alt="Foto del caso" className="w-full h-full object-cover" />
-                    </a>
-                  ))}
-                </div>
-              )}
+            {comentarios.length === 0 && (
+              <p className="text-sm text-text-secondary">
+                Aun no hay comentarios de la autoridad para este caso.
+              </p>
+            )}
 
-              {video && (
-                <div className="card p-4 space-y-2">
-                  <p className="text-sm font-medium text-text-primary inline-flex items-center gap-2">
-                    <Video size={15} className="text-primary" />
-                    Video del caso
-                  </p>
-                  <video controls className="w-full rounded-lg border border-border">
-                    <source src={video.url} type={video.mime_type ?? 'video/mp4'} />
-                  </video>
-                </div>
-              )}
-            </section>
-          )}
+            {comentarios.length > 0 && (
+              <div className="space-y-3">
+                {comentarios.map(comentario => (
+                  <article key={comentario.id} className="border border-border rounded-lg p-4 bg-background/60">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <p className="text-sm font-semibold text-text-primary">{comentario.autor}</p>
+                      <p className="text-xs text-text-secondary">{formatDateTime(comentario.created_at)}</p>
+                    </div>
+
+                    {comentario.estado && (
+                      <span className="inline-flex mt-2 px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary-soft text-primary capitalize">
+                        {formatEstado(comentario.estado)}
+                      </span>
+                    )}
+
+                    <p className="text-sm text-text-primary mt-2 whitespace-pre-wrap">{comentario.contenido}</p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="space-y-4">
+            <h2 className="text-lg font-semibold text-text-primary">Media del caso</h2>
+
+            {photos.length === 0 && !video && (
+              <div className="card p-4">
+                <p className="text-sm text-text-secondary">No hay imagenes o video cargados para este caso.</p>
+              </div>
+            )}
+
+            {photos.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {photos.map(photo => (
+                  <a
+                    key={photo.id}
+                    href={photo.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="card overflow-hidden aspect-square hover:shadow-md transition-shadow"
+                  >
+                    <img src={photo.url} alt="Foto del caso" className="w-full h-full object-cover" />
+                  </a>
+                ))}
+              </div>
+            )}
+
+            {video && (
+              <div className="card p-4 space-y-2">
+                <p className="text-sm font-medium text-text-primary inline-flex items-center gap-2">
+                  <Video size={15} className="text-primary" />
+                  Video del caso
+                </p>
+                <video controls className="w-full rounded-lg border border-border">
+                  <source src={video.url} type={video.mime_type ?? 'video/mp4'} />
+                </video>
+              </div>
+            )}
+          </section>
         </div>
       </main>
     </>

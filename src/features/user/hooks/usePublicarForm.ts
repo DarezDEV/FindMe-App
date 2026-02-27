@@ -1,10 +1,8 @@
 import { useState } from 'react'
 import { publicarCaso } from '../services/publicarCaso'
 import { INITIAL_FORM, type FormData } from '../types'
-import { STEPS } from '../types/constants'
 
 export function usePublicarForm() {
-  const [step, setStep] = useState(1)
   const [data, setData] = useState<FormData>(INITIAL_FORM)
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -14,28 +12,29 @@ export function usePublicarForm() {
   const set = <K extends keyof FormData>(key: K, value: FormData[K]) =>
     setData(prev => ({ ...prev, [key]: value }))
 
-  const canNext = (): boolean => {
-    if (step === 1) {
-      return !!(
-        data.nombres.trim() &&
-        data.apellidos.trim() &&
-        data.edad.trim() &&
-        data.genero.trim() &&
-        data.estatura.trim() &&
-        data.descripcion.trim()
-      )
-    }
-    if (step === 3) return !!data.lugarDesaparicion
-    if (step === 4) return !!(data.fechaDesaparicion && data.lugarUltimaVez && data.descripcionCircunstancias)
-    if (step === 5) return data.aceptaTerminos
-    return true
+  const canSubmit = (): boolean => {
+    return !!(
+      data.nombres.trim() &&
+      data.apellidos.trim() &&
+      data.edad.trim() &&
+      data.genero.trim() &&
+      data.estatura.trim() &&
+      data.descripcion.trim() &&
+      data.lugarDesaparicion.trim() &&
+      data.fechaDesaparicion &&
+      data.lugarUltimaVez.trim() &&
+      data.descripcionCircunstancias.trim() &&
+      data.aceptaTerminos
+    )
   }
-
-  const next = () => setStep(current => Math.min(STEPS.length, current + 1))
-  const prev = () => setStep(current => Math.max(1, current - 1))
 
   const submit = async () => {
     if (loading) return
+
+    if (!canSubmit()) {
+      setError('Completa los campos obligatorios para publicar el caso.')
+      return
+    }
 
     setLoading(true)
     setError(null)
@@ -54,7 +53,6 @@ export function usePublicarForm() {
 
   const reset = () => {
     setData(INITIAL_FORM)
-    setStep(1)
     setSubmitted(false)
     setLoading(false)
     setError(null)
@@ -62,12 +60,9 @@ export function usePublicarForm() {
   }
 
   return {
-    step,
     data,
     set,
-    canNext,
-    next,
-    prev,
+    canSubmit,
     submit,
     submitted,
     loading,
