@@ -6,13 +6,13 @@ import LoginPage from '../../features/auth/pages/LoginPage'
 import RegisterPage from '../../features/auth/pages/RegisterPage'
 import ForgotPasswordPage from '../../features/auth/pages/ForgotPasswordPage'
 import ResetPasswordPage from '../../features/auth/pages/ResetPasswordPage'
-import UserHome from '../../features/user/pages/UserHome'
 import AdminHome from '../../features/admin/pages/AdminHome'
 import UserHome from '../../features/user/pages/UserHome'
+
 import AuthorityHome from '../../features/authority/pages/AuthorityHome'
-import AdminUsers from '../../features/admin/pages/AdminUsers'
 import AuthorityCases from '../../features/authority/pages/AuthorityCases'
 import PendingCasesPage from '../../features/authority/pages/PendingCasesPage'
+import AdminUsers from '../../features/admin/pages/AdminUsers'
 import LandingPage from '../../features/public/pages/LandingPage'
 import PublicCasesPage from '../../features/public/pages/PublicCasesPage'
 import PublishCaseGatePage from '../../features/public/pages/PublishCaseGatePage'
@@ -57,12 +57,13 @@ const router = createBrowserRouter([
       { path: '/forgot-password', element: <ForgotPasswordPage /> },
     ],
   },
+  { path: '/reset-password', element: <ResetPasswordPage /> },
 
   // Usuario comun
   {
     element: <RoleRoute allowedRoles={[ROLES.USER]} />,
-    children: [{ path: '/dashboard', element: <UserHome /> }],
     children: [
+      { path: '/dashboard', element: <UserHome /> },
       { path: '/user', element: <UserHome /> },
     ],
   },
@@ -81,8 +82,8 @@ const router = createBrowserRouter([
     element: <RoleRoute allowedRoles={[ROLES.AUTHORITY, ROLES.ADMIN]} />,
     children: [
       { path: '/authority', element: <AuthorityHome /> },
-      { path: '/authority/cases', element: <AuthorityHome /> },
-      { path: '/authority/cases/pending', element: <AuthorityHome /> },
+      { path: '/authority/cases', element: <AuthorityCases /> },
+      { path: '/authority/cases/pending', element: <PendingCasesPage /> },
     ],
   },
 
