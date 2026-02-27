@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, MapPin, Calendar, RefreshCw, MessageSquare } from 'lucide-react'
+import { Search, MapPin, Calendar, RefreshCw, MessageSquare, CheckCircle2, XCircle, Trash2 } from 'lucide-react'
 import { AuthoritySidebar } from '../components/AuthoritySidebar'
 import {
   createCaseComment,
@@ -14,6 +14,12 @@ import { useAuth } from '../../auth/hooks'
 import { Alert, Spinner, StatusBadge, type WorkflowStatus } from '../../../shared/components/ui'
 
 type StatusFilter = 'all' | WorkflowStatus
+type CaseCommentItem = {
+  id: string
+  text: string
+  authorId: string
+  createdAt: string
+}
 
 function getLocation(caso: AuthorityCaseRow): string {
   return caso.ciudad || caso.estado_provincia || caso.lugar_ultima_vez || 'Sin ubicacion'
@@ -45,7 +51,7 @@ export default function AuthorityCases() {
   const [deleteTarget, setDeleteTarget] = useState<AuthorityCaseRow | null>(null)
   const [commentTarget, setCommentTarget] = useState<AuthorityCaseRow | null>(null)
   const [commentDraft, setCommentDraft] = useState('')
-  const [commentsByCaseId, setCommentsByCaseId] = useState<Record<string, string[]>>({})
+  const [commentsByCaseId, setCommentsByCaseId] = useState<Record<string, CaseCommentItem[]>>({})
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
   const [commentLoading, setCommentLoading] = useState(false)
@@ -60,10 +66,15 @@ export default function AuthorityCases() {
         statusMap[row.id] = getPersistedStatus(row)
       })
       const comments = await getCaseComments(data.map((item) => item.id))
-      const commentsMap: Record<string, string[]> = {}
+      const commentsMap: Record<string, CaseCommentItem[]> = {}
       comments.forEach((comment) => {
         if (!commentsMap[comment.caso_id]) commentsMap[comment.caso_id] = []
-        commentsMap[comment.caso_id].push(comment.comentario)
+        commentsMap[comment.caso_id].push({
+          id: comment.id,
+          text: comment.comentario,
+          authorId: comment.autor_id,
+          createdAt: comment.created_at,
+        })
       })
       setCases(data)
       setStatusByCaseId(statusMap)
@@ -121,13 +132,16 @@ export default function AuthorityCases() {
     if (!commentTarget || !commentDraft.trim() || !user?.id) return
     setCommentLoading(true)
     try {
-      await createCaseComment(commentTarget.id, user.id, commentDraft.trim())
+      const text = commentDraft.trim()
+      const created = await createCaseComment(commentTarget.id, user.id, text)
       setCommentsByCaseId((prev) => ({
         ...prev,
-        [commentTarget.id]: [...(prev[commentTarget.id] ?? []), commentDraft.trim()],
+        [commentTarget.id]: [
+          ...(prev[commentTarget.id] ?? []),
+          { id: created.id, text, authorId: user.id, createdAt: new Date().toISOString() },
+        ],
       }))
       setCommentDraft('')
-      setCommentTarget(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar el comentario.')
     } finally {
@@ -209,7 +223,7 @@ export default function AuthorityCases() {
                       const commentsCount = commentsByCaseId[item.id]?.length ?? 0
                       const isActionLoading = actionLoadingId === item.id
                       return (
-                        <tr key={item.id} className="border-b border-border/80 last:border-b-0 hover:bg-primary-soft/30">
+                        <tr key={item.id} className="border-b border-border/80 last:border-b-0 hover:bg-primary-soft/20 transition-colors">
                           <td className="px-4 py-3 text-sm font-semibold text-text-primary">{item.numero_caso}</td>
                           <td className="px-4 py-3">
                             <button
@@ -232,14 +246,24 @@ export default function AuthorityCases() {
                             <StatusBadge status={workflowStatus} />
                           </td>
                           <td className="px-4 py-3">
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-1.5">
                               <button
                                 type="button"
                                 onClick={() => void applyStatus(item.id, 'approved')}
-                                className="px-2.5 py-1 rounded-md text-xs font-medium bg-success/10 text-success"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-success/25 bg-success/10 text-success hover:bg-success/15 transition-colors"
                                 disabled={isActionLoading}
                               >
+                                <CheckCircle2 size={12} />
                                 Aprobar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void applyStatus(item.id, 'rejected')}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-warning/30 bg-warning/10 text-warning hover:bg-warning/15 transition-colors"
+                                disabled={isActionLoading}
+                              >
+                                <XCircle size={12} />
+                                Rechazar
                               </button>
                               <button
                                 type="button"
@@ -247,7 +271,7 @@ export default function AuthorityCases() {
                                   setCommentTarget(item)
                                   setCommentDraft('')
                                 }}
-                                className="px-2.5 py-1 rounded-md text-xs font-medium bg-primary-soft text-primary inline-flex items-center gap-1"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-primary/20 bg-primary-soft text-primary hover:bg-primary-soft/70 transition-colors"
                               >
                                 <MessageSquare size={12} />
                                 Comentar {commentsCount > 0 ? `(${commentsCount})` : ''}
@@ -255,8 +279,9 @@ export default function AuthorityCases() {
                               <button
                                 type="button"
                                 onClick={() => setDeleteTarget(item)}
-                                className="px-2.5 py-1 rounded-md text-xs font-medium bg-error/10 text-error"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-error/30 bg-error/10 text-error hover:bg-error/15 transition-colors"
                               >
+                                <Trash2 size={12} />
                                 Eliminar
                               </button>
                             </div>
@@ -295,13 +320,37 @@ export default function AuthorityCases() {
       {commentTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <button type="button" className="absolute inset-0 bg-black/30" onClick={() => setCommentTarget(null)} />
-          <div className="relative card p-6 w-full max-w-lg space-y-4">
+          <div className="relative card p-6 w-full max-w-2xl space-y-4">
             <h2 className="text-lg font-semibold text-text-primary">Agregar comentario</h2>
+            <p className="text-sm text-text-secondary">
+              Caso: <span className="font-medium text-text-primary">{commentTarget.numero_caso}</span>
+            </p>
+            <div className="rounded-xl border border-border bg-background p-3 space-y-2 max-h-52 overflow-y-auto">
+              {(commentsByCaseId[commentTarget.id] ?? []).length === 0 ? (
+                <p className="text-sm text-text-secondary">Sin comentarios para este caso.</p>
+              ) : (
+                (commentsByCaseId[commentTarget.id] ?? []).map((comment) => (
+                  <div key={comment.id} className="rounded-lg border border-border/80 bg-card p-3">
+                    <p className="text-sm text-text-primary whitespace-pre-wrap">{comment.text}</p>
+                    <p className="mt-1 text-[11px] text-text-secondary">
+                      {new Intl.DateTimeFormat('es-MX', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      }).format(new Date(comment.createdAt))}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
             <textarea
               value={commentDraft}
               onChange={(e) => setCommentDraft(e.target.value)}
               rows={5}
               className="input-field resize-none"
+              placeholder="Escribe una observacion para este caso..."
             />
             <div className="flex items-center justify-end gap-2">
               <button type="button" className="btn-secondary" onClick={() => setCommentTarget(null)}>

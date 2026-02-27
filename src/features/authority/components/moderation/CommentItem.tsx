@@ -29,7 +29,7 @@ export function CommentItem({ comment, currentUserId, onDelete, onEdit, disabled
   }
 
   return (
-    <div className="border border-border rounded-lg p-3 bg-background">
+    <div className="border border-border/80 rounded-xl p-3 bg-background shadow-sm">
       {isEditing ? (
         <div className="space-y-2">
           <textarea
@@ -63,13 +63,13 @@ export function CommentItem({ comment, currentUserId, onDelete, onEdit, disabled
         </div>
       ) : (
         <div className="flex items-start justify-between gap-3">
-          <p className="text-sm text-text-secondary leading-relaxed">{comment.text}</p>
+          <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">{comment.text}</p>
           {isAuthor && (
             <div className="flex items-center gap-1 shrink-0">
               <button
                 type="button"
                 onClick={() => setIsEditing(true)}
-                className="p-1.5 rounded-md hover:bg-primary-soft text-text-secondary"
+                className="p-1.5 rounded-md hover:bg-primary-soft text-text-secondary transition-colors"
                 disabled={disabled}
                 aria-label="Editar comentario"
               >
@@ -78,7 +78,7 @@ export function CommentItem({ comment, currentUserId, onDelete, onEdit, disabled
               <button
                 type="button"
                 onClick={onDelete}
-                className="p-1.5 rounded-md hover:bg-error/10 text-error"
+                className="p-1.5 rounded-md hover:bg-error/10 text-error transition-colors"
                 disabled={disabled}
                 aria-label="Eliminar comentario"
               >

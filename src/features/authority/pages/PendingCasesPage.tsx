@@ -391,26 +391,33 @@ export default function PendingCasesPage() {
               <div className="space-y-4">
                 <CaseDetailPanel selectedCase={selectedCaseWithPhoto} />
 
-                {selectedCase && selectedCaseComments.length > 0 && (
+                {selectedCase && (
                   <div className="card p-5">
-                    <h3 className="text-sm font-semibold text-text-primary mb-3">Comentarios de revision</h3>
-                    <div className="space-y-3">
-                      {selectedCaseComments.map((comment) => (
-                        <CommentItem
-                          key={comment.id}
-                          comment={comment}
-                          currentUserId={user?.id ?? ''}
-                          onDelete={() => void handleDeleteComment(comment.id)}
-                          onEdit={(newText) => void handleEditComment(comment.id, newText)}
-                          disabled={actionLoading}
-                        />
-                      ))}
-                    </div>
+                    <h3 className="text-sm font-semibold text-text-primary mb-3">
+                      Comentarios de revision ({selectedCaseComments.length})
+                    </h3>
+                    {selectedCaseComments.length === 0 ? (
+                      <p className="text-sm text-text-secondary">Aun no hay comentarios en este caso.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {selectedCaseComments.map((comment) => (
+                          <CommentItem
+                            key={comment.id}
+                            comment={comment}
+                            currentUserId={user?.id ?? ''}
+                            onDelete={() => void handleDeleteComment(comment.id)}
+                            onEdit={(newText) => void handleEditComment(comment.id, newText)}
+                            disabled={actionLoading}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
                 <ModerationActions
                   disabled={!selectedCase || actionLoading}
+                  commentsCount={selectedCaseComments.length}
                   onApprove={() => void approveCase()}
                   onReject={() => void rejectCase()}
                   onAddComment={() => setCommentModalOpen(true)}
