@@ -10,9 +10,6 @@ import ResetPasswordPage from '../../features/auth/pages/ResetPasswordPage'
 import UserHome from '../../features/user/pages/UserHome'
 import AdminHome from '../../features/admin/pages/AdminHome'
 import AuthorityHome from '../../features/authority/pages/AuthorityHome'
-import AuthorityCases from '../../features/authority/pages/AuthorityCases'
-import PendingCasesPage from '../../features/authority/pages/PendingCasesPage'
-import LandingPage from '../../features/public/pages/LandingPage'
 import AdminUsers from '../../features/admin/pages/AdminUsers'
 
 function UnauthorizedPage() {
@@ -28,7 +25,7 @@ function UnauthorizedPage() {
         <h2 className="text-xl font-bold text-text-primary">Acceso no autorizado</h2>
         <p className="text-text-secondary text-sm">No tienes permisos para ver esta pÃ¡gina.</p>
         <a href="/" className="inline-block text-primary hover:text-primary-hover text-sm font-medium transition-colors">
-          â† Volver al inicio
+            Volver al inicio
         </a>
       </div>
     </div>
@@ -37,7 +34,7 @@ function UnauthorizedPage() {
 
 const router = createBrowserRouter([
   // PÃºblicas (solo usuarios NO autenticados)
-  { path: '/', element: <LandingPage /> },
+  { path: '/', element: <Navigate to="/login" replace /> },
   {
     element: <GuestRoute />,
     children: [
@@ -71,8 +68,8 @@ const router = createBrowserRouter([
     element: <RoleRoute allowedRoles={[ROLES.AUTHORITY, ROLES.ADMIN]} />,
     children: [
       { path: '/authority', element: <AuthorityHome /> },
-      { path: '/authority/cases', element: <AuthorityCases /> },
-      { path: '/authority/cases/pending', element: <PendingCasesPage /> },
+      { path: '/authority/cases', element: <AuthorityHome /> },
+      { path: '/authority/cases/pending', element: <AuthorityHome /> },
     ],
   },
 
