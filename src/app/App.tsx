@@ -1,3 +1,5 @@
+import { AuthProvider } from './providers/AuthProvider' 
+
 import { AuthProvider } from './providers/AuthProvider'
 import { AppRouter } from './router/routes'
 function App() {

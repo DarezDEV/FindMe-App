@@ -37,7 +37,7 @@
            transition-all duration-200;
   }
 
-  /* Botón primario */
+  /* Bot�n primario */
   .btn-primary {
     @apply bg-primary hover:bg-primary-hover active:scale-[0.98]
            text-white font-semibold py-2.5 px-6 rounded-lg text-sm
@@ -45,7 +45,7 @@
            focus:outline-none focus:ring-2 focus:ring-primary/40;
   }
 
-  /* Botón secundario */
+  /* Bot�n secundario */
   .btn-secondary {
     @apply bg-card hover:bg-primary-soft border border-border hover:border-primary
            text-text-primary hover:text-primary font-medium py-2.5 px-6 rounded-lg text-sm
@@ -79,26 +79,63 @@
     @apply bg-success/8 border border-success/25 text-success text-sm px-4 py-3 rounded-lg;
   }
 
-  .landing-reveal {
-    animation: landing-fade-up 620ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  /* Auth route transitions (login <-> register) */
+  .auth-transition {
+    will-change: transform, opacity;
   }
 
-  .landing-delay-1 {
-    animation-delay: 110ms;
+  .auth-transition-enter {
+    animation: auth-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
-  .landing-delay-2 {
-    animation-delay: 190ms;
+  .auth-transition-exit-left {
+    animation: auth-exit-left 220ms cubic-bezier(0.4, 0, 1, 1) both;
+    pointer-events: none;
+  }
+
+  .auth-transition-exit-right {
+    animation: auth-exit-right 220ms cubic-bezier(0.4, 0, 1, 1) both;
+    pointer-events: none;
   }
 }
 
-@keyframes landing-fade-up {
+@keyframes auth-enter {
   from {
     opacity: 0;
-    transform: translateY(14px);
+    transform: translateX(18px) scale(0.995);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes auth-exit-left {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-22px) scale(0.995);
+  }
+}
+
+@keyframes auth-exit-right {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(22px) scale(0.995);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-transition-enter,
+  .auth-transition-exit-left,
+  .auth-transition-exit-right {
+    animation: none !important;
   }
 }
