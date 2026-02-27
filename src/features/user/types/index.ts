@@ -43,7 +43,7 @@ export const INITIAL_FORM: FormData = {
   lugarDesaparicion: '', coordenadas: null,
   fechaDesaparicion: '', horaDesaparicion: '',
   lugarUltimaVez: '', descripcionCircunstancias: '', ropaDescripcion: '',
-  idioma: 'es', visibilidadContacto: 'publico',
+  idioma: '', visibilidadContacto: 'publico',
   telefonoContacto: '', emailContacto: '', aceptaTerminos: false,
 }
 

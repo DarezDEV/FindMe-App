@@ -1,6 +1,5 @@
-import { Lock, Unlock, Flag, Phone, Mail, Check } from 'lucide-react'
+import { Flag, Unlock, Phone, Mail, Check } from 'lucide-react'
 import { type FormData, type SetFormValue } from '../types'
-import { IDIOMAS } from '../types/constants'
 import { Label } from './FormPrimitives'
 
 interface Props {
@@ -10,53 +9,24 @@ interface Props {
 
 const VISIBILIDAD = [
   {
-    value:  'publico'     as const,
-    label:  'Público',
-    desc:   'Cualquier persona puede ver tu información de contacto',
-    Icon:   Unlock,
+    value: 'publico' as const,
+    label: 'Publico',
+    desc: 'Cualquier persona puede ver tu informacion de contacto',
+    Icon: Unlock,
   },
   {
-    value:  'autoridades' as const,
-    label:  'Solo autoridades',
-    desc:   'Tu contacto solo es visible a autoridades verificadas',
-    Icon:   Flag,
-  },
-  {
-    value:  'privado'     as const,
-    label:  'Privado',
-    desc:   'Nadie puede ver tu contacto directamente',
-    Icon:   Lock,
+    value: 'autoridades' as const,
+    label: 'Solo autoridades',
+    desc: 'Tu contacto solo es visible a autoridades verificadas',
+    Icon: Flag,
   },
 ]
 
 export function StepPreferencias({ data, set }: Props) {
   return (
     <div className="space-y-6">
-
-      {/* Idioma */}
       <div>
-        <Label>Idioma del caso</Label>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-          {IDIOMAS.map(lang => (
-            <button
-              type="button"
-              key={lang.code}
-              onClick={() => set('idioma', lang.code)}
-              className={`px-3 py-2.5 rounded-lg border text-sm font-medium transition-all duration-150
-                ${data.idioma === lang.code
-                  ? 'bg-primary text-white border-primary shadow-sm'
-                  : 'bg-card border-border text-text-secondary hover:border-primary hover:text-primary'
-                }`}
-            >
-              {lang.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Visibilidad de contacto */}
-      <div>
-        <Label required>Visibilidad de tu información de contacto</Label>
+        <Label required>Visibilidad de tu informacion de contacto</Label>
         <div className="space-y-2">
           {VISIBILIDAD.map(opt => {
             const active = data.visibilidadContacto === opt.value
@@ -92,7 +62,6 @@ export function StepPreferencias({ data, set }: Props) {
         </div>
       </div>
 
-      {/* Datos de contacto */}
       <div>
         <Label>Datos de contacto</Label>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -100,7 +69,7 @@ export function StepPreferencias({ data, set }: Props) {
             <Phone size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" />
             <input
               className="input-field pl-9"
-              placeholder="Teléfono de contacto"
+              placeholder="Telefono de contacto"
               type="tel"
               value={data.telefonoContacto}
               onChange={e => set('telefonoContacto', e.target.value)}
@@ -110,7 +79,7 @@ export function StepPreferencias({ data, set }: Props) {
             <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" />
             <input
               className="input-field pl-9"
-              placeholder="Correo electrónico"
+              placeholder="Correo electronico"
               type="email"
               value={data.emailContacto}
               onChange={e => set('emailContacto', e.target.value)}
@@ -119,7 +88,6 @@ export function StepPreferencias({ data, set }: Props) {
         </div>
       </div>
 
-      {/* Términos */}
       <label className="flex items-start gap-3 cursor-pointer group">
         <div
           onClick={() => set('aceptaTerminos', !data.aceptaTerminos)}
@@ -133,12 +101,11 @@ export function StepPreferencias({ data, set }: Props) {
           {data.aceptaTerminos && <Check size={12} className="text-white" strokeWidth={3} />}
         </div>
         <p className="text-sm text-text-secondary leading-snug">
-          Confirmo que la información es verídica y acepto los{' '}
-          <a href="/terms" className="text-primary hover:underline">términos de uso</a> y la{' '}
-          <a href="/privacy" className="text-primary hover:underline">política de privacidad</a> de FindMe.
+          Confirmo que la informacion es veridica y acepto los{' '}
+          <a href="/terms" className="text-primary hover:underline">terminos de uso</a> y la{' '}
+          <a href="/privacy" className="text-primary hover:underline">politica de privacidad</a> de FindMe.
         </p>
       </label>
-
     </div>
   )
 }

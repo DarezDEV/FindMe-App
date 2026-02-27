@@ -1,9 +1,10 @@
-import { type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Check, ChevronLeft, Clock, Loader2, MapPin, User, Video } from 'lucide-react'
+import { ChevronLeft, User } from 'lucide-react'
 import { Alert } from '../../../shared/components/ui'
 
 import { usePublicarForm } from '../hooks/usePublicarForm'
+import { StepIndicator } from '../components/StepIndicator'
+import { FormNavigation } from '../components/FormNavigation'
 import { StepDatosPersonales } from '../components/StepDatosPersonales'
 import { StepFotosVideo } from '../components/StepFotosVideo'
 import { StepUbicacion } from '../components/StepUbicacion'
@@ -12,39 +13,14 @@ import { StepPreferencias } from '../components/StepPreferencias'
 import { SuccessScreen } from '../components/SuccessScreen'
 import UserNavbar from '../components/Usernavbar'
 
-function FormSection({
-  title,
-  hint,
-  icon,
-  children,
-}: {
-  title: string
-  hint: string
-  icon: ReactNode
-  children: ReactNode
-}) {
-  return (
-    <section className="card p-6 sm:p-8 space-y-5">
-      <div className="flex items-start gap-3">
-        <div className="w-9 h-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center shrink-0">
-          {icon}
-        </div>
-        <div>
-          <h2 className="text-base font-semibold text-text-primary">{title}</h2>
-          <p className="text-xs text-text-secondary mt-0.5">{hint}</p>
-        </div>
-      </div>
-
-      {children}
-    </section>
-  )
-}
-
 export default function PublicarPersonaPerdida() {
   const {
+    step,
     data,
     set,
-    canSubmit,
+    canNext,
+    next,
+    prev,
     submit,
     submitted,
     loading,
@@ -90,77 +66,31 @@ export default function PublicarPersonaPerdida() {
               <div>
                 <h1 className="text-xl font-bold text-text-primary">Reportar persona perdida</h1>
                 <p className="text-sm text-text-secondary">
-                  Completa el aviso en un solo formulario y publica de inmediato.
+                  Completa los datos clave para publicar el caso rapidamente.
                 </p>
               </div>
             </div>
           </div>
 
+          <StepIndicator current={step} />
+
           {error && <Alert type="error" message={error} />}
 
-          <div className="space-y-6">
-            <FormSection
-              title="Datos personales"
-              hint="Informacion basica para identificar a la persona."
-              icon={<User size={18} />}
-            >
-              <StepDatosPersonales data={data} set={set} />
-            </FormSection>
+          <div className="card p-6 sm:p-8">
+            {step === 1 && <StepDatosPersonales data={data} set={set} />}
+            {step === 2 && <StepFotosVideo data={data} set={set} />}
+            {step === 3 && <StepUbicacion data={data} set={set} />}
+            {step === 4 && <StepUltimoAvistamiento data={data} set={set} />}
+            {step === 5 && <StepPreferencias data={data} set={set} />}
 
-            <FormSection
-              title="Fotos y video"
-              hint="Agrega evidencia visual clara. La primera foto sera la principal."
-              icon={<Video size={18} />}
-            >
-              <StepFotosVideo data={data} set={set} />
-            </FormSection>
-
-            <FormSection
-              title="Ubicacion"
-              hint="Indica donde ocurrio la desaparicion."
-              icon={<MapPin size={18} />}
-            >
-              <StepUbicacion data={data} set={set} />
-            </FormSection>
-
-            <FormSection
-              title="Ultimo avistamiento"
-              hint="Registra fecha, lugar y contexto del ultimo contacto."
-              icon={<Clock size={18} />}
-            >
-              <StepUltimoAvistamiento data={data} set={set} />
-            </FormSection>
-
-            <FormSection
-              title="Preferencias y contacto"
-              hint="Define visibilidad y confirma terminos para publicar."
-              icon={<Check size={18} />}
-            >
-              <StepPreferencias data={data} set={set} />
-            </FormSection>
-
-            <section className="card p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <p className="text-xs text-text-secondary">
-                Completa los campos obligatorios (*) para habilitar el envio.
-              </p>
-              <button
-                type="button"
-                onClick={submit}
-                disabled={!canSubmit() || loading}
-                className="btn-primary min-w-[180px] justify-center inline-flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    Publicando...
-                  </>
-                ) : (
-                  <>
-                    <Check size={16} /> Publicar caso
-                  </>
-                )}
-              </button>
-            </section>
+            <FormNavigation
+              step={step}
+              canNext={canNext()}
+              loading={loading}
+              onPrev={prev}
+              onNext={next}
+              onSubmit={submit}
+            />
           </div>
 
           <p className="text-center text-xs text-text-secondary mt-5">

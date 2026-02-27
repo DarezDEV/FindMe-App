@@ -129,6 +129,10 @@ function normalizeColorOjos(value: string) {
   return valid.has(normalized) ? normalized : null
 }
 
+function normalizeVisibilidadContacto(value: FormData['visibilidadContacto']) {
+  return value === 'autoridades' ? 'autoridades' : 'publico'
+}
+
 function parseCityAndCountry(location: string) {
   const parts = location
     .split(',')
@@ -259,17 +263,15 @@ function validateMediaPayload(formData: FormData) {
 
 function validateBodyMetrics(formData: FormData) {
   const rawHeight = formData.estatura.trim()
-  if (!rawHeight) {
-    throw new Error('La estatura es obligatoria para publicar el caso.')
-  }
+  if (rawHeight) {
+    const height = normalizeHeightCm(rawHeight)
+    if (height === null) {
+      throw new Error('La estatura debe ser un numero valido.')
+    }
 
-  const height = normalizeHeightCm(rawHeight)
-  if (height === null) {
-    throw new Error('La estatura debe ser un numero valido.')
-  }
-
-  if (height < 40 || height > 300) {
-    throw new Error('La estatura debe estar entre 40 cm y 300 cm.')
+    if (height < 40 || height > 300) {
+      throw new Error('La estatura debe estar entre 40 cm y 300 cm.')
+    }
   }
 
   const weight = normalizeWeightKg(formData.peso)
@@ -491,7 +493,7 @@ export async function publicarCaso(formData: FormData): Promise<PublishCaseResul
     circunstancias: nullableText(formData.descripcionCircunstancias),
     ropa_descripcion: nullableText(formData.ropaDescripcion),
     idioma: nullableText(formData.idioma),
-    visibilidad_contacto: formData.visibilidadContacto,
+    visibilidad_contacto: normalizeVisibilidadContacto(formData.visibilidadContacto),
     telefono_contacto: nullableText(formData.telefonoContacto),
     email_contacto: nullableText(formData.emailContacto),
     status: 'activo',

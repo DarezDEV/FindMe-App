@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { publicarCaso } from '../services/publicarCaso'
 import { INITIAL_FORM, type FormData } from '../types'
+import { STEPS } from '../types/constants'
 
 export function usePublicarForm() {
+  const [step, setStep] = useState(1)
   const [data, setData] = useState<FormData>(INITIAL_FORM)
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -12,27 +14,44 @@ export function usePublicarForm() {
   const set = <K extends keyof FormData>(key: K, value: FormData[K]) =>
     setData(prev => ({ ...prev, [key]: value }))
 
-  const canSubmit = (): boolean => {
-    return !!(
-      data.nombres.trim() &&
-      data.apellidos.trim() &&
-      data.edad.trim() &&
-      data.genero.trim() &&
-      data.estatura.trim() &&
-      data.descripcion.trim() &&
-      data.lugarDesaparicion.trim() &&
-      data.fechaDesaparicion &&
-      data.lugarUltimaVez.trim() &&
-      data.descripcionCircunstancias.trim() &&
-      data.aceptaTerminos
-    )
+  const canNext = (): boolean => {
+    if (step === 1) {
+      return !!(
+        data.nombres.trim() &&
+        data.apellidos.trim() &&
+        data.edad.trim() &&
+        data.genero.trim() &&
+        data.descripcion.trim()
+      )
+    }
+
+    if (step === 3) return !!data.lugarDesaparicion.trim()
+
+    if (step === 4) {
+      return !!(
+        data.fechaDesaparicion &&
+        data.lugarUltimaVez.trim() &&
+        data.descripcionCircunstancias.trim()
+      )
+    }
+
+    if (step === 5) {
+      const visibilidadValida =
+        data.visibilidadContacto === 'publico' || data.visibilidadContacto === 'autoridades'
+      return data.aceptaTerminos && visibilidadValida
+    }
+
+    return true
   }
+
+  const next = () => setStep(current => Math.min(STEPS.length, current + 1))
+  const prev = () => setStep(current => Math.max(1, current - 1))
 
   const submit = async () => {
     if (loading) return
 
-    if (!canSubmit()) {
-      setError('Completa los campos obligatorios para publicar el caso.')
+    if (!canNext()) {
+      setError('Completa los campos obligatorios de este paso para publicar el caso.')
       return
     }
 
@@ -53,6 +72,7 @@ export function usePublicarForm() {
 
   const reset = () => {
     setData(INITIAL_FORM)
+    setStep(1)
     setSubmitted(false)
     setLoading(false)
     setError(null)
@@ -60,9 +80,12 @@ export function usePublicarForm() {
   }
 
   return {
+    step,
     data,
     set,
-    canSubmit,
+    canNext,
+    next,
+    prev,
     submit,
     submitted,
     loading,
