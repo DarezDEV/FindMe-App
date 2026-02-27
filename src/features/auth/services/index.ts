@@ -1,8 +1,16 @@
 export {
+  exchangeRecoveryCode,
   registerUser,
+  resendVerificationOtp,
+  sendPasswordResetEmail,
+  setSessionFromTokens,
+  updateUserPassword,
+  verifyEmailOtp,
+  verifyPasswordSetupToken,
   loginUser,
   logoutUser,
   getCurrentSession,
+  type PasswordSetupTokenType,
   type RegisterData,
   type LoginData,
 } from '../../../lib/supabase/auth'
