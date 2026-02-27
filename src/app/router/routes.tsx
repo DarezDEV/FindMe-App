@@ -10,6 +10,9 @@ import ResetPasswordPage from '../../features/auth/pages/ResetPasswordPage'
 import UserHome from '../../features/user/pages/UserHome'
 import AdminHome from '../../features/admin/pages/AdminHome'
 import AuthorityHome from '../../features/authority/pages/AuthorityHome'
+import AuthorityCases from '../../features/authority/pages/AuthorityCases'
+import PendingCasesPage from '../../features/authority/pages/PendingCasesPage'
+import LandingPage from '../../features/public/pages/LandingPage'
 import AdminUsers from '../../features/admin/pages/AdminUsers'
 
 function UnauthorizedPage() {
@@ -34,6 +37,7 @@ function UnauthorizedPage() {
 
 const router = createBrowserRouter([
   // PÃºblicas (solo usuarios NO autenticados)
+  { path: '/', element: <LandingPage /> },
   {
     element: <GuestRoute />,
     children: [
@@ -67,12 +71,13 @@ const router = createBrowserRouter([
     element: <RoleRoute allowedRoles={[ROLES.AUTHORITY, ROLES.ADMIN]} />,
     children: [
       { path: '/authority', element: <AuthorityHome /> },
+      { path: '/authority/cases', element: <AuthorityCases /> },
+      { path: '/authority/cases/pending', element: <PendingCasesPage /> },
     ],
   },
 
-  // RaÃ­z y fallback van al login
-  { path: '/', element: <Navigate to="/login" replace /> },
-  { path: '*', element: <Navigate to="/login" replace /> },
+  // Fallback
+  { path: '*', element: <Navigate to="/" replace /> },
 ])
 
 export function AppRouter() {
