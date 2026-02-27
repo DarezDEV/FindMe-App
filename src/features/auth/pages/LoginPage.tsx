@@ -32,7 +32,7 @@ export default function LoginPage() {
       const profile = await refreshUser()
 
       if (profile?.roles.includes(ROLES.ADMIN)) {
-        navigate('/admin', { replace: true })
+        navigate('/admin/dashboard', { replace: true })
       } else if (profile?.roles.includes(ROLES.AUTHORITY)) {
         navigate('/authority', { replace: true })
       } else {

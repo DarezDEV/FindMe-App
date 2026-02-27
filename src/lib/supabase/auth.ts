@@ -12,6 +12,8 @@ export interface LoginData {
   password: string
 }
 
+export type PasswordSetupTokenType = 'recovery' | 'invite'
+
 // ─── Mapeo de errores de Supabase → español ───────────────────────────────────
 const mapAuthError = (message: string): string => {
   const msg = message.toLowerCase()
@@ -52,6 +54,27 @@ const mapAuthError = (message: string): string => {
   }
 
   return message || 'Ocurrió un error inesperado. Intenta de nuevo.'
+}
+
+const mapUnexpectedAuthError = (err: unknown): string => {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return 'No hay conexion a internet. Verifica tu red e intenta de nuevo.'
+  }
+
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase()
+    if (
+      msg.includes('failed to fetch') ||
+      msg.includes('networkerror') ||
+      msg.includes('internet_disconnected')
+    ) {
+      return 'No se pudo conectar con el servidor. Verifica tu conexion a internet.'
+    }
+
+    return mapAuthError(err.message)
+  }
+
+  return 'Ocurrio un error inesperado. Intenta de nuevo.'
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -139,12 +162,15 @@ export async function exchangeRecoveryCode(code: string) {
   return data
 }
 
-/** Verifica token_hash de recuperación y crea sesión temporal */
-export async function verifyRecoveryToken(tokenHash: string) {
+/** Verifica token_hash de recuperacion/invitacion y crea sesion temporal */
+export async function verifyPasswordSetupToken(
+  tokenHash: string,
+  type: PasswordSetupTokenType
+) {
   const { data, error } = await withTimeout(
     supabase.auth.verifyOtp({
       token_hash: tokenHash,
-      type: 'recovery',
+      type,
     })
   )
 
@@ -153,6 +179,18 @@ export async function verifyRecoveryToken(tokenHash: string) {
 }
 
 /** Actualiza la contraseña del usuario autenticado */
+export async function setSessionFromTokens(accessToken: string, refreshToken: string) {
+  const { data, error } = await withTimeout(
+    supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    }),
+    12000
+  )
+
+  if (error) throw new Error(mapAuthError(error.message))
+  return data
+}
 export async function updateUserPassword(password: string) {
   const { data, error } = await withTimeout(
     supabase.auth.updateUser({ password })
@@ -164,12 +202,16 @@ export async function updateUserPassword(password: string) {
 
 /** Inicia sesión con email y contraseña */
 export async function loginUser({ email, password }: LoginData) {
-  const { data, error } = await withTimeout(
-    supabase.auth.signInWithPassword({ email, password })
-  )
+  try {
+    const { data, error } = await withTimeout(
+      supabase.auth.signInWithPassword({ email, password })
+    )
 
-  if (error) throw new Error(mapAuthError(error.message))
-  return data
+    if (error) throw error
+    return data
+  } catch (err) {
+    throw new Error(mapUnexpectedAuthError(err))
+  }
 }
 
 /** Cierra la sesión actual */
@@ -184,3 +226,4 @@ export async function getCurrentSession() {
   if (error) throw new Error(mapAuthError(error.message))
   return data.session
 }
+

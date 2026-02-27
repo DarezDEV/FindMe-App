@@ -27,7 +27,6 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
-  const [initialized, setInitialized] = useState(false)
 
   const loadUser = useCallback(async (userId: string): Promise<UserProfile | null> => {
     try {
@@ -63,18 +62,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } finally {
         if (isMounted) {
           setLoading(false)
-          setInitialized(true)
         }
       }
     }
 
-    initSession()
+    void initSession()
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!isMounted || !initialized) return
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isMounted) return
 
       if (event === 'SIGNED_IN' && session?.user?.id) {
-        await loadUser(session.user.id)
+        void loadUser(session.user.id)
       } else if (event === 'SIGNED_OUT') {
         setUser(null)
       }
@@ -84,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isMounted = false
       listener.subscription.unsubscribe()
     }
-  }, [loadUser, initialized])
+  }, [loadUser])
 
   return (
     <AuthContext.Provider value={{ user, loading, isAuthenticated: !!user, refreshUser }}>
@@ -93,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth debe usarse dentro de <AuthProvider>')

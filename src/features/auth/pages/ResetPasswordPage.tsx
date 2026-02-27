@@ -5,8 +5,10 @@ import {
   exchangeRecoveryCode,
   getCurrentSession,
   logoutUser,
+  setSessionFromTokens,
   updateUserPassword,
-  verifyRecoveryToken,
+  verifyPasswordSetupToken,
+  type PasswordSetupTokenType,
 } from '../services'
 import { Alert } from '../../../shared/components/ui'
 
@@ -15,10 +17,30 @@ const MIN_PASSWORD_LENGTH = 6
 const wait = (ms: number) =>
   new Promise<void>((resolve) => window.setTimeout(resolve, ms))
 
+const decodeParam = (value: string) => {
+  try {
+    return decodeURIComponent(value.replace(/\+/g, ' '))
+  } catch {
+    return value
+  }
+}
+
+const getResetParams = () => {
+  const queryParams = new URLSearchParams(window.location.search)
+  const hashRaw = window.location.hash.startsWith('#')
+    ? window.location.hash.slice(1)
+    : window.location.hash
+  const hashParams = new URLSearchParams(hashRaw)
+
+  return {
+    get: (key: string) => queryParams.get(key) ?? hashParams.get(key),
+  }
+}
+
 export default function ResetPasswordPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const paramsKey = searchParams.toString()
+  const paramsKey = `${searchParams.toString()}|${window.location.hash}`
 
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -47,15 +69,32 @@ export default function ResetPasswordPage() {
       setError(null)
 
       try {
-        const params = new URLSearchParams(paramsKey)
+        const params = getResetParams()
+        const authError = params.get('error_description') ?? params.get('error')
         const code = params.get('code')
         const tokenHash = params.get('token_hash')
         const type = params.get('type')
+        const accessToken = params.get('access_token')
+        const refreshToken = params.get('refresh_token')
+
+        if (authError) {
+          throw new Error(decodeParam(authError))
+        }
 
         if (code) {
           await exchangeRecoveryCode(code)
-        } else if (tokenHash && type === 'recovery') {
-          await verifyRecoveryToken(tokenHash)
+        } else if (
+          tokenHash &&
+          (type === 'recovery' || type === 'invite')
+        ) {
+          await verifyPasswordSetupToken(tokenHash, type as PasswordSetupTokenType)
+        } else if (accessToken && refreshToken) {
+          await setSessionFromTokens(accessToken, refreshToken)
+        } else {
+          const existingSession = await getCurrentSession()
+          if (!existingSession) {
+            throw new Error('El enlace no contiene un token valido de recuperacion o invitacion.')
+          }
         }
 
         const session = await waitForSession()

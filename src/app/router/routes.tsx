@@ -10,6 +10,7 @@ import ResetPasswordPage from '../../features/auth/pages/ResetPasswordPage'
 import UserHome from '../../features/user/pages/UserHome'
 import AdminHome from '../../features/admin/pages/AdminHome'
 import AuthorityHome from '../../features/authority/pages/AuthorityHome'
+import AdminUsers from '../../features/admin/pages/AdminUsers'
 
 function UnauthorizedPage() {
   return (
@@ -56,7 +57,8 @@ const router = createBrowserRouter([
   {
     element: <RoleRoute allowedRoles={[ROLES.ADMIN]} />,
     children: [
-      { path: '/admin', element: <AdminHome /> },
+      { path: '/admin/dashboard', element: <AdminHome /> },
+      { path: '/admin/users', element: <AdminUsers /> },
     ],
   },
 

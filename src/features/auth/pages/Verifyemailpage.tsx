@@ -110,7 +110,7 @@ export default function VerifyEmailPage({ email, onBack }: Props) {
       }
 
       if (profile.roles.includes(ROLES.ADMIN)) {
-        navigate('/admin', { replace: true })
+        navigate('/admin/dashboard', { replace: true })
       } else if (profile.roles.includes(ROLES.AUTHORITY)) {
         navigate('/authority', { replace: true })
       } else {
