@@ -8,7 +8,6 @@ import ForgotPasswordPage from '../../features/auth/pages/ForgotPasswordPage'
 import ResetPasswordPage from '../../features/auth/pages/ResetPasswordPage'
 import UserHome from '../../features/user/pages/UserHome'
 import AdminHome from '../../features/admin/pages/AdminHome'
-import UserHome from '../../features/user/pages/UserHome'
 import AuthorityHome from '../../features/authority/pages/AuthorityHome'
 import AdminUsers from '../../features/admin/pages/AdminUsers'
 import AuthorityCases from '../../features/authority/pages/AuthorityCases'
@@ -55,14 +54,15 @@ const router = createBrowserRouter([
       { path: '/login', element: <LoginPage /> },
       { path: '/register', element: <RegisterPage /> },
       { path: '/forgot-password', element: <ForgotPasswordPage /> },
+      { path: '/reset-password', element: <ResetPasswordPage /> },
     ],
   },
 
   // Usuario comun
   {
     element: <RoleRoute allowedRoles={[ROLES.USER]} />,
-    children: [{ path: '/dashboard', element: <UserHome /> }],
     children: [
+      { path: '/dashboard', element: <UserHome /> },
       { path: '/user', element: <UserHome /> },
     ],
   },
