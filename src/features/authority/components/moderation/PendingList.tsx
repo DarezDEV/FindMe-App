@@ -1,5 +1,4 @@
-import { Calendar, MapPin } from 'lucide-react'
-import { StatusBadge } from '../../../../shared/components/ui'
+import { Calendar, MapPin, Clock } from 'lucide-react'
 import type { PendingCaseItem } from './types'
 
 interface PendingListProps {
@@ -8,60 +7,107 @@ interface PendingListProps {
   onSelectCase: (caseId: string) => void
 }
 
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .slice(0, 2)
+    .map((n) => n.charAt(0).toUpperCase())
+    .join('')
+}
+
+// Deterministic soft color per name initial — no random flicker on re-renders
+const AVATAR_PALETTES = [
+  { bg: 'bg-amber-400/12',  border: 'border-amber-400/20',  text: 'text-amber-400'  },
+  { bg: 'bg-sky-400/12',    border: 'border-sky-400/20',    text: 'text-sky-400'    },
+  { bg: 'bg-emerald-400/12',border: 'border-emerald-400/20',text: 'text-emerald-400'},
+  { bg: 'bg-violet-400/12', border: 'border-violet-400/20', text: 'text-violet-400' },
+  { bg: 'bg-rose-400/12',   border: 'border-rose-400/20',   text: 'text-rose-400'   },
+]
+
+function getAvatarPalette(name: string) {
+  const code = name.charCodeAt(0) || 0
+  return AVATAR_PALETTES[code % AVATAR_PALETTES.length]
+}
+
 export function PendingList({ cases, selectedCaseId, onSelectCase }: PendingListProps) {
   if (cases.length === 0) {
     return (
-      <div className="card p-6">
-        <h2 className="text-base font-semibold text-text-primary mb-2">Casos pendientes</h2>
-        <p className="text-sm text-text-secondary">No hay casos pendientes para revisar.</p>
+      <div className="flex flex-col items-center justify-center py-14 px-6 gap-3 font-['Syne',sans-serif]">
+        <div className="w-12 h-12 rounded-2xl bg-emerald-400/10 border border-emerald-400/20 flex items-center justify-center">
+          <Clock size={18} className="text-emerald-400" />
+        </div>
+        <p className="text-sm font-semibold text-slate-400">Cola vacía</p>
+        <p className="text-xs text-slate-700 text-center leading-relaxed">
+          No hay casos pendientes de revisión en este momento.
+        </p>
       </div>
     )
   }
 
   return (
-    <div className="card overflow-hidden">
-      <div className="px-5 py-4 border-b border-border">
-        <h2 className="text-base font-semibold text-text-primary">Casos pendientes</h2>
-        <p className="text-xs text-text-secondary mt-1">Selecciona un caso para revisar su detalle.</p>
-      </div>
+    <div className="divide-y divide-[#13161e] font-['Syne',sans-serif]">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap');
+        .pending-item { transition: background 0.13s ease; }
+        .pending-item-active { background: linear-gradient(90deg, rgba(251,191,36,0.06) 0%, rgba(251,191,36,0.02) 100%); }
+        .pending-item-inactive:hover { background: rgba(255,255,255,0.02); }
+      `}</style>
 
-      <div className="max-h-[70vh] overflow-y-auto divide-y divide-border/80">
-        {cases.map((item) => {
-          const isSelected = item.id === selectedCaseId
+      {cases.map((item) => {
+        const isSelected = item.id === selectedCaseId
+        const palette = getAvatarPalette(item.name)
+        const initials = getInitials(item.name)
 
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onSelectCase(item.id)}
-              className={`w-full text-left p-4 transition-colors ${
-                isSelected ? 'bg-primary-soft/60' : 'hover:bg-primary-soft/30'
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full bg-primary-soft text-primary flex items-center justify-center text-sm font-semibold shrink-0">
-                  {item.name.charAt(0).toUpperCase()}
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => onSelectCase(item.id)}
+            className={`pending-item w-full text-left px-4 py-4 relative ${
+              isSelected ? 'pending-item-active' : 'pending-item-inactive'
+            }`}
+          >
+            {/* Selected indicator line */}
+            {isSelected && (
+              <span className="absolute left-0 top-4 bottom-4 w-0.5 rounded-full bg-amber-400" />
+            )}
+
+            <div className="flex items-start gap-3 pl-1">
+              {/* Avatar */}
+              <div
+                className={`w-9 h-9 rounded-xl border flex items-center justify-center text-xs font-bold shrink-0 ${palette.bg} ${palette.border} ${palette.text}`}
+              >
+                {initials}
+              </div>
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                {/* Name + case number */}
+                <div className="flex items-start justify-between gap-2 mb-1.5">
+                  <p className={`text-sm font-semibold truncate leading-snug ${isSelected ? 'text-slate-100' : 'text-slate-400'}`}>
+                    {item.name}
+                  </p>
+                  <span className="shrink-0 text-[10px] font-mono text-amber-400/60 mt-0.5 whitespace-nowrap">
+                    {item.caseNumber}
+                  </span>
                 </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-text-primary truncate">{item.name}</p>
-                    <StatusBadge status={item.status} />
-                  </div>
-                  <p className="text-xs text-text-secondary mt-1 inline-flex items-center gap-1">
-                    <Calendar size={11} />
-                    {item.createdAt}
+                {/* Meta */}
+                <div className="space-y-1">
+                  <p className="flex items-center gap-1.5 text-[11px] text-slate-700">
+                    <MapPin size={10} className="shrink-0 text-slate-800" />
+                    <span className="truncate">{item.location}</span>
                   </p>
-                  <p className="text-xs text-text-secondary mt-1 inline-flex items-center gap-1">
-                    <MapPin size={11} />
-                    {item.location}
+                  <p className="flex items-center gap-1.5 text-[11px] text-slate-700">
+                    <Calendar size={10} className="shrink-0 text-slate-800" />
+                    <span>{item.createdAt}</span>
                   </p>
                 </div>
               </div>
-            </button>
-          )
-        })}
-      </div>
+            </div>
+          </button>
+        )
+      })}
     </div>
   )
 }
