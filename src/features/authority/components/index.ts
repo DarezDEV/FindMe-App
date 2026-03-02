@@ -1,0 +1,2 @@
+export { AuthoritySidebar } from './AuthoritySidebar'
+

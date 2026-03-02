@@ -1,4 +1,4 @@
-﻿import { useState, type FormEvent } from 'react'
+﻿import { useState, type FormEvent, type MouseEvent } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { loginUser } from '../services'
 import { useAuth } from '../hooks'
@@ -16,8 +16,11 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [isLeaving, setIsLeaving] = useState(false)
 
   const justRegistered = params.get('registered') === 'true'
+  const justVerified = params.get('verified') === 'true'
+  const passwordWasReset = params.get('reset') === 'success'
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -29,7 +32,7 @@ export default function LoginPage() {
       const profile = await refreshUser()
 
       if (profile?.roles.includes(ROLES.ADMIN)) {
-        navigate('/admin', { replace: true })
+        navigate('/admin/dashboard', { replace: true })
       } else if (profile?.roles.includes(ROLES.AUTHORITY)) {
         navigate('/authority', { replace: true })
       } else {
@@ -43,8 +46,20 @@ export default function LoginPage() {
     }
   }
 
+  const handleGoToRegister = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (e.button !== 0 || e.metaKey || e.altKey || e.ctrlKey || e.shiftKey) return
+    e.preventDefault()
+    if (isLeaving) return
+    setIsLeaving(true)
+    window.setTimeout(() => navigate('/register'), 240)
+  }
+
   return (
-    <div className="min-h-screen bg-background flex">
+    <div
+      className={`min-h-screen bg-background flex auth-transition ${
+        isLeaving ? 'auth-transition-exit-left' : 'auth-transition-enter'
+      }`}
+    >
       {/* Panel izquierdo — decorativo */}
       <div className="hidden lg:flex lg:w-[45%] bg-primary flex-col justify-between p-12 relative overflow-hidden">
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-white/5 rounded-full" />
@@ -134,7 +149,13 @@ export default function LoginPage() {
           </div>
 
           {justRegistered && (
-            <Alert type="success" message="✓ Cuenta creada exitosamente. Ya puedes iniciar sesión." />
+            <Alert type="success" message="? Cuenta creada exitosamente. Ya puedes iniciar sesión." />
+          )}
+          {justVerified && (
+            <Alert type="success" message="Correo verificado correctamente." />
+          )}
+          {passwordWasReset && (
+            <Alert type="success" message="Contraseña actualizada. Inicia sesión con tu nueva clave." />
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -168,7 +189,8 @@ export default function LoginPage() {
                 </label>
                 <button
                   type="button"
-                  className="text-xs text-primary hover:text-primary-hover transition-colors"
+                  onClick={() => navigate('/forgot-password')}
+                  className="text-xs text-primary hover:text-primary-hover hover:underline underline-offset-2 transition-colors cursor-pointer"
                 >
                   ¿Olvidaste tu contraseña?
                 </button>
@@ -210,7 +232,11 @@ export default function LoginPage() {
 
           <p className="text-center text-text-secondary text-sm">
             ¿No tienes cuenta?{' '}
-            <Link to="/register" className="text-primary hover:text-primary-hover font-medium transition-colors">
+            <Link
+              to="/register"
+              onClick={handleGoToRegister}
+              className="text-primary hover:text-primary-hover font-medium transition-colors"
+            >
               Regístrate aquí
             </Link>
           </p>

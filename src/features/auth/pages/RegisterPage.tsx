@@ -1,9 +1,10 @@
-import { useState, type FormEvent, type ChangeEvent } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useState, type FormEvent, type ChangeEvent, type MouseEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { registerUser } from '../services'
 import { Alert } from '../../../shared/components/ui'
 import type { RegisterFormData } from '../types'
 import { User, Mail, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
+import VerifyEmailPage from './Verifyemailpage'
 
 const INITIAL_FORM: RegisterFormData = {
   name: '',
@@ -87,6 +88,11 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [isLeaving, setIsLeaving] = useState(false)
+
+  // ── Paso de verificación ──────────────────────────────────────────────────
+  const [step, setStep] = useState<'register' | 'verify'>('register')
+  const [registeredEmail, setRegisteredEmail] = useState('')
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) =>
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
@@ -112,7 +118,9 @@ export default function RegisterPage() {
         email: form.email,
         password: form.password,
       })
-      navigate('/login?registered=true')
+      // Guardar email y pasar a verificación
+      setRegisteredEmail(form.email)
+      setStep('verify')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al crear la cuenta.'
       setError(message)
@@ -121,18 +129,39 @@ export default function RegisterPage() {
     }
   }
 
+  const handleGoToLogin = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (e.button !== 0 || e.metaKey || e.altKey || e.ctrlKey || e.shiftKey) return
+    e.preventDefault()
+    if (isLeaving) return
+    setIsLeaving(true)
+    window.setTimeout(() => navigate('/login'), 240)
+  }
+
   const passwordMismatch = !!form.confirm && form.confirm !== form.password
 
+  // ── Renderizar verificación si el registro fue exitoso ───────────────────
+  if (step === 'verify') {
+    return (
+      <VerifyEmailPage
+        email={registeredEmail}
+        onBack={() => setStep('register')}
+      />
+    )
+  }
+
+  // ── Formulario de registro ────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-background flex">
+    <div
+      className={`min-h-screen bg-background flex auth-transition ${
+        isLeaving ? 'auth-transition-exit-right' : 'auth-transition-enter'
+      }`}
+    >
       {/* Panel izquierdo — decorativo */}
       <div className="hidden lg:flex lg:w-[45%] bg-primary flex-col justify-between p-12 relative overflow-hidden">
-        {/* Círculos decorativos */}
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-white/5 rounded-full" />
         <div className="absolute -bottom-32 -right-16 w-80 h-80 bg-white/5 rounded-full" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-white/5 rounded-full" />
 
-        {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
           <img
             src="/findMeLogo.svg"
@@ -143,23 +172,13 @@ export default function RegisterPage() {
               e.currentTarget.nextElementSibling?.classList.remove('hidden')
             }}
           />
-          <svg
-            className="w-8 h-8 text-white hidden"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2.5}
-              d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
-            />
+          <svg className="w-8 h-8 text-white hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
+              d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
           </svg>
           <span className="text-white font-bold text-xl tracking-tight">FindMe System</span>
         </div>
 
-        {/* Texto central */}
         <div className="relative z-10 space-y-4">
           <h2 className="text-white text-4xl font-bold leading-tight">
             Únete a la<br />red de búsqueda<br />y ayuda.
@@ -169,7 +188,6 @@ export default function RegisterPage() {
           </p>
         </div>
 
-        {/* Beneficios */}
         <div className="relative z-10 space-y-3">
           {[
             'Reporta personas desaparecidas fácilmente',
@@ -193,28 +211,11 @@ export default function RegisterPage() {
               src="/findMeLogo.svg"
               alt="FindMe System"
               className="w-10 h-10 object-contain"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none'
-                e.currentTarget.nextElementSibling?.classList.remove('hidden')
-              }}
+              onError={(e) => { e.currentTarget.style.display = 'none' }}
             />
-            <svg
-              className="w-7 h-7 text-primary hidden"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2.5}
-                d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
-              />
-            </svg>
             <span className="font-bold text-text-primary text-lg">FindMe System</span>
           </div>
 
-          {/* Encabezado */}
           <div>
             <h1 className="text-3xl font-bold text-text-primary tracking-tight">Crear cuenta</h1>
             <p className="text-text-secondary mt-2 text-sm">
@@ -225,7 +226,6 @@ export default function RegisterPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && <Alert type="error" message={error} />}
 
-            {/* Nombre + Apellido */}
             <div className="grid grid-cols-2 gap-4">
               <InputWithIcon
                 icon={User}
@@ -247,7 +247,6 @@ export default function RegisterPage() {
               />
             </div>
 
-            {/* Email */}
             <InputWithIcon
               icon={Mail}
               label="Correo electrónico"
@@ -339,6 +338,7 @@ export default function RegisterPage() {
             ¿Ya tienes cuenta?{' '}
             <Link
               to="/login"
+              onClick={handleGoToLogin}
               className="text-primary hover:text-primary-hover font-medium transition-colors"
             >
               Inicia sesión aquí
