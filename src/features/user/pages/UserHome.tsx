@@ -58,10 +58,6 @@ export default function UserHome() {
                 Consulta todos los casos recientes publicados en la plataforma.
               </p>
             </div>
-            <Link to="/publicar" className="btn-primary flex items-center gap-2 self-start sm:self-auto">
-              <Plus size={16} strokeWidth={2.5} />
-              Nuevo reporte
-            </Link>
           </div>
 
           <div className="flex items-center justify-between">
