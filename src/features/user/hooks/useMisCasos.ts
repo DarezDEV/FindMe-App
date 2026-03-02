@@ -243,6 +243,11 @@ function normalizeCommentRow(row: Record<string, unknown>, index: number): CasoC
 
   if (!contenido) return null
 
+  const normalizedContent = contenido.trim().toUpperCase()
+  if (normalizedContent.startsWith('[AVISTAMIENTO]') || normalizedContent.startsWith('[REPORTE_CONTENIDO]')) {
+    return null
+  }
+
   const autoridadNombre = pickText(row, [
     'autoridad_nombre',
     'nombre_autoridad',

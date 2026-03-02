@@ -64,7 +64,7 @@ const publishOptions: PublishOption[] = [
     key: 'avistamiento',
     label: 'Avistamiento',
     desc: 'Registrar informacion de avistamiento',
-    to: '/reportar',
+    to: '/avistamiento',
     color: 'text-primary',
     icon: <MapPin size={16} />,
   },
@@ -545,7 +545,7 @@ export default function UserNavbar() {
             </div>
             {[
               { icon: <UserSearch size={16} />, label: 'Nuevo reporte', to: '/publicar' },
-              { icon: <MapPin size={16} />, label: 'Explorar mapa', to: '/mapa' },
+              { icon: <MapPin size={16} />, label: 'Reportar avistamiento', to: '/avistamiento' },
               { icon: <Bell size={16} />, label: 'Notificaciones', to: '/notificaciones' },
               { icon: <Flag size={16} />, label: 'Reportar contenido', to: '/reportar' },
               { icon: <CheckCircle size={16} />, label: 'Mis casos', to: '/mis-casos' },

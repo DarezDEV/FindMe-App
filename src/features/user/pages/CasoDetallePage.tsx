@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
-import { ChevronLeft, Eye, Mail, MapPin, MessageSquare, Phone, UserSearch, Video } from 'lucide-react'
+import { ChevronLeft, Eye, Flag, Mail, MapPin, MessageSquare, Phone, UserSearch, Video } from 'lucide-react'
 import UserNavbar from '../components/Usernavbar'
 import { Spinner } from '../../../shared/components/ui'
 import { useCasoDetalle } from '../hooks/useMisCasos'
@@ -164,6 +164,23 @@ export default function CasoDetallePage() {
                   {caso.email_contacto ?? 'No disponible'}
                 </p>
               </div>
+            </div>
+          </section>
+
+          <section className="card p-5 space-y-3">
+            <h2 className="text-lg font-semibold text-text-primary">Acciones del caso</h2>
+            <p className="text-sm text-text-secondary">
+              Puedes aportar informacion de avistamiento o denunciar contenido relacionado con este caso.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Link to={`/caso/${caso.id}/avistamiento`} className="btn-primary text-sm inline-flex items-center gap-1.5">
+                <MapPin size={14} />
+                Reportar avistamiento
+              </Link>
+              <Link to={`/caso/${caso.id}/reportar`} className="btn-secondary text-sm inline-flex items-center gap-1.5">
+                <Flag size={14} />
+                Reportar contenido
+              </Link>
             </div>
           </section>
 
