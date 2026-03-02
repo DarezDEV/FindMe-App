@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import 'sileo/styles.css'
 import './index.css'
 
 const rootElement = document.getElementById('root')
