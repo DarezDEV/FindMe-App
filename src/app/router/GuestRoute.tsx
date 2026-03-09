@@ -1,13 +1,51 @@
-import { Navigate, Outlet } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../providers/AuthProvider'
 import { Spinner } from '../../shared/components/ui'
+import { supabase } from '../../lib/supabase/client'
 
 export function GuestRoute() {
   const { user, loading } = useAuth()
+  const location = useLocation()
+  const [hasSession, setHasSession] = useState(false)
+  const [sessionLoading, setSessionLoading] = useState(true)
 
-  if (loading) return <Spinner fullScreen />
-  if (user) {
-    const firstRole = user.roles[0]
+  useEffect(() => {
+    let isMounted = true
+
+    const readSession = async () => {
+      try {
+        const { data } = await supabase.auth.getSession()
+        if (isMounted) {
+          setHasSession(!!data.session)
+        }
+      } finally {
+        if (isMounted) {
+          setSessionLoading(false)
+        }
+      }
+    }
+
+    void readSession()
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!isMounted) return
+      setHasSession(!!session)
+      setSessionLoading(false)
+    })
+
+    return () => {
+      isMounted = false
+      listener.subscription.unsubscribe()
+    }
+  }, [])
+
+  if (loading || sessionLoading) return <Spinner fullScreen />
+
+  const firstRole = user?.roles[0]
+  const shouldBlockLanding = location.pathname === '/' && hasSession
+
+  if (user || shouldBlockLanding) {
     const redirectPath = firstRole === 'admin' ? '/admin/dashboard' : firstRole === 'authority' ? '/authority' : '/user'
     return <Navigate to={redirectPath} replace />
   }

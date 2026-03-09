@@ -16,7 +16,7 @@ export function ModerationActions({
   return (
     <div className="card p-4 flex flex-wrap items-center gap-2">
       <button type="button" className="btn-primary bg-success hover:bg-success/90" onClick={onApprove} disabled={disabled}>
-        Aprobar caso
+        Publicar caso
       </button>
       <button type="button" className="btn-primary bg-warning hover:bg-warning/90" onClick={onReject} disabled={disabled}>
         Rechazar caso

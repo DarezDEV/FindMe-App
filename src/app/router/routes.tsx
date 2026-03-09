@@ -8,6 +8,10 @@ import ForgotPasswordPage from '../../features/auth/pages/ForgotPasswordPage'
 import ResetPasswordPage from '../../features/auth/pages/ResetPasswordPage'
 import AdminHome from '../../features/admin/pages/AdminHome'
 import UserHome from '../../features/user/pages/UserHome'
+import PublicarPersonaPerdidaPage from '../../features/user/pages/PublicarPersonaPerdidaPage'
+import CasoDetallePage from '../../features/user/pages/CasoDetallePage'
+import ReportarAvistamientoPage from '../../features/user/pages/ReportarAvistamientoPage'
+import ReportarContenidoPage from '../../features/user/pages/ReportarContenidoPage'
 
 import AuthorityHome from '../../features/authority/pages/AuthorityHome'
 import AuthorityCases from '../../features/authority/pages/AuthorityCases'
@@ -43,18 +47,19 @@ function UnauthorizedPage() {
 
 const router = createBrowserRouter([
   // Publicas
-  { path: '/', element: <LandingPage /> },
   { path: '/cases', element: <PublicCasesPage /> },
   { path: '/publish-case', element: <PublishCaseGatePage /> },
   { path: '/unauthorized', element: <UnauthorizedPage /> },
 
   // Solo usuarios no autenticados
   {
+    path: '/',
     element: <GuestRoute />,
     children: [
-      { path: '/login', element: <LoginPage /> },
-      { path: '/register', element: <RegisterPage /> },
-      { path: '/forgot-password', element: <ForgotPasswordPage /> },
+      { index: true, element: <LandingPage /> },
+      { path: 'login', element: <LoginPage /> },
+      { path: 'register', element: <RegisterPage /> },
+      { path: 'forgot-password', element: <ForgotPasswordPage /> },
     ],
   },
   { path: '/reset-password', element: <ResetPasswordPage /> },
@@ -65,6 +70,12 @@ const router = createBrowserRouter([
     children: [
       { path: '/dashboard', element: <UserHome /> },
       { path: '/user', element: <UserHome /> },
+      { path: '/publicar', element: <PublicarPersonaPerdidaPage /> },
+      { path: '/caso/:id', element: <CasoDetallePage /> },
+      { path: '/avistamiento', element: <ReportarAvistamientoPage /> },
+      { path: '/caso/:id/avistamiento', element: <ReportarAvistamientoPage /> },
+      { path: '/reportar', element: <ReportarContenidoPage /> },
+      { path: '/caso/:id/reportar', element: <ReportarContenidoPage /> },
     ],
   },
 

@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { BadgeCheck, HeartHandshake, LockKeyhole, ShieldCheck, Users, Zap, Search, MapPin, Clock, Eye, ArrowRight, CheckCircle } from 'lucide-react'
+import { useAuth } from '../../auth/hooks'
+import { Spinner } from '../../../shared/components/ui'
 
 export default function LandingPage() {
+  const { user, loading } = useAuth()
   const [scrolled, setScrolled] = useState(false)
   const [visibleSections, setVisibleSections] = useState<Set<string>>(new Set())
   const observerRef = useRef<IntersectionObserver | null>(null)
@@ -38,6 +41,14 @@ export default function LandingPage() {
   }, [])
 
   const isVisible = (id: string) => visibleSections.has(id)
+
+  if (loading) return <Spinner fullScreen />
+
+  if (user) {
+    const firstRole = user.roles[0]
+    const redirectPath = firstRole === 'admin' ? '/admin/dashboard' : firstRole === 'authority' ? '/authority' : '/user'
+    return <Navigate to={redirectPath} replace />
+  }
 
   return (
     <>
