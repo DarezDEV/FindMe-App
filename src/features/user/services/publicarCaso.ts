@@ -25,7 +25,7 @@ interface CasoInsertRow {
   lugar_ultima_vez: string | null
   circunstancias: string | null
   ropa_descripcion: string | null
-  idioma: string | null
+  idioma: string
   visibilidad_contacto: 'publico' | 'autoridades' | 'privado'
   telefono_contacto: string | null
   email_contacto: string | null
@@ -69,10 +69,37 @@ const UPLOAD_CONCURRENCY = 1
 const QUERY_TIMEOUT_MS = 25_000
 const UPLOAD_TIMEOUT_MS = 60_000
 const CLEANUP_TIMEOUT_MS = 12_000
+const SUPPORTED_LANGUAGES = new Set(['es', 'en', 'pt', 'fr', 'de'])
+const OFFICIAL_DOCUMENT_PATTERNS = [
+  'cedula',
+  'dni',
+  'pasaporte',
+  'passport',
+  'documento',
+  'document',
+  'identidad',
+  'idcard',
+  'id_card',
+  'licencia',
+  'license',
+]
 
 function nullableText(value: string) {
   const normalized = value.trim()
   return normalized.length > 0 ? normalized : null
+}
+
+function normalizeFileName(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+}
+
+function isOfficialDocumentFileName(name: string) {
+  const normalized = normalizeFileName(name)
+  return OFFICIAL_DOCUMENT_PATTERNS.some(pattern => normalized.includes(pattern))
 }
 
 function normalizeEnumValue(value: string) {
@@ -131,6 +158,11 @@ function normalizeColorOjos(value: string) {
 
 function normalizeVisibilidadContacto(value: FormData['visibilidadContacto']) {
   return value === 'autoridades' ? 'autoridades' : 'publico'
+}
+
+function normalizeIdioma(value: string) {
+  const normalized = value.trim().toLowerCase()
+  return SUPPORTED_LANGUAGES.has(normalized) ? normalized : 'es'
 }
 
 function parseCityAndCountry(location: string) {
@@ -241,6 +273,13 @@ function validateMediaPayload(formData: FormData) {
     throw new Error(`Solo se permiten ${MAX_PHOTOS} fotos por caso.`)
   }
 
+  const documentPhoto = formData.fotos.find(file => isOfficialDocumentFileName(file.name))
+  if (documentPhoto) {
+    throw new Error(
+      `No se permiten documentos oficiales. Elimina "${documentPhoto.name}" y sube una foto de referencia del caso.`
+    )
+  }
+
   const invalidPhoto = formData.fotos.find(file => !file.type.startsWith('image/'))
   if (invalidPhoto) {
     throw new Error(`"${invalidPhoto.name}" no es una imagen valida.`)
@@ -252,6 +291,9 @@ function validateMediaPayload(formData: FormData) {
   }
 
   if (formData.video) {
+    if (isOfficialDocumentFileName(formData.video.name)) {
+      throw new Error('No se permiten documentos oficiales en los archivos multimedia del caso.')
+    }
     if (!formData.video.type.startsWith('video/')) {
       throw new Error('El archivo de video no tiene un formato valido.')
     }
@@ -492,7 +534,7 @@ export async function publicarCaso(formData: FormData): Promise<PublishCaseResul
     lugar_ultima_vez: nullableText(formData.lugarUltimaVez),
     circunstancias: nullableText(formData.descripcionCircunstancias),
     ropa_descripcion: nullableText(formData.ropaDescripcion),
-    idioma: nullableText(formData.idioma),
+    idioma: normalizeIdioma(formData.idioma),
     visibilidad_contacto: normalizeVisibilidadContacto(formData.visibilidadContacto),
     telefono_contacto: nullableText(formData.telefonoContacto),
     email_contacto: nullableText(formData.emailContacto),

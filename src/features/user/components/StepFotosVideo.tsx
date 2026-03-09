@@ -11,6 +11,32 @@ interface Props {
 const MAX_PHOTOS = 10
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024
 const MAX_VIDEO_SIZE = 50 * 1024 * 1024
+const OFFICIAL_DOCUMENT_PATTERNS = [
+  'cedula',
+  'dni',
+  'pasaporte',
+  'passport',
+  'documento',
+  'document',
+  'identidad',
+  'idcard',
+  'id_card',
+  'licencia',
+  'license',
+]
+
+function normalizeFileName(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+}
+
+function isOfficialDocumentFileName(name: string) {
+  const normalized = normalizeFileName(name)
+  return OFFICIAL_DOCUMENT_PATTERNS.some(pattern => normalized.includes(pattern))
+}
 
 export function StepFotosVideo({ data, set }: Props) {
   const fotoRef = useRef<HTMLInputElement>(null)
@@ -33,9 +59,14 @@ export function StepFotosVideo({ data, set }: Props) {
     setMediaError(null)
 
     const selectedFiles = Array.from(files)
-    const imagesOnly = selectedFiles.filter(file => file.type.startsWith('image/'))
+    const safeFiles = selectedFiles.filter(file => !isOfficialDocumentFileName(file.name))
+    if (safeFiles.length !== selectedFiles.length) {
+      setMediaError('Por seguridad, no se permiten documentos oficiales (cedula, DNI, pasaporte, licencia).')
+    }
 
-    if (imagesOnly.length !== selectedFiles.length) {
+    const imagesOnly = safeFiles.filter(file => file.type.startsWith('image/'))
+
+    if (imagesOnly.length !== safeFiles.length) {
       setMediaError('Solo se permiten imagenes para las fotos del caso.')
     }
 
@@ -85,6 +116,12 @@ export function StepFotosVideo({ data, set }: Props) {
 
     if (selected.size > MAX_VIDEO_SIZE) {
       setMediaError('El video supera el limite de 50 MB.')
+      set('video', null)
+      return
+    }
+
+    if (isOfficialDocumentFileName(selected.name)) {
+      setMediaError('No se permiten documentos oficiales en archivos multimedia del caso.')
       set('video', null)
       return
     }
@@ -196,7 +233,7 @@ export function StepFotosVideo({ data, set }: Props) {
       <div className="flex items-start gap-2 bg-warning/8 border border-warning/25 text-warning rounded-lg px-3 py-2.5">
         <AlertCircle size={15} className="mt-0.5 shrink-0" />
         <p className="text-xs">
-          La primera foto sera la imagen principal del caso. Usa fotos recientes y claras para facilitar la identificacion.
+          La primera foto sera la imagen principal del caso. No subas cedula, pasaporte u otros documentos oficiales.
         </p>
       </div>
     </div>

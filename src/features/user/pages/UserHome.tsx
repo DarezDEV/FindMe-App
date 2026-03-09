@@ -1,15 +1,17 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, ChevronRight, Eye, MapPin, Plus, RefreshCw, UserSearch } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
 import { Spinner } from '../../../shared/components/ui'
 import UserNavbar from '../components/Usernavbar'
 import { type CasoReciente, useCasosGenerales } from '../hooks/useMisCasos'
+import { supabase } from '../../../lib/supabase/client'
 
 const STATUS_CONFIG: Record<CasoReciente['status'], { label: string; className: string }> = {
-  activo: { label: 'Activo', className: 'bg-info/10 text-info' },
-  en_revision: { label: 'En revision', className: 'bg-warning/10 text-warning' },
-  avistado: { label: 'Avistado', className: 'bg-primary-soft text-primary' },
-  encontrado: { label: 'Encontrado', className: 'bg-success/10 text-success' },
+  activo: { label: 'Publicada', className: 'bg-info/10 text-info' },
+  en_revision: { label: 'Publicada', className: 'bg-warning/10 text-warning' },
+  avistado: { label: 'Publicada', className: 'bg-primary-soft text-primary' },
+  encontrado: { label: 'Reunificada', className: 'bg-success/10 text-success' },
 }
 
 function StatusBadge({ status }: { status: CasoReciente['status'] }) {
@@ -41,10 +43,26 @@ export default function UserHome() {
     isLoading: casosLoading,
     isError: casosError,
     refetch: refetchCasos,
-  } = useCasosGenerales()
+  } = useCasosGenerales(24, { hideResolved: true })
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('user-home-casos-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'casos' },
+        () => {
+          void refetchCasos()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      void supabase.removeChannel(channel)
+    }
+  }, [refetchCasos])
 
   if (authLoading || !user) return <Spinner fullScreen />
-
   return (
     <>
       <UserNavbar />

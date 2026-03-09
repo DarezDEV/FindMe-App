@@ -33,6 +33,17 @@ function formatEstado(value: string | null) {
   return value.replace(/_/g, ' ')
 }
 
+function formatStatusLabel(status: string) {
+  if (status === 'encontrado') return 'Reunificada'
+  if (status === 'cerrado') return 'Archivada'
+  return 'Publicada'
+}
+
+function buildApproximateLocation(city: string | null, country: string | null) {
+  const parts = [city, country].filter((part): part is string => Boolean(part?.trim()))
+  return parts.length > 0 ? parts.join(', ') : 'Ubicacion reservada'
+}
+
 export default function CasoDetallePage() {
   const { id = '' } = useParams<{ id: string }>()
   const { data, isLoading, isError, error, refetch } = useCasoDetalle(id)
@@ -74,6 +85,7 @@ export default function CasoDetallePage() {
   const photos = media.filter(item => item.tipo === 'foto')
   const video = media.find(item => item.tipo === 'video')
   const mainPhoto = photos.find(item => item.es_principal)?.url ?? caso.foto_principal_url ?? photos[0]?.url ?? null
+  const safeLocation = buildApproximateLocation(caso.ciudad, caso.pais)
 
   return (
     <>
@@ -109,7 +121,7 @@ export default function CasoDetallePage() {
                     </h1>
                   </div>
                   <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-primary-soft text-primary">
-                    {caso.status}
+                    {formatStatusLabel(caso.status)}
                   </span>
                 </div>
 
@@ -132,7 +144,7 @@ export default function CasoDetallePage() {
                     <Eye size={13} /> {caso.vistas} vistas
                   </span>
                   <span className="inline-flex items-center gap-1">
-                    <MapPin size={13} /> {caso.lugar_desaparicion ?? 'Sin ubicacion'}
+                    <MapPin size={13} /> Zona aproximada: {safeLocation}
                   </span>
                 </div>
               </div>
@@ -146,7 +158,7 @@ export default function CasoDetallePage() {
               <LabelValue label="Senas particulares" value={caso.senas_particulares} />
               <LabelValue label="Circunstancias" value={caso.circunstancias} />
               <LabelValue label="Ropa" value={caso.ropa_descripcion} />
-              <LabelValue label="Ultimo lugar visto" value={caso.lugar_ultima_vez} />
+              <LabelValue label="Zona aproximada de ultimo avistamiento" value={safeLocation} />
             </div>
 
             <div className="card p-5 space-y-4">

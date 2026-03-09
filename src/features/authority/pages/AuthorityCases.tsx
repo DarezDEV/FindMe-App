@@ -160,10 +160,10 @@ export default function AuthorityCases() {
               {[
                 { value: 'all', label: 'Todos' },
                 { value: 'pending', label: 'Pendiente' },
-                { value: 'approved', label: 'Aprobado' },
+                { value: 'approved', label: 'Publicada' },
                 { value: 'rejected', label: 'Rechazado' },
-                { value: 'found', label: 'Encontrado' },
-                { value: 'closed', label: 'Cerrado' },
+                { value: 'found', label: 'Reunificada' },
+                { value: 'closed', label: 'Archivada' },
               ].map((item) => (
                 <button
                   key={item.value}
@@ -237,9 +237,25 @@ export default function AuthorityCases() {
                                 type="button"
                                 onClick={() => void applyStatus(item.id, 'approved')}
                                 className="px-2.5 py-1 rounded-md text-xs font-medium bg-success/10 text-success"
-                                disabled={isActionLoading}
+                                disabled={isActionLoading || workflowStatus === 'approved'}
                               >
-                                Aprobar
+                                Publicar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void applyStatus(item.id, 'found')}
+                                className="px-2.5 py-1 rounded-md text-xs font-medium bg-info/10 text-info"
+                                disabled={isActionLoading || workflowStatus === 'found'}
+                              >
+                                Reunificar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void applyStatus(item.id, 'closed')}
+                                className="px-2.5 py-1 rounded-md text-xs font-medium bg-text-secondary/10 text-text-secondary"
+                                disabled={isActionLoading || workflowStatus === 'closed'}
+                              >
+                                Archivar
                               </button>
                               <button
                                 type="button"

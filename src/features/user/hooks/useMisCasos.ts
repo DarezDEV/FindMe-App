@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../../lib/supabase/client'
 
 type CasoStatus = 'activo' | 'en_revision' | 'avistado' | 'encontrado'
+type CasoWorkflowStatus = 'pending' | 'approved' | 'rejected' | 'found' | 'closed'
 
 export interface CasoReciente {
   id: string
@@ -9,6 +10,7 @@ export interface CasoReciente {
   nombres: string
   apellidos: string
   status: CasoStatus
+  workflow_status: CasoWorkflowStatus | null
   fecha_desaparicion: string | null
   ciudad: string | null
   foto_principal_url: string | null
@@ -67,9 +69,25 @@ interface CasoFallbackRow {
   nombres: string
   apellidos: string
   status: string | null
+  workflow_status: string | null
   fecha_desaparicion: string | null
   ciudad: string | null
   vistas: number | null
+  created_at: string | null
+}
+
+interface CasoViewRow {
+  id: string
+  numero_caso: string
+  nombres: string
+  apellidos: string
+  status: string | null
+  workflow_status: string | null
+  fecha_desaparicion: string | null
+  ciudad: string | null
+  foto_principal_url: string | null
+  vistas: number | null
+  total_fotos: number | null
   created_at: string | null
 }
 
@@ -81,6 +99,7 @@ interface CasoDetalleFallbackRow {
   edad: number | null
   genero: string | null
   status: string | null
+  workflow_status: string | null
   vistas: number | null
   fecha_desaparicion: string | null
   hora_desaparicion: string | null
@@ -108,6 +127,7 @@ const CASOS_SELECT = `
   nombres,
   apellidos,
   status,
+  workflow_status,
   fecha_desaparicion,
   ciudad,
   foto_principal_url,
@@ -122,6 +142,7 @@ const CASOS_FALLBACK_SELECT = `
   nombres,
   apellidos,
   status,
+  workflow_status,
   fecha_desaparicion,
   ciudad,
   vistas,
@@ -136,6 +157,7 @@ const CASO_DETALLE_SELECT = `
   edad,
   genero,
   status,
+  workflow_status,
   vistas,
   fecha_desaparicion,
   hora_desaparicion,
@@ -167,6 +189,7 @@ const CASO_DETALLE_FALLBACK_SELECT = `
   edad,
   genero,
   status,
+  workflow_status,
   vistas,
   fecha_desaparicion,
   hora_desaparicion,
@@ -196,7 +219,28 @@ function normalizeStatus(value: string | null): CasoStatus {
   if (value === 'activo' || value === 'en_revision' || value === 'avistado' || value === 'encontrado') {
     return value
   }
+  if (value === 'resuelto' || value === 'cerrado') {
+    return 'encontrado'
+  }
   return 'activo'
+}
+
+function normalizeWorkflowStatus(value: string | null): CasoWorkflowStatus | null {
+  if (value === 'pending' || value === 'approved' || value === 'rejected' || value === 'found' || value === 'closed') {
+    return value
+  }
+  return null
+}
+
+function isResolvedCase(status: string | null, workflowStatus: string | null) {
+  const normalizedStatus = status?.trim().toLowerCase() ?? ''
+  return (
+    workflowStatus === 'found' ||
+    workflowStatus === 'closed' ||
+    normalizedStatus === 'encontrado' ||
+    normalizedStatus === 'resuelto' ||
+    normalizedStatus === 'cerrado'
+  )
 }
 
 function isViewErrorRecoverable(message: string) {
@@ -355,6 +399,7 @@ function mapRecienteFromFallback(rows: CasoFallbackRow[], media: CasoMedia[]): C
       nombres: row.nombres,
       apellidos: row.apellidos,
       status: normalizeStatus(row.status),
+      workflow_status: normalizeWorkflowStatus(row.workflow_status),
       fecha_desaparicion: row.fecha_desaparicion,
       ciudad: row.ciudad,
       foto_principal_url: principal?.url ?? null,
@@ -365,7 +410,9 @@ function mapRecienteFromFallback(rows: CasoFallbackRow[], media: CasoMedia[]): C
   })
 }
 
-async function fetchCasosFallback(limit?: number, userId?: string): Promise<CasoReciente[]> {
+async function fetchCasosFallback(limit?: number, userId?: string, hideResolved = false): Promise<CasoReciente[]> {
+  const queryLimit = typeof limit === 'number' ? (hideResolved ? limit * 4 : limit) : undefined
+
   let query = supabase
     .from('casos')
     .select(CASOS_FALLBACK_SELECT)
@@ -376,20 +423,24 @@ async function fetchCasosFallback(limit?: number, userId?: string): Promise<Caso
     query = query.eq('publicado_por', userId)
   }
 
-  if (typeof limit === 'number') {
-    query = query.limit(limit)
+  if (typeof queryLimit === 'number') {
+    query = query.limit(queryLimit)
   }
 
   const { data, error } = await query
   if (error) throw error
 
   const rows = (data ?? []) as CasoFallbackRow[]
-  const media = await fetchMediaForCases(rows.map(row => row.id))
+  const visibleRows = hideResolved ? rows.filter(row => !isResolvedCase(row.status, row.workflow_status)) : rows
+  const limitedRows = typeof limit === 'number' ? visibleRows.slice(0, limit) : visibleRows
+  const media = await fetchMediaForCases(limitedRows.map(row => row.id))
 
-  return mapRecienteFromFallback(rows, media)
+  return mapRecienteFromFallback(limitedRows, media)
 }
 
-async function fetchCasos(limit?: number, userId?: string): Promise<CasoReciente[]> {
+async function fetchCasos(limit?: number, userId?: string, hideResolved = false): Promise<CasoReciente[]> {
+  const queryLimit = typeof limit === 'number' ? (hideResolved ? limit * 4 : limit) : undefined
+
   let query = supabase
     .from('casos_con_media')
     .select(CASOS_SELECT)
@@ -399,19 +450,38 @@ async function fetchCasos(limit?: number, userId?: string): Promise<CasoReciente
     query = query.eq('publicado_por', userId)
   }
 
-  if (typeof limit === 'number') {
-    query = query.limit(limit)
+  if (typeof queryLimit === 'number') {
+    query = query.limit(queryLimit)
   }
 
   const { data, error } = await query
   if (error) {
     if (isViewErrorRecoverable(error.message)) {
-      return fetchCasosFallback(limit, userId)
+      return fetchCasosFallback(limit, userId, hideResolved)
     }
     throw error
   }
 
-  return (data ?? []) as CasoReciente[]
+  const rows = (data ?? []) as CasoViewRow[]
+  const visibleRows = hideResolved
+    ? rows.filter(row => !isResolvedCase(row.status, row.workflow_status))
+    : rows
+  const limitedRows = typeof limit === 'number' ? visibleRows.slice(0, limit) : visibleRows
+
+  return limitedRows.map(row => ({
+    id: row.id,
+    numero_caso: row.numero_caso,
+    nombres: row.nombres,
+    apellidos: row.apellidos,
+    status: normalizeStatus(row.status),
+    workflow_status: normalizeWorkflowStatus(row.workflow_status),
+    fecha_desaparicion: row.fecha_desaparicion,
+    ciudad: row.ciudad,
+    foto_principal_url: row.foto_principal_url,
+    vistas: row.vistas ?? 0,
+    total_fotos: row.total_fotos ?? 0,
+    created_at: row.created_at,
+  }))
 }
 
 export function useMisCasos(userId: string, limit = 3) {
@@ -423,10 +493,12 @@ export function useMisCasos(userId: string, limit = 3) {
   })
 }
 
-export function useCasosGenerales(limit = 24) {
+export function useCasosGenerales(limit = 24, options: { hideResolved?: boolean } = {}) {
+  const hideResolved = options.hideResolved ?? false
+
   return useQuery({
-    queryKey: ['casos-generales', limit],
-    queryFn: () => fetchCasos(limit),
+    queryKey: ['casos-generales', limit, hideResolved],
+    queryFn: () => fetchCasos(limit, undefined, hideResolved),
     staleTime: QUERY_STALE_TIME,
   })
 }
@@ -484,6 +556,7 @@ export function useCasoDetalle(caseId: string) {
           edad: fallbackCase.edad,
           genero: fallbackCase.genero,
           status: normalizeStatus(fallbackCase.status),
+          workflow_status: normalizeWorkflowStatus(fallbackCase.workflow_status),
           vistas: fallbackCase.vistas ?? 0,
           fecha_desaparicion: fallbackCase.fecha_desaparicion,
           hora_desaparicion: fallbackCase.hora_desaparicion,
