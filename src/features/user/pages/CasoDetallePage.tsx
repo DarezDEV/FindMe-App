@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ChevronLeft, Eye, Flag, Link2, Mail, MapPin, MessageSquare, Phone, Share2, UserSearch, Video } from 'lucide-react'
+import { ChevronLeft, Eye, Link2, Mail, MapPin, MessageSquare, MoreVertical, Phone, Share2, UserSearch, Video } from 'lucide-react'
 import UserNavbar from '../components/Usernavbar'
 import { Alert, Spinner } from '../../../shared/components/ui'
 import { useCasoDetalle } from '../hooks/useMisCasos'
@@ -70,8 +70,21 @@ function buildSocialShareUrl(network: ShareNetwork, url: string, text: string) {
 
 export default function CasoDetallePage() {
   const [shareNotice, setShareNotice] = useState<{ type: 'error' | 'success' | 'warning' | 'info'; message: string } | null>(null)
+  const [actionsOpen, setActionsOpen] = useState(false)
+  const actionsMenuRef = useRef<HTMLDivElement | null>(null)
   const { id = '' } = useParams<{ id: string }>()
   const { data, isLoading, isError, error, refetch } = useCasoDetalle(id)
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node | null
+      if (actionsMenuRef.current?.contains(target ?? null)) return
+      setActionsOpen(false)
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [])
 
   if (isLoading) {
     return (
@@ -251,68 +264,98 @@ export default function CasoDetallePage() {
           </section>
 
           <section className="card p-5 space-y-3">
-            <h2 className="text-lg font-semibold text-text-primary">Acciones del caso</h2>
-            <p className="text-sm text-text-secondary">
-              Puedes aportar informacion de avistamiento o denunciar contenido relacionado con este caso.
-            </p>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-text-primary">Acciones del caso</h2>
+                <p className="text-sm text-text-secondary mt-1">
+                  Usa el menu de tres puntos para reportar avistamiento, reportar contenido o compartir.
+                </p>
+              </div>
 
-            {shareNotice && <Alert type={shareNotice.type} message={shareNotice.message} />}
+              <div className="relative shrink-0" ref={actionsMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setActionsOpen((current) => !current)}
+                  className="w-9 h-9 rounded-full border border-border bg-card text-text-primary shadow-sm hover:bg-primary-soft/40 transition-colors flex items-center justify-center"
+                  aria-label="Mas acciones del caso"
+                >
+                  <MoreVertical size={19} strokeWidth={2.7} />
+                </button>
 
-            <div className="flex flex-wrap gap-3">
-              <Link to={`/caso/${caso.id}/avistamiento`} className="btn-primary text-sm inline-flex items-center gap-1.5">
-                <MapPin size={14} />
-                Reportar avistamiento
-              </Link>
-              <Link to={`/caso/${caso.id}/reportar`} className="btn-secondary text-sm inline-flex items-center gap-1.5">
-                <Flag size={14} />
-                Reportar contenido
-              </Link>
-            </div>
-
-            <div className="border-t border-border pt-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary mb-2">
-                Compartir publicacion
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => void copyShareLink()}
-                  className="px-3 py-1.5 rounded-md text-xs font-medium border border-border bg-card hover:bg-primary-soft/40 inline-flex items-center gap-1.5"
-                >
-                  <Link2 size={13} />
-                  Copiar enlace
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void shareCase()}
-                  className="px-3 py-1.5 rounded-md text-xs font-medium border border-border bg-card hover:bg-primary-soft/40 inline-flex items-center gap-1.5"
-                >
-                  <Share2 size={13} />
-                  Compartir
-                </button>
-                <button
-                  type="button"
-                  onClick={() => shareOnSocial('whatsapp')}
-                  className="px-3 py-1.5 rounded-md text-xs font-medium border border-border bg-card hover:bg-primary-soft/40"
-                >
-                  WhatsApp
-                </button>
-                <button
-                  type="button"
-                  onClick={() => shareOnSocial('x')}
-                  className="px-3 py-1.5 rounded-md text-xs font-medium border border-border bg-card hover:bg-primary-soft/40"
-                >
-                  X
-                </button>
-                <button
-                  type="button"
-                  onClick={() => shareOnSocial('facebook')}
-                  className="px-3 py-1.5 rounded-md text-xs font-medium border border-border bg-card hover:bg-primary-soft/40"
-                >
-                  Facebook
-                </button>
+                {actionsOpen && (
+                  <div className="absolute right-0 mt-2 w-56 bg-card border border-border rounded-lg shadow-lg p-1.5 z-20">
+                    <Link
+                      to={`/caso/${caso.id}/avistamiento`}
+                      onClick={() => setActionsOpen(false)}
+                      className="block px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40"
+                    >
+                      Reportar avistamiento
+                    </Link>
+                    <Link
+                      to={`/caso/${caso.id}/reportar`}
+                      onClick={() => setActionsOpen(false)}
+                      className="block px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40"
+                    >
+                      Reportar contenido
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void copyShareLink()
+                        setActionsOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40 inline-flex items-center gap-1.5"
+                    >
+                      <Link2 size={13} />
+                      Copiar enlace
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void shareCase()
+                        setActionsOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40 inline-flex items-center gap-1.5"
+                    >
+                      <Share2 size={13} />
+                      Compartir
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        shareOnSocial('whatsapp')
+                        setActionsOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40"
+                    >
+                      Compartir por WhatsApp
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        shareOnSocial('x')
+                        setActionsOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40"
+                    >
+                      Compartir en X
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        shareOnSocial('facebook')
+                        setActionsOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40"
+                    >
+                      Compartir en Facebook
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
+
+            {shareNotice && <Alert type={shareNotice.type} message={shareNotice.message} />}
           </section>
 
           <section className="card p-5 space-y-4">

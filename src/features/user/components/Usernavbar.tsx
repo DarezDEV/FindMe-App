@@ -60,22 +60,6 @@ const publishOptions: PublishOption[] = [
     color: 'text-error',
     icon: <UserSearch size={16} />,
   },
-  {
-    key: 'avistamiento',
-    label: 'Avistamiento',
-    desc: 'Registrar informacion de avistamiento',
-    to: '/avistamiento',
-    color: 'text-primary',
-    icon: <MapPin size={16} />,
-  },
-  {
-    key: 'contenido',
-    label: 'Reportar contenido',
-    desc: 'Denunciar contenido inapropiado',
-    to: '/reportar',
-    color: 'text-warning',
-    icon: <Flag size={16} />,
-  },
 ]
 
 function getInitials(name: string, lastName: string) {
