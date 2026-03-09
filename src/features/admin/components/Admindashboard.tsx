@@ -1,110 +1,138 @@
+import { useMemo, type ElementType } from 'react'
+import { Link } from 'react-router-dom'
 import {
-  Users,
-  ShieldCheck,
-  FileSearch,
   CheckCircle2,
-  TrendingUp,
-  TrendingDown,
   Clock,
-  Eye,
-  AlertTriangle,
+  FileSearch,
+  RefreshCw,
+  ShieldCheck,
+  TrendingDown,
+  TrendingUp,
   UserPlus,
-} from "lucide-react";
-import { useAuth } from "../../auth/hooks";
+  Users,
+} from 'lucide-react'
+import { useAuth } from '../../auth/hooks'
+import { Alert, Spinner, StatusBadge, type WorkflowStatus } from '../../../shared/components/ui'
+import {
+  type AdminDashboardActivityItem,
+  type AdminDashboardSummary,
+  type AuthorityCaseRow,
+} from '../../../lib/supabase/db'
+import { useAdminDashboardSummary } from '../hooks/useAdminDashboardSummary'
 
-// ── Types ──────────────────────────────────────────────────────────────────
-
-type StatColor = "primary" | "warning" | "success" | "error";
+type StatColor = 'primary' | 'warning' | 'success' | 'error'
 
 interface Stat {
-  label: string;
-  value: string;
-  icon: React.ElementType;
-  color: StatColor;
-  trend: string;
-  up: boolean;
+  label: string
+  value: string | number
+  icon: ElementType
+  color: StatColor
+  trend: string
+  up: boolean
 }
 
-interface RecentCase {
-  initials: string;
-  name: string;
-  meta: string;
-  status: "active" | "progress" | "resolved";
-  statusLabel: string;
+const EMPTY_SUMMARY: AdminDashboardSummary = {
+  totalUsers: 0,
+  usersThisMonth: 0,
+  usersPreviousMonth: 0,
+  activeAuthorities: 0,
+  authoritiesThisMonth: 0,
+  authoritiesPreviousMonth: 0,
+  activeCases: 0,
+  casesThisWeek: 0,
+  casesPreviousWeek: 0,
+  resolvedCases: 0,
+  resolvedThisMonth: 0,
+  resolvedPreviousMonth: 0,
+  pendingCases: 0,
+  recentCases: [],
+  recentActivity: [],
 }
 
-interface ActivityItem {
-  icon: React.ElementType;
-  color: StatColor;
-  text: string;
-  highlight: string; // texto en negrita al inicio
-  time: string;
-}
-
-// ── Data ───────────────────────────────────────────────────────────────────
-
-const STATS: Stat[] = [
-  { label: "Usuarios registrados", value: "124", icon: Users,        color: "primary", trend: "+8 este mes",    up: true  },
-  { label: "Autoridades activas",  value: "8",   icon: ShieldCheck,  color: "warning", trend: "+1 este mes",    up: true  },
-  { label: "Casos activos",        value: "37",  icon: FileSearch,   color: "error",   trend: "+5 esta semana", up: false },
-  { label: "Casos resueltos",      value: "45",  icon: CheckCircle2, color: "success", trend: "+12 este mes",   up: true  },
-];
-
-const RECENT_CASES: RecentCase[] = [
-  { initials: "MR", name: "María Rodríguez", meta: "Reportado hace 2 horas · Zona Norte",  status: "active",   statusLabel: "Activo"     },
-  { initials: "JL", name: "Juan López",      meta: "Actualizado hace 5 horas · Zona Sur",  status: "progress", statusLabel: "En proceso" },
-  { initials: "AG", name: "Ana García",      meta: "Reportado hace 1 día · Centro",        status: "active",   statusLabel: "Activo"     },
-  { initials: "CM", name: "Carlos Méndez",   meta: "Resuelto hace 2 días · Zona Este",     status: "resolved", statusLabel: "Resuelto"   },
-  { initials: "LT", name: "Laura Torres",    meta: "Actualizado hace 3 días · Zona Oeste", status: "progress", statusLabel: "En proceso" },
-];
-
-const ACTIVITY: ActivityItem[] = [
-  { icon: UserPlus,      color: "primary", highlight: "Nuevo usuario registrado:",     text: "pedro.gomez@email.com",                    time: "Hace 15 min" },
-  { icon: Eye,           color: "warning", highlight: "Avistamiento reportado",        text: "en Caso #237 – María R.",                  time: "Hace 32 min" },
-  { icon: CheckCircle2,  color: "success", highlight: "Caso resuelto:",               text: "Carlos Méndez – Autoridad Sgt. Vega",       time: "Hace 2 horas" },
-  { icon: AlertTriangle, color: "error",   highlight: "Alerta generada:",              text: "caso #241 sin actualización en 48h",        time: "Hace 3 horas" },
-  { icon: TrendingUp,    color: "primary", highlight: "Reporte semanal generado",      text: "y disponible para descarga",               time: "Hace 5 horas" },
-];
-
-// ── Color maps ─────────────────────────────────────────────────────────────
-
-const colorMap: Record<StatColor, { bg: string; text: string; border: string; pill: string }> = {
+const colorMap: Record<StatColor, { bg: string; text: string; pill: string }> = {
   primary: {
-    bg:     "bg-primary/10",
-    text:   "text-primary",
-    border: "border-primary/20",
-    pill:   "border-t-2 border-t-primary",
+    bg: 'bg-primary/10',
+    text: 'text-primary',
+    pill: 'border-t-2 border-t-primary',
   },
   warning: {
-    bg:     "bg-warning/10",
-    text:   "text-warning",
-    border: "border-warning/20",
-    pill:   "border-t-2 border-t-warning",
+    bg: 'bg-warning/10',
+    text: 'text-warning',
+    pill: 'border-t-2 border-t-warning',
   },
   success: {
-    bg:     "bg-success/10",
-    text:   "text-success",
-    border: "border-success/20",
-    pill:   "border-t-2 border-t-success",
+    bg: 'bg-success/10',
+    text: 'text-success',
+    pill: 'border-t-2 border-t-success',
   },
   error: {
-    bg:     "bg-error/10",
-    text:   "text-error",
-    border: "border-error/20",
-    pill:   "border-t-2 border-t-error",
+    bg: 'bg-error/10',
+    text: 'text-error',
+    pill: 'border-t-2 border-t-error',
   },
-};
+}
 
-const statusMap: Record<RecentCase["status"], { pill: string; label: string }> = {
-  active:   { pill: "bg-error/10 text-error border border-error/20",     label: "Activo"     },
-  progress: { pill: "bg-warning/10 text-warning border border-warning/20", label: "En proceso" },
-  resolved: { pill: "bg-success/10 text-success border border-success/20", label: "Resuelto"   },
-};
+function formatRelativeTime(dateIso: string) {
+  const timestamp = new Date(dateIso).getTime()
+  if (Number.isNaN(timestamp)) return 'Sin fecha'
 
-// ── Sub-components ─────────────────────────────────────────────────────────
+  const diffMs = timestamp - Date.now()
+  const diffMinutes = Math.round(diffMs / (1000 * 60))
+
+  if (Math.abs(diffMinutes) < 60) {
+    return new Intl.RelativeTimeFormat('es', { numeric: 'auto' }).format(diffMinutes, 'minute')
+  }
+
+  const diffHours = Math.round(diffMinutes / 60)
+  if (Math.abs(diffHours) < 24) {
+    return new Intl.RelativeTimeFormat('es', { numeric: 'auto' }).format(diffHours, 'hour')
+  }
+
+  const diffDays = Math.round(diffHours / 24)
+  return new Intl.RelativeTimeFormat('es', { numeric: 'auto' }).format(diffDays, 'day')
+}
+
+function formatLocation(caso: AuthorityCaseRow) {
+  return caso.ciudad || caso.estado_provincia || caso.lugar_ultima_vez || 'Sin ubicacion'
+}
+
+function resolveWorkflowStatus(caso: AuthorityCaseRow): WorkflowStatus {
+  if (caso.workflow_status === 'approved') return 'approved'
+  if (caso.workflow_status === 'rejected') return 'rejected'
+  if (caso.workflow_status === 'found') return 'found'
+  if (caso.workflow_status === 'closed') return 'closed'
+
+  const normalizedStatus = caso.status.trim().toLowerCase()
+  if (normalizedStatus === 'resuelto' || normalizedStatus === 'encontrado') return 'found'
+  if (normalizedStatus === 'cerrado') return 'closed'
+
+  return 'pending'
+}
+
+function getActivityVisual(type: AdminDashboardActivityItem['type']) {
+  if (type === 'user') {
+    return {
+      icon: UserPlus,
+      color: 'primary' as const,
+    }
+  }
+
+  if (type === 'resolved') {
+    return {
+      icon: CheckCircle2,
+      color: 'success' as const,
+    }
+  }
+
+  return {
+    icon: FileSearch,
+    color: 'warning' as const,
+  }
+}
 
 function StatCard({ label, value, icon: Icon, color, trend, up }: Stat) {
-  const c = colorMap[color];
+  const c = colorMap[color]
+
   return (
     <div className={`card p-6 ${c.pill} flex flex-col gap-3`}>
       <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${c.bg}`}>
@@ -114,124 +142,206 @@ function StatCard({ label, value, icon: Icon, color, trend, up }: Stat) {
         <p className={`text-3xl font-bold ${c.text}`}>{value}</p>
         <p className="text-sm text-text-secondary mt-0.5">{label}</p>
       </div>
-      <div className={`flex items-center gap-1 text-xs font-medium ${up ? "text-success" : "text-error"}`}>
+      <div className={`flex items-center gap-1 text-xs font-medium ${up ? 'text-success' : 'text-error'}`}>
         {up ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
         {trend}
       </div>
     </div>
-  );
+  )
 }
 
-function RecentCaseRow({ initials, name, meta, status, statusLabel }: RecentCase) {
-  const s = statusMap[status];
+function RecentCaseRow({ caso }: { caso: AuthorityCaseRow }) {
+  const initials = `${caso.nombres[0] ?? ''}${caso.apellidos[0] ?? ''}`.toUpperCase()
+
   return (
-    <li className="flex items-center gap-3 py-3 border-b border-border last:border-none">
-      <div className="w-9 h-9 rounded-lg bg-primary-soft border border-primary/20
-                      flex items-center justify-center shrink-0">
-        <span className="text-xs font-bold text-primary">{initials}</span>
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-text-primary truncate">{name}</p>
-        <p className="text-xs text-text-secondary mt-0.5 truncate">{meta}</p>
-      </div>
-      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${s.pill}`}>
-        {statusLabel}
-      </span>
+    <li>
+      <Link
+        to={`/authority/cases/pending?caseId=${caso.id}`}
+        className="flex items-center gap-3 py-3 border-b border-border last:border-none hover:bg-primary-soft/30 rounded-lg px-2 -mx-2 transition-colors"
+      >
+        <div className="w-9 h-9 rounded-lg bg-primary-soft border border-primary/20 flex items-center justify-center shrink-0">
+          <span className="text-xs font-bold text-primary">{initials || 'CA'}</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-text-primary truncate">
+            {caso.nombres} {caso.apellidos}
+          </p>
+          <p className="text-xs text-text-secondary mt-0.5 truncate">
+            {formatRelativeTime(caso.created_at)} - {formatLocation(caso)}
+          </p>
+        </div>
+        <div className="shrink-0">
+          <StatusBadge status={resolveWorkflowStatus(caso)} />
+        </div>
+      </Link>
     </li>
-  );
+  )
 }
 
-function ActivityRow({ icon: Icon, color, highlight, text, time }: ActivityItem) {
-  const c = colorMap[color];
+function ActivityRow({ item }: { item: AdminDashboardActivityItem }) {
+  const visual = getActivityVisual(item.type)
+  const c = colorMap[visual.color]
+  const Icon = visual.icon
+
   return (
     <li className="flex gap-3 py-3 border-b border-border last:border-none">
       <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${c.bg}`}>
         <Icon size={14} className={c.text} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-text-primary leading-snug">
-          <span className="font-semibold">{highlight}</span>{" "}
-          <span className="text-text-secondary">{text}</span>
-        </p>
+        <p className="text-sm text-text-primary leading-snug font-semibold">{item.title}</p>
+        <p className="text-sm text-text-secondary truncate">{item.detail}</p>
         <p className="text-xs text-text-secondary mt-1 flex items-center gap-1">
           <Clock size={10} />
-          {time}
+          {formatRelativeTime(item.created_at)}
         </p>
       </div>
     </li>
-  );
+  )
 }
 
-// ── Main component ─────────────────────────────────────────────────────────
-
 export default function AdminDashboard() {
-  const { user } = useAuth();
+  const { user } = useAuth()
+  const {
+    data: summary = EMPTY_SUMMARY,
+    error,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useAdminDashboardSummary()
 
-  const today = new Date().toLocaleDateString("es-DO", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  const today = new Intl.DateTimeFormat('es-DO', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  }).format(new Date())
+
+  const stats = useMemo<Stat[]>(
+    () => [
+      {
+        label: 'Usuarios registrados',
+        value: summary.totalUsers,
+        icon: Users,
+        color: 'primary',
+        trend: `${summary.usersThisMonth} nuevos este mes`,
+        up: summary.usersThisMonth >= summary.usersPreviousMonth,
+      },
+      {
+        label: 'Autoridades activas',
+        value: summary.activeAuthorities,
+        icon: ShieldCheck,
+        color: 'warning',
+        trend: `${summary.authoritiesThisMonth} nuevas este mes`,
+        up: summary.authoritiesThisMonth >= summary.authoritiesPreviousMonth,
+      },
+      {
+        label: 'Casos activos',
+        value: summary.activeCases,
+        icon: FileSearch,
+        color: 'error',
+        trend: `${summary.casesThisWeek} nuevos esta semana`,
+        up: summary.casesThisWeek <= summary.casesPreviousWeek,
+      },
+      {
+        label: 'Casos resueltos',
+        value: summary.resolvedCases,
+        icon: CheckCircle2,
+        color: 'success',
+        trend: `${summary.resolvedThisMonth} actualizados este mes`,
+        up: summary.resolvedThisMonth >= summary.resolvedPreviousMonth,
+      },
+    ],
+    [summary],
+  )
 
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-6xl mx-auto space-y-6">
-
-        {/* ── Page header ── */}
-        <div>
-          <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
-          <p className="text-sm text-text-secondary mt-0.5">
-            Bienvenido, <span className="text-text-primary font-medium">{user?.name} {user?.last_nmae}</span> · {today}
-          </p>
-        </div>
-
-        {/* ── Stat cards ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {STATS.map((stat) => (
-            <StatCard key={stat.label} {...stat} />
-          ))}
-        </div>
-
-        {/* ── Bottom panels ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-          {/* Recent cases */}
-          <div className="card p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-text-primary">Casos Recientes</h2>
-              <a
-                href="/admin/cases"
-                className="text-xs font-medium text-primary hover:underline"
-              >
-                Ver todos →
-              </a>
-            </div>
-            <ul>
-              {RECENT_CASES.map((c) => (
-                <RecentCaseRow key={c.name} {...c} />
-              ))}
-            </ul>
+        <div className="card p-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
+            <p className="text-sm text-text-secondary mt-0.5">
+              Bienvenido,{' '}
+              <span className="text-text-primary font-medium">
+                {user?.name} {user?.last_nmae}
+              </span>{' '}
+              - {today}
+            </p>
+            <p className="text-xs text-text-secondary mt-2">Resumen dinamico del sistema para administracion.</p>
           </div>
 
-          {/* Activity feed */}
-          <div className="card p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-text-primary">Actividad Reciente</h2>
-              <span className="text-xs text-text-secondary flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
-                En vivo
-              </span>
-            </div>
-            <ul>
-              {ACTIVITY.map((a, i) => (
-                <ActivityRow key={i} {...a} />
-              ))}
-            </ul>
-          </div>
-
+          <button type="button" onClick={() => void refetch()} className="btn-secondary inline-flex items-center gap-2">
+            <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
+            Actualizar
+          </button>
         </div>
+
+        {error && <Alert type="error" message={error instanceof Error ? error.message : 'No se pudo cargar el dashboard.'} />}
+
+        {isLoading ? (
+          <div className="card p-10 flex items-center justify-center">
+            <Spinner size="lg" />
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              {stats.map((stat) => (
+                <StatCard key={stat.label} {...stat} />
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="card p-6">
+                <div className="flex items-center justify-between mb-4 gap-3">
+                  <div>
+                    <h2 className="text-base font-semibold text-text-primary">Casos recientes</h2>
+                    <p className="text-xs text-text-secondary mt-1">
+                      {summary.pendingCases} pendientes de revision en este momento.
+                    </p>
+                  </div>
+                  <Link to="/authority/cases" className="text-xs font-medium text-primary hover:underline">
+                    Ver casos
+                  </Link>
+                </div>
+
+                {summary.recentCases.length === 0 ? (
+                  <p className="text-sm text-text-secondary">No hay casos registrados todavia.</p>
+                ) : (
+                  <ul>
+                    {summary.recentCases.map((caso) => (
+                      <RecentCaseRow key={caso.id} caso={caso} />
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div className="card p-6">
+                <div className="flex items-center justify-between mb-4 gap-3">
+                  <div>
+                    <h2 className="text-base font-semibold text-text-primary">Actividad reciente</h2>
+                    <p className="text-xs text-text-secondary mt-1">Usuarios y casos cargados desde Supabase.</p>
+                  </div>
+                  <span className="text-xs text-text-secondary flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+                    Actualizado
+                  </span>
+                </div>
+
+                {summary.recentActivity.length === 0 ? (
+                  <p className="text-sm text-text-secondary">No hay actividad reciente disponible.</p>
+                ) : (
+                  <ul>
+                    {summary.recentActivity.map((item) => (
+                      <ActivityRow key={item.id} item={item} />
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
-  );
+  )
 }
