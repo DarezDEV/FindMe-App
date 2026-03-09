@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../auth/hooks";
 import { logoutUser } from "../../auth/services";
+import { appToast } from "../../../shared/components/ui";
 
 const navItems = [
   {
@@ -68,9 +69,12 @@ export default function AdminSidebar({ children }: AdminSidebarProps) {
   const handleLogout = async () => {
     try {
       await logoutUser();
+      appToast.success("Sesion cerrada correctamente.");
       navigate("/login");
     } catch (err) {
       console.error("Error al cerrar sesión:", err);
+      const message = err instanceof Error ? err.message : "No se pudo cerrar la sesion.";
+      appToast.error(message);
     }
   };
 
@@ -237,3 +241,4 @@ export default function AdminSidebar({ children }: AdminSidebarProps) {
     </div>
   );
 }
+

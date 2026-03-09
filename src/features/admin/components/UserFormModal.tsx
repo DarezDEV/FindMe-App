@@ -4,6 +4,7 @@ import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@s
 import { useQueryClient } from '@tanstack/react-query'
 import { X, Check, UserCheck, UserX } from 'lucide-react'
 import { supabase } from '../../../lib/supabase/client'
+import { appToast } from '../../../shared/components/ui'
 import {
   ADMIN_DASHBOARD_SUMMARY_QUERY_KEY,
   ADMIN_USERS_QUERY_KEY,
@@ -219,6 +220,11 @@ export function UserFormModal({ mode, user, onClose, onSuccess }: Props) {
         queryClient.invalidateQueries({ queryKey: ADMIN_DASHBOARD_SUMMARY_QUERY_KEY }),
       ])
 
+      appToast.success(
+        mode === 'create'
+          ? 'Usuario creado y correo de acceso enviado correctamente.'
+          : 'Usuario actualizado correctamente.',
+      )
       onSuccess()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error inesperado.'
@@ -226,11 +232,14 @@ export function UserFormModal({ mode, user, onClose, onSuccess }: Props) {
         const step = message.replace('Timeout:', '')
         if (step === 'auth.getSession') {
           setError('No se pudo validar tu sesion a tiempo. Intenta recargar la pagina.')
+          appToast.error('No se pudo validar tu sesion a tiempo. Intenta recargar la pagina.')
         } else {
           setError('La operacion tardo demasiado. Intenta nuevamente.')
+          appToast.error('La operacion tardo demasiado. Intenta nuevamente.')
         }
       } else {
         setError(message)
+        appToast.error(message)
       }
     } finally {
       setLoading(false)

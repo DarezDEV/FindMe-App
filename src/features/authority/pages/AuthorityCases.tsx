@@ -11,7 +11,7 @@ import {
   type AuthorityCaseRow,
 } from '../../../lib/supabase/db'
 import { useAuth } from '../../auth/hooks'
-import { Alert, Spinner, StatusBadge, type WorkflowStatus } from '../../../shared/components/ui'
+import { Alert, Spinner, StatusBadge, appToast, type WorkflowStatus } from '../../../shared/components/ui'
 
 type StatusFilter = 'all' | WorkflowStatus
 
@@ -31,6 +31,14 @@ function getPersistedStatus(row: AuthorityCaseRow): WorkflowStatus {
   if (row.status === 'resuelto') return 'found'
   if (row.status === 'cerrado') return 'closed'
   return 'pending'
+}
+
+function getStatusSuccessMessage(status: WorkflowStatus) {
+  if (status === 'approved') return 'Caso publicado correctamente.'
+  if (status === 'found') return 'Caso marcado como reunificado.'
+  if (status === 'closed') return 'Caso archivado correctamente.'
+  if (status === 'rejected') return 'Caso rechazado correctamente.'
+  return 'Estado del caso actualizado.'
 }
 
 export default function AuthorityCases() {
@@ -92,10 +100,12 @@ export default function AuthorityCases() {
   }, [cases, search, statusByCaseId, statusFilter])
 
   const applyStatus = async (caseId: string, status: WorkflowStatus) => {
+    setError(null)
     setActionLoadingId(caseId)
     try {
       await updateCaseWorkflowStatus(caseId, status)
       setStatusByCaseId((prev) => ({ ...prev, [caseId]: status }))
+      appToast.success(getStatusSuccessMessage(status))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo actualizar el estado del caso.')
     } finally {
@@ -105,10 +115,12 @@ export default function AuthorityCases() {
 
   const handleDeleteCase = async () => {
     if (!deleteTarget) return
+    setError(null)
     setDeleteLoading(true)
     try {
       await softDeleteCase(deleteTarget.id)
       setCases((prev) => prev.filter((item) => item.id !== deleteTarget.id))
+      appToast.success(`Caso ${deleteTarget.numero_caso} eliminado correctamente.`)
       setDeleteTarget(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo eliminar el caso.')
@@ -119,6 +131,7 @@ export default function AuthorityCases() {
 
   const submitComment = async () => {
     if (!commentTarget || !commentDraft.trim() || !user?.id) return
+    setError(null)
     setCommentLoading(true)
     try {
       await createCaseComment(commentTarget.id, user.id, commentDraft.trim())
@@ -126,6 +139,7 @@ export default function AuthorityCases() {
         ...prev,
         [commentTarget.id]: [...(prev[commentTarget.id] ?? []), commentDraft.trim()],
       }))
+      appToast.info('Comentario guardado correctamente.')
       setCommentDraft('')
       setCommentTarget(null)
     } catch (err) {

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { Bell, FileSearch, LayoutDashboard, LogOut, Menu, ShieldCheck, X } from 'lucide-react'
 import { logoutUser } from '../../auth/services'
+import { appToast } from '../../../shared/components/ui'
 
 const authorityNavItems = [
   { to: '/authority', label: 'Dashboard', icon: LayoutDashboard, exact: true },
@@ -137,10 +138,13 @@ export function AuthoritySidebar() {
     setLogoutLoading(true)
     try {
       await logoutUser()
+      appToast.success('Sesion cerrada correctamente.')
       setMobileOpen(false)
       navigate('/login', { replace: true })
     } catch (err) {
       console.error('Error al cerrar sesion:', err)
+      const message = err instanceof Error ? err.message : 'No se pudo cerrar la sesion.'
+      appToast.error(message)
     } finally {
       setLogoutLoading(false)
     }

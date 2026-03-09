@@ -2,7 +2,7 @@
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { loginUser } from '../services'
 import { useAuth } from '../hooks'
-import { Alert } from '../../../shared/components/ui'
+import { Alert, appToast } from '../../../shared/components/ui'
 import { ROLES } from '../../../shared/constants/roles'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 
@@ -30,6 +30,7 @@ export default function LoginPage() {
     try {
       await loginUser({ email, password })
       const profile = await refreshUser()
+      appToast.success('Sesion iniciada correctamente.', { title: 'Bienvenido' })
 
       if (profile?.roles.includes(ROLES.ADMIN)) {
         navigate('/admin/dashboard', { replace: true })
