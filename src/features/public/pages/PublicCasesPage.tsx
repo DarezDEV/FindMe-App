@@ -1,10 +1,33 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { MapPin, Calendar, Search, RefreshCw } from 'lucide-react'
+import { MapPin, Calendar, Search, RefreshCw, Link2, Share2 } from 'lucide-react'
 import { Alert, Spinner, StatusBadge, type WorkflowStatus } from '../../../shared/components/ui'
-import { getAuthorityCases, type AuthorityCaseRow } from '../../../lib/supabase/db'
+import {
+  createCaseComment,
+  getAuthorityCases,
+  getCaseComments,
+  type AuthorityCaseRow,
+  type CaseCommentRow,
+} from '../../../lib/supabase/db'
+import { useAuth } from '../../auth/hooks'
 
 type PublicFilter = 'all' | WorkflowStatus
+type SocialNetwork = 'whatsapp' | 'facebook' | 'x'
+
+interface PublicComment {
+  id: string
+  caseId: string
+  authorId: string
+  text: string
+  createdAt: string
+}
+
+interface NoticeState {
+  type: 'error' | 'success' | 'warning' | 'info'
+  message: string
+}
+
+const PUBLIC_COMMENT_PREFIX = '[PUBLICO]'
 
 function getLocation(caso: AuthorityCaseRow): string {
   return caso.ciudad || caso.estado_provincia || 'Ubicacion reservada'
@@ -23,16 +46,95 @@ function getWorkflowStatus(caso: AuthorityCaseRow): WorkflowStatus | null {
   return caso.workflow_status
 }
 
+function isCommentEnabled(workflowStatus: WorkflowStatus) {
+  return workflowStatus === 'approved'
+}
+
+function toPublicComment(row: CaseCommentRow): PublicComment | null {
+  const rawText = row.comentario.trim()
+  if (!rawText.toUpperCase().startsWith(PUBLIC_COMMENT_PREFIX)) {
+    return null
+  }
+
+  const text = rawText.slice(PUBLIC_COMMENT_PREFIX.length).trim()
+  if (!text) return null
+
+  return {
+    id: row.id,
+    caseId: row.caso_id,
+    authorId: row.autor_id,
+    text,
+    createdAt: row.created_at,
+  }
+}
+
+function groupPublicComments(rows: CaseCommentRow[]) {
+  const grouped: Record<string, PublicComment[]> = {}
+
+  rows.forEach((row) => {
+    const publicComment = toPublicComment(row)
+    if (!publicComment) return
+    if (!grouped[publicComment.caseId]) grouped[publicComment.caseId] = []
+    grouped[publicComment.caseId].push(publicComment)
+  })
+
+  return grouped
+}
+
+function formatCommentDate(value: string) {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return 'Reciente'
+  return new Intl.DateTimeFormat('es-MX', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(parsed)
+}
+
+function getCommentAuthorLabel(authorId: string, currentUserId: string | undefined) {
+  if (currentUserId && authorId === currentUserId) return 'Tu'
+  return `Usuario ${authorId.slice(0, 8)}`
+}
+
+function buildCaseShareUrl(caseId: string) {
+  if (typeof window === 'undefined') return `/cases?caseId=${caseId}`
+  const url = new URL('/cases', window.location.origin)
+  url.searchParams.set('caseId', caseId)
+  return url.toString()
+}
+
+function buildShareText(item: AuthorityCaseRow) {
+  return `Ayuda a difundir el caso ${item.numero_caso}: ${item.nombres} ${item.apellidos}.`
+}
+
+function buildSocialShareUrl(network: SocialNetwork, url: string, text: string) {
+  if (network === 'whatsapp') {
+    return `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`
+  }
+  if (network === 'facebook') {
+    return `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`
+  }
+  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`
+}
+
 export default function PublicCasesPage() {
+  const { user } = useAuth()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<PublicFilter>('all')
   const [rows, setRows] = useState<AuthorityCaseRow[]>([])
+  const [commentsByCaseId, setCommentsByCaseId] = useState<Record<string, PublicComment[]>>({})
+  const [commentDraftByCaseId, setCommentDraftByCaseId] = useState<Record<string, string>>({})
+  const [submittingCommentCaseId, setSubmittingCommentCaseId] = useState<string | null>(null)
+  const [notice, setNotice] = useState<NoticeState | null>(null)
+  const [highlightCaseId, setHighlightCaseId] = useState<string | null>(null)
 
   const loadCases = useCallback(async () => {
     setLoading(true)
     setError(null)
+    setNotice(null)
 
     try {
       const data = await getAuthorityCases({ limit: 200 })
@@ -41,11 +143,24 @@ export default function PublicCasesPage() {
         if (!status) return false
         return status === 'approved' || status === 'found' || status === 'closed'
       })
+
+      let commentMap: Record<string, PublicComment[]> = {}
+      if (publicRows.length > 0) {
+        try {
+          const comments = await getCaseComments(publicRows.map((item) => item.id))
+          commentMap = groupPublicComments(comments)
+        } catch {
+          commentMap = {}
+        }
+      }
+
       setRows(publicRows)
+      setCommentsByCaseId(commentMap)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'No se pudieron cargar los casos.'
       setError(message)
       setRows([])
+      setCommentsByCaseId({})
     } finally {
       setLoading(false)
     }
@@ -54,6 +169,29 @@ export default function PublicCasesPage() {
   useEffect(() => {
     void loadCases()
   }, [loadCases])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || rows.length === 0) return
+
+    const sharedCaseId = new URLSearchParams(window.location.search).get('caseId')
+    if (!sharedCaseId) return
+    if (!rows.some((row) => row.id === sharedCaseId)) return
+
+    setHighlightCaseId(sharedCaseId)
+    const scrollTimer = window.setTimeout(() => {
+      const element = document.getElementById(`public-case-${sharedCaseId}`)
+      element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 80)
+
+    const clearTimer = window.setTimeout(() => {
+      setHighlightCaseId((current) => (current === sharedCaseId ? null : current))
+    }, 2500)
+
+    return () => {
+      window.clearTimeout(scrollTimer)
+      window.clearTimeout(clearTimer)
+    }
+  }, [rows])
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -75,6 +213,101 @@ export default function PublicCasesPage() {
       )
     })
   }, [filter, rows, search])
+
+  const copyShareLink = useCallback(async (item: AuthorityCaseRow) => {
+    const shareUrl = buildCaseShareUrl(item.id)
+
+    if (!navigator.clipboard?.writeText) {
+      setNotice({ type: 'info', message: `Enlace para compartir: ${shareUrl}` })
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setNotice({ type: 'success', message: 'Enlace copiado al portapapeles.' })
+    } catch {
+      setNotice({ type: 'warning', message: 'No se pudo copiar automaticamente. Intenta de nuevo.' })
+    }
+  }, [])
+
+  const shareCase = useCallback(
+    async (item: AuthorityCaseRow) => {
+      const shareUrl = buildCaseShareUrl(item.id)
+      const text = buildShareText(item)
+
+      if (typeof navigator.share === 'function') {
+        try {
+          await navigator.share({
+            title: `FindMe - ${item.numero_caso}`,
+            text,
+            url: shareUrl,
+          })
+          return
+        } catch (shareError) {
+          if (shareError instanceof DOMException && shareError.name === 'AbortError') {
+            return
+          }
+        }
+      }
+
+      await copyShareLink(item)
+    },
+    [copyShareLink]
+  )
+
+  const shareOnSocial = useCallback((network: SocialNetwork, item: AuthorityCaseRow) => {
+    const shareUrl = buildCaseShareUrl(item.id)
+    const text = buildShareText(item)
+    const socialUrl = buildSocialShareUrl(network, shareUrl, text)
+    window.open(socialUrl, '_blank', 'noopener,noreferrer')
+  }, [])
+
+  const submitPublicComment = useCallback(
+    async (item: AuthorityCaseRow) => {
+      const workflowStatus = getWorkflowStatus(item)
+      if (!workflowStatus || !isCommentEnabled(workflowStatus)) {
+        setNotice({ type: 'warning', message: 'Los comentarios solo estan habilitados en publicaciones activas.' })
+        return
+      }
+
+      if (!user?.id) {
+        setNotice({ type: 'warning', message: 'Inicia sesion para comentar en publicaciones activas.' })
+        return
+      }
+
+      const draft = (commentDraftByCaseId[item.id] ?? '').trim()
+      if (draft.length < 3) {
+        setNotice({ type: 'warning', message: 'Escribe un comentario de al menos 3 caracteres.' })
+        return
+      }
+
+      setSubmittingCommentCaseId(item.id)
+      try {
+        const payload = `${PUBLIC_COMMENT_PREFIX} ${draft}`
+        const created = await createCaseComment(item.id, user.id, payload)
+        const newComment: PublicComment = {
+          id: created.id,
+          caseId: item.id,
+          authorId: user.id,
+          text: draft,
+          createdAt: new Date().toISOString(),
+        }
+
+        setCommentsByCaseId((prev) => ({
+          ...prev,
+          [item.id]: [...(prev[item.id] ?? []), newComment],
+        }))
+        setCommentDraftByCaseId((prev) => ({ ...prev, [item.id]: '' }))
+        setNotice({ type: 'success', message: 'Comentario publicado.' })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'No se pudo publicar el comentario.'
+        setNotice({ type: 'error', message })
+      } finally {
+        setSubmittingCommentCaseId(null)
+      }
+    },
+    [commentDraftByCaseId, user?.id]
+  )
 
   return (
     <div className="min-h-screen bg-background">
@@ -143,6 +376,7 @@ export default function PublicCasesPage() {
         </div>
 
         {error && <Alert type="error" message={error} />}
+        {notice && <Alert type={notice.type} message={notice.message} />}
 
         <section className="space-y-3">
           {loading ? (
@@ -158,8 +392,20 @@ export default function PublicCasesPage() {
               const workflowStatus = getWorkflowStatus(item)
               if (!workflowStatus) return null
 
+              const comments = commentsByCaseId[item.id] ?? []
+              const latestComments = comments.slice(-4)
+              const commentEnabled = isCommentEnabled(workflowStatus)
+              const commentDraft = commentDraftByCaseId[item.id] ?? ''
+              const savingComment = submittingCommentCaseId === item.id
+
               return (
-                <article key={item.id} className="card p-5">
+                <article
+                  id={`public-case-${item.id}`}
+                  key={item.id}
+                  className={`card p-5 transition-colors ${
+                    highlightCaseId === item.id ? 'border-primary/40 bg-primary-soft/20' : ''
+                  }`}
+                >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-semibold text-primary tracking-wide uppercase">{item.numero_caso}</p>
@@ -179,6 +425,101 @@ export default function PublicCasesPage() {
                       <Calendar size={14} />
                       {getDateLabel(item)}
                     </p>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void copyShareLink(item)}
+                      className="px-3 py-1.5 rounded-md text-xs font-medium border border-border bg-card hover:bg-primary-soft/40 inline-flex items-center gap-1.5"
+                    >
+                      <Link2 size={13} />
+                      Copiar enlace
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void shareCase(item)}
+                      className="px-3 py-1.5 rounded-md text-xs font-medium border border-border bg-card hover:bg-primary-soft/40 inline-flex items-center gap-1.5"
+                    >
+                      <Share2 size={13} />
+                      Compartir
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => shareOnSocial('whatsapp', item)}
+                      className="px-3 py-1.5 rounded-md text-xs font-medium border border-border bg-card hover:bg-primary-soft/40"
+                    >
+                      WhatsApp
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => shareOnSocial('x', item)}
+                      className="px-3 py-1.5 rounded-md text-xs font-medium border border-border bg-card hover:bg-primary-soft/40"
+                    >
+                      X
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => shareOnSocial('facebook', item)}
+                      className="px-3 py-1.5 rounded-md text-xs font-medium border border-border bg-card hover:bg-primary-soft/40"
+                    >
+                      Facebook
+                    </button>
+                  </div>
+
+                  <div className="mt-4 border-t border-border pt-4 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <h3 className="text-sm font-semibold text-text-primary">Comentarios publicos</h3>
+                      <span className="text-xs text-text-secondary">{comments.length}</span>
+                    </div>
+
+                    {latestComments.length === 0 ? (
+                      <p className="text-xs text-text-secondary">Aun no hay comentarios publicos para este caso.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {latestComments.map((comment) => (
+                          <article key={comment.id} className="rounded-md border border-border bg-background px-3 py-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs font-semibold text-text-primary">
+                                {getCommentAuthorLabel(comment.authorId, user?.id)}
+                              </p>
+                              <p className="text-[11px] text-text-secondary">{formatCommentDate(comment.createdAt)}</p>
+                            </div>
+                            <p className="text-sm text-text-primary mt-1 whitespace-pre-wrap">{comment.text}</p>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+
+                    {commentEnabled ? (
+                      <div className="space-y-2">
+                        <textarea
+                          rows={3}
+                          value={commentDraft}
+                          onChange={(event) =>
+                            setCommentDraftByCaseId((prev) => ({ ...prev, [item.id]: event.target.value.slice(0, 300) }))
+                          }
+                          placeholder={user ? 'Escribe un comentario de apoyo o informacion util...' : 'Inicia sesion para comentar'}
+                          className="input-field resize-none"
+                          disabled={!user || savingComment}
+                        />
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[11px] text-text-secondary">{commentDraft.length}/300</p>
+                          <button
+                            type="button"
+                            onClick={() => void submitPublicComment(item)}
+                            className="btn-primary !px-4 !py-2 text-xs"
+                            disabled={!user || !commentDraft.trim() || savingComment}
+                          >
+                            {savingComment ? 'Publicando...' : 'Comentar'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-text-secondary">
+                        Comentarios cerrados: solo se permite comentar en publicaciones activas.
+                      </p>
+                    )}
                   </div>
                 </article>
               )

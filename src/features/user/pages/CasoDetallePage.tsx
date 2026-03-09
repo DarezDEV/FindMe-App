@@ -1,7 +1,8 @@
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ChevronLeft, Eye, Flag, Mail, MapPin, MessageSquare, Phone, UserSearch, Video } from 'lucide-react'
+import { ChevronLeft, Eye, Flag, Link2, Mail, MapPin, MessageSquare, Phone, Share2, UserSearch, Video } from 'lucide-react'
 import UserNavbar from '../components/Usernavbar'
-import { Spinner } from '../../../shared/components/ui'
+import { Alert, Spinner } from '../../../shared/components/ui'
 import { useCasoDetalle } from '../hooks/useMisCasos'
 
 function LabelValue({ label, value }: { label: string; value: string | number | null }) {
@@ -44,7 +45,31 @@ function buildApproximateLocation(city: string | null, country: string | null) {
   return parts.length > 0 ? parts.join(', ') : 'Ubicacion reservada'
 }
 
+type ShareNetwork = 'whatsapp' | 'facebook' | 'x'
+
+function buildCaseShareUrl(caseId: string) {
+  if (typeof window === 'undefined') return `/cases?caseId=${caseId}`
+  const url = new URL('/cases', window.location.origin)
+  url.searchParams.set('caseId', caseId)
+  return url.toString()
+}
+
+function buildShareText(caseNumber: string, fullName: string) {
+  return `Ayuda a difundir el caso ${caseNumber}: ${fullName}.`
+}
+
+function buildSocialShareUrl(network: ShareNetwork, url: string, text: string) {
+  if (network === 'whatsapp') {
+    return `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`
+  }
+  if (network === 'facebook') {
+    return `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`
+  }
+  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`
+}
+
 export default function CasoDetallePage() {
+  const [shareNotice, setShareNotice] = useState<{ type: 'error' | 'success' | 'warning' | 'info'; message: string } | null>(null)
   const { id = '' } = useParams<{ id: string }>()
   const { data, isLoading, isError, error, refetch } = useCasoDetalle(id)
 
@@ -86,6 +111,52 @@ export default function CasoDetallePage() {
   const video = media.find(item => item.tipo === 'video')
   const mainPhoto = photos.find(item => item.es_principal)?.url ?? caso.foto_principal_url ?? photos[0]?.url ?? null
   const safeLocation = buildApproximateLocation(caso.ciudad, caso.pais)
+  const fullName = `${caso.nombres} ${caso.apellidos}`.trim()
+
+  const copyShareLink = async () => {
+    const shareUrl = buildCaseShareUrl(caso.id)
+
+    if (!navigator.clipboard?.writeText) {
+      setShareNotice({ type: 'info', message: `Enlace para compartir: ${shareUrl}` })
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setShareNotice({ type: 'success', message: 'Enlace copiado al portapapeles.' })
+    } catch {
+      setShareNotice({ type: 'warning', message: 'No se pudo copiar automaticamente. Intenta de nuevo.' })
+    }
+  }
+
+  const shareCase = async () => {
+    const shareUrl = buildCaseShareUrl(caso.id)
+    const text = buildShareText(caso.numero_caso, fullName)
+
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({
+          title: `FindMe - ${caso.numero_caso}`,
+          text,
+          url: shareUrl,
+        })
+        return
+      } catch (shareError) {
+        if (shareError instanceof DOMException && shareError.name === 'AbortError') {
+          return
+        }
+      }
+    }
+
+    await copyShareLink()
+  }
+
+  const shareOnSocial = (network: ShareNetwork) => {
+    const shareUrl = buildCaseShareUrl(caso.id)
+    const text = buildShareText(caso.numero_caso, fullName)
+    const socialUrl = buildSocialShareUrl(network, shareUrl, text)
+    window.open(socialUrl, '_blank', 'noopener,noreferrer')
+  }
 
   return (
     <>
@@ -184,6 +255,9 @@ export default function CasoDetallePage() {
             <p className="text-sm text-text-secondary">
               Puedes aportar informacion de avistamiento o denunciar contenido relacionado con este caso.
             </p>
+
+            {shareNotice && <Alert type={shareNotice.type} message={shareNotice.message} />}
+
             <div className="flex flex-wrap gap-3">
               <Link to={`/caso/${caso.id}/avistamiento`} className="btn-primary text-sm inline-flex items-center gap-1.5">
                 <MapPin size={14} />
@@ -193,6 +267,51 @@ export default function CasoDetallePage() {
                 <Flag size={14} />
                 Reportar contenido
               </Link>
+            </div>
+
+            <div className="border-t border-border pt-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary mb-2">
+                Compartir publicacion
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void copyShareLink()}
+                  className="px-3 py-1.5 rounded-md text-xs font-medium border border-border bg-card hover:bg-primary-soft/40 inline-flex items-center gap-1.5"
+                >
+                  <Link2 size={13} />
+                  Copiar enlace
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void shareCase()}
+                  className="px-3 py-1.5 rounded-md text-xs font-medium border border-border bg-card hover:bg-primary-soft/40 inline-flex items-center gap-1.5"
+                >
+                  <Share2 size={13} />
+                  Compartir
+                </button>
+                <button
+                  type="button"
+                  onClick={() => shareOnSocial('whatsapp')}
+                  className="px-3 py-1.5 rounded-md text-xs font-medium border border-border bg-card hover:bg-primary-soft/40"
+                >
+                  WhatsApp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => shareOnSocial('x')}
+                  className="px-3 py-1.5 rounded-md text-xs font-medium border border-border bg-card hover:bg-primary-soft/40"
+                >
+                  X
+                </button>
+                <button
+                  type="button"
+                  onClick={() => shareOnSocial('facebook')}
+                  className="px-3 py-1.5 rounded-md text-xs font-medium border border-border bg-card hover:bg-primary-soft/40"
+                >
+                  Facebook
+                </button>
+              </div>
             </div>
           </section>
 

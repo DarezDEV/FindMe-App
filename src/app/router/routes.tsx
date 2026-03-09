@@ -12,6 +12,8 @@ import PublicarPersonaPerdidaPage from '../../features/user/pages/PublicarPerson
 import CasoDetallePage from '../../features/user/pages/CasoDetallePage'
 import ReportarAvistamientoPage from '../../features/user/pages/ReportarAvistamientoPage'
 import ReportarContenidoPage from '../../features/user/pages/ReportarContenidoPage'
+import MisCasosPage from '../../features/user/pages/MisCasosPage'
+import MiPerfilPage from '../../features/user/pages/MiPerfilPage'
 
 import AuthorityHome from '../../features/authority/pages/AuthorityHome'
 import AuthorityCases from '../../features/authority/pages/AuthorityCases'
@@ -70,6 +72,8 @@ const router = createBrowserRouter([
       { path: '/dashboard', element: <UserHome /> },
       { path: '/user', element: <UserHome /> },
       { path: '/publicar', element: <PublicarPersonaPerdidaPage /> },
+      { path: '/perfil', element: <MiPerfilPage /> },
+      { path: '/mis-casos', element: <MisCasosPage /> },
       { path: '/caso/:id', element: <CasoDetallePage /> },
       { path: '/avistamiento', element: <ReportarAvistamientoPage /> },
       { path: '/caso/:id/avistamiento', element: <ReportarAvistamientoPage /> },
