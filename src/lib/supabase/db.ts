@@ -1,3 +1,4 @@
+import type { User } from '@supabase/supabase-js'
 import { supabase } from './client'
 import type { UserProfile } from '../../features/auth/types'
 
@@ -8,6 +9,8 @@ interface UserRoleRow {
 interface RoleRow {
   name: string
 }
+
+type AppRole = UserProfile['roles'][number]
 
 export type CaseStatus = 'activo' | 'en_proceso' | 'resuelto' | 'cerrado'
 export type CaseWorkflowStatus = 'pending' | 'approved' | 'rejected' | 'found' | 'closed'
@@ -53,6 +56,16 @@ export interface AuthorityDashboardSummary {
   recentCases: AuthorityCaseRow[]
 }
 
+interface ProfileRow {
+  id: string
+  name: string | null
+  last_nmae: string | null
+  email: string | null
+  activo: boolean | null
+  created_at: string | null
+  avatar_url: string | null
+}
+
 function withTimeout<T>(promise: PromiseLike<T>, ms = 12000): Promise<T> {
   const timeout = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new Error('Timeout: el servidor tardó demasiado en responder.')), ms)
@@ -82,20 +95,93 @@ async function withRetry<T>(
   throw lastError instanceof Error ? lastError : new Error('Error inesperado al consultar Supabase.')
 }
 
-export async function getProfile(userId: string) {
+function toText(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim()
+  return normalized.length > 0 ? normalized : null
+}
+
+function toRole(value: unknown): AppRole | null {
+  if (value === 'user' || value === 'authority' || value === 'admin') {
+    return value
+  }
+  return null
+}
+
+function readMetadataString(metadata: unknown, key: string): string | null {
+  if (!metadata || typeof metadata !== 'object') return null
+  return toText((metadata as Record<string, unknown>)[key])
+}
+
+function readUserField(authUser: User | null, key: string): string | null {
+  if (!authUser) return null
+  return readMetadataString(authUser.user_metadata, key) ?? readMetadataString(authUser.app_metadata, key)
+}
+
+function parseRoleValue(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === 'string')
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    return [value]
+  }
+
+  return []
+}
+
+function resolveRoles(dbRoles: string[], authUser: User | null): AppRole[] {
+  const rolesFromDb = dbRoles.map(toRole).filter((role): role is AppRole => role !== null)
+  if (rolesFromDb.length > 0) {
+    return [...new Set(rolesFromDb)]
+  }
+
+  const metadataCandidates = [
+    ...parseRoleValue(authUser?.app_metadata?.roles),
+    ...parseRoleValue(authUser?.app_metadata?.role),
+    ...parseRoleValue(authUser?.user_metadata?.roles),
+    ...parseRoleValue(authUser?.user_metadata?.role),
+  ]
+
+  const rolesFromMetadata = metadataCandidates.map(toRole).filter((role): role is AppRole => role !== null)
+  if (rolesFromMetadata.length > 0) {
+    return [...new Set(rolesFromMetadata)]
+  }
+
+  return ['user']
+}
+
+function isRecoverableProfileError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+
+  const maybeCode = (err as { code?: unknown }).code
+  const maybeMessage = (err as { message?: unknown }).message
+  const code = typeof maybeCode === 'string' ? maybeCode : ''
+  const message = typeof maybeMessage === 'string' ? maybeMessage.toLowerCase() : ''
+
+  return (
+    code === 'PGRST116' ||
+    message.includes('0 rows') ||
+    message.includes('cannot coerce the result') ||
+    message.includes('row-level security') ||
+    message.includes('permission denied')
+  )
+}
+
+export async function getProfile(userId: string): Promise<ProfileRow | null> {
   const { data, error } = await withRetry(() =>
     supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .single(),
+      .maybeSingle(),
   )
 
   if (error) {
     console.error('[getProfile] Error:', error)
     throw error
   }
-  return data
+  return (data ?? null) as ProfileRow | null
 }
 
 export async function getUserRoles(userId: string): Promise<string[]> {
@@ -127,11 +213,38 @@ export async function getUserRoles(userId: string): Promise<string[]> {
 }
 
 export async function getProfileWithRoles(userId: string): Promise<UserProfile> {
-  const [profile, roles] = await Promise.all([
-    getProfile(userId),
-    getUserRoles(userId),
+  const [profile, roles, sessionResponse] = await Promise.all([
+    getProfile(userId).catch((err) => {
+      if (!isRecoverableProfileError(err)) throw err
+      console.warn('[getProfileWithRoles] Perfil no disponible, se usa fallback de sesion.', err)
+      return null
+    }),
+    getUserRoles(userId).catch((err) => {
+      console.warn('[getProfileWithRoles] No se pudieron cargar roles, se usa fallback.', err)
+      return [] as string[]
+    }),
+    supabase.auth.getSession(),
   ])
-  return { ...profile, roles } as UserProfile
+
+  const authUser = sessionResponse.data.session?.user?.id === userId ? sessionResponse.data.session.user : null
+  const resolvedRoles = resolveRoles(roles, authUser)
+  const email = toText(profile?.email) ?? authUser?.email ?? ''
+  const fallbackNameFromEmail = email.includes('@') ? email.split('@')[0] : null
+
+  return {
+    id: profile?.id ?? userId,
+    name: toText(profile?.name) ?? readUserField(authUser, 'name') ?? fallbackNameFromEmail ?? 'Usuario',
+    last_nmae:
+      toText(profile?.last_nmae) ??
+      readUserField(authUser, 'last_nmae') ??
+      readUserField(authUser, 'last_name') ??
+      '',
+    email,
+    activo: typeof profile?.activo === 'boolean' ? profile.activo : true,
+    created_at: toText(profile?.created_at) ?? authUser?.created_at ?? new Date().toISOString(),
+    avatar_url: toText(profile?.avatar_url),
+    roles: resolvedRoles,
+  }
 }
 
 interface GetCasesParams {

@@ -43,18 +43,19 @@ function UnauthorizedPage() {
 
 const router = createBrowserRouter([
   // Publicas
-  { path: '/', element: <LandingPage /> },
   { path: '/cases', element: <PublicCasesPage /> },
   { path: '/publish-case', element: <PublishCaseGatePage /> },
   { path: '/unauthorized', element: <UnauthorizedPage /> },
 
   // Solo usuarios no autenticados
   {
+    path: '/',
     element: <GuestRoute />,
     children: [
-      { path: '/login', element: <LoginPage /> },
-      { path: '/register', element: <RegisterPage /> },
-      { path: '/forgot-password', element: <ForgotPasswordPage /> },
+      { index: true, element: <LandingPage /> },
+      { path: 'login', element: <LoginPage /> },
+      { path: 'register', element: <RegisterPage /> },
+      { path: 'forgot-password', element: <ForgotPasswordPage /> },
     ],
   },
   { path: '/reset-password', element: <ResetPasswordPage /> },
