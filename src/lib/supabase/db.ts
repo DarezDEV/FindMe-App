@@ -1,3 +1,4 @@
+import type { User } from '@supabase/supabase-js'
 import { supabase } from './client'
 import type { UserProfile } from '../../features/auth/types'
 
@@ -8,6 +9,8 @@ interface UserRoleRow {
 interface RoleRow {
   name: string
 }
+
+type AppRole = UserProfile['roles'][number]
 
 export type CaseStatus = 'activo' | 'en_proceso' | 'resuelto' | 'cerrado'
 export type CaseWorkflowStatus = 'pending' | 'approved' | 'rejected' | 'found' | 'closed'
@@ -31,6 +34,7 @@ export interface AuthorityCaseRow {
   descripcion_general?: string | null
   fecha_desaparicion: string | null
   created_at: string
+  updated_at?: string | null
 }
 
 export interface ProfileBasicRow {
@@ -51,6 +55,66 @@ export interface AuthorityDashboardSummary {
   found: number
   closed: number
   recentCases: AuthorityCaseRow[]
+}
+
+export type AdminDashboardActivityType = 'user' | 'case' | 'resolved'
+
+export interface AdminDashboardActivityItem {
+  id: string
+  type: AdminDashboardActivityType
+  title: string
+  detail: string
+  created_at: string
+}
+
+export interface AdminDashboardSummary {
+  totalUsers: number
+  usersThisMonth: number
+  usersPreviousMonth: number
+  activeAuthorities: number
+  authoritiesThisMonth: number
+  authoritiesPreviousMonth: number
+  activeCases: number
+  casesThisWeek: number
+  casesPreviousWeek: number
+  resolvedCases: number
+  resolvedThisMonth: number
+  resolvedPreviousMonth: number
+  pendingCases: number
+  recentCases: AuthorityCaseRow[]
+  recentActivity: AdminDashboardActivityItem[]
+}
+
+interface ProfileRow {
+  id: string
+  name: string | null
+  last_nmae: string | null
+  email: string | null
+  activo: boolean | null
+  created_at: string | null
+  avatar_url: string | null
+}
+
+interface AdminProfileRow {
+  id: string
+  name: string | null
+  last_name: string | null
+  email: string | null
+  activo: boolean | null
+  created_at: string | null
+}
+
+interface UserRoleRelationRow {
+  user_id: string
+  roles: { name: AppRole } | Array<{ name: AppRole }> | null
+}
+
+interface AdminCaseMetricsRow {
+  id: string
+  status: string | null
+  workflow_status: string | null
+  created_at: string | null
+  updated_at: string | null
 }
 
 function withTimeout<T>(promise: PromiseLike<T>, ms = 12000): Promise<T> {
@@ -82,20 +146,208 @@ async function withRetry<T>(
   throw lastError instanceof Error ? lastError : new Error('Error inesperado al consultar Supabase.')
 }
 
-export async function getProfile(userId: string) {
+function toText(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim()
+  return normalized.length > 0 ? normalized : null
+}
+
+function toRole(value: unknown): AppRole | null {
+  if (value === 'user' || value === 'authority' || value === 'admin') {
+    return value
+  }
+  return null
+}
+
+function readMetadataString(metadata: unknown, key: string): string | null {
+  if (!metadata || typeof metadata !== 'object') return null
+  return toText((metadata as Record<string, unknown>)[key])
+}
+
+function readUserField(authUser: User | null, key: string): string | null {
+  if (!authUser) return null
+  return readMetadataString(authUser.user_metadata, key) ?? readMetadataString(authUser.app_metadata, key)
+}
+
+function parseRoleValue(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === 'string')
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    return [value]
+  }
+
+  return []
+}
+
+function createDateAtMidnight(base: Date) {
+  const date = new Date(base)
+  date.setHours(0, 0, 0, 0)
+  return date
+}
+
+function getStartOfCurrentMonth(base = new Date()) {
+  return new Date(base.getFullYear(), base.getMonth(), 1)
+}
+
+function getStartOfPreviousMonth(base = new Date()) {
+  return new Date(base.getFullYear(), base.getMonth() - 1, 1)
+}
+
+function getStartOfCurrentWeek(base = new Date()) {
+  const date = createDateAtMidnight(base)
+  const currentDay = date.getDay()
+  const diffToMonday = currentDay === 0 ? 6 : currentDay - 1
+  date.setDate(date.getDate() - diffToMonday)
+  return date
+}
+
+function getStartOfPreviousWeek(base = new Date()) {
+  const date = getStartOfCurrentWeek(base)
+  date.setDate(date.getDate() - 7)
+  return date
+}
+
+function getTimestamp(value: string | null | undefined) {
+  if (!value) return null
+  const time = new Date(value).getTime()
+  return Number.isNaN(time) ? null : time
+}
+
+function isWithinRange(value: string | null | undefined, start: Date, end?: Date) {
+  const timestamp = getTimestamp(value)
+  if (timestamp === null) return false
+
+  const startTime = start.getTime()
+  if (timestamp < startTime) return false
+
+  if (!end) return true
+  return timestamp < end.getTime()
+}
+
+function isResolvedCase(status: string | null | undefined, workflowStatus: string | null | undefined) {
+  const normalizedStatus = status?.trim().toLowerCase() ?? ''
+  return (
+    workflowStatus === 'found' ||
+    workflowStatus === 'closed' ||
+    normalizedStatus === 'encontrado' ||
+    normalizedStatus === 'resuelto' ||
+    normalizedStatus === 'cerrado'
+  )
+}
+
+function isActiveCase(status: string | null | undefined, workflowStatus: string | null | undefined) {
+  if (workflowStatus === 'rejected' || workflowStatus === 'closed' || workflowStatus === 'found') {
+    return false
+  }
+
+  const normalizedStatus = status?.trim().toLowerCase() ?? ''
+  return (
+    normalizedStatus === 'activo' ||
+    normalizedStatus === 'en_proceso' ||
+    normalizedStatus === 'en_revision' ||
+    normalizedStatus === 'avistado' ||
+    normalizedStatus.length === 0
+  )
+}
+
+function isPendingWorkflow(workflowStatus: string | null | undefined) {
+  return workflowStatus === 'pending' || workflowStatus === null
+}
+
+function formatDisplayName(
+  value: { name?: string | null; last_name?: string | null; email?: string | null },
+  fallback = 'Usuario',
+) {
+  const name = toText(value.name)
+  const lastName = toText(value.last_name)
+  const fullName = [name, lastName].filter(Boolean).join(' ')
+  if (fullName) return fullName
+
+  const email = toText(value.email)
+  if (!email) return fallback
+
+  return email.includes('@') ? email.split('@')[0] : email
+}
+
+function buildRoleMap(rows: UserRoleRelationRow[]) {
+  const roleMap: Record<string, AppRole[]> = {}
+
+  rows.forEach((row) => {
+    if (!roleMap[row.user_id]) {
+      roleMap[row.user_id] = []
+    }
+
+    if (Array.isArray(row.roles)) {
+      row.roles.forEach((role) => {
+        if (!roleMap[row.user_id].includes(role.name)) {
+          roleMap[row.user_id].push(role.name)
+        }
+      })
+      return
+    }
+
+    if (row.roles?.name && !roleMap[row.user_id].includes(row.roles.name)) {
+      roleMap[row.user_id].push(row.roles.name)
+    }
+  })
+
+  return roleMap
+}
+
+function resolveRoles(dbRoles: string[], authUser: User | null): AppRole[] {
+  const rolesFromDb = dbRoles.map(toRole).filter((role): role is AppRole => role !== null)
+  if (rolesFromDb.length > 0) {
+    return [...new Set(rolesFromDb)]
+  }
+
+  const metadataCandidates = [
+    ...parseRoleValue(authUser?.app_metadata?.roles),
+    ...parseRoleValue(authUser?.app_metadata?.role),
+    ...parseRoleValue(authUser?.user_metadata?.roles),
+    ...parseRoleValue(authUser?.user_metadata?.role),
+  ]
+
+  const rolesFromMetadata = metadataCandidates.map(toRole).filter((role): role is AppRole => role !== null)
+  if (rolesFromMetadata.length > 0) {
+    return [...new Set(rolesFromMetadata)]
+  }
+
+  return ['user']
+}
+
+function isRecoverableProfileError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+
+  const maybeCode = (err as { code?: unknown }).code
+  const maybeMessage = (err as { message?: unknown }).message
+  const code = typeof maybeCode === 'string' ? maybeCode : ''
+  const message = typeof maybeMessage === 'string' ? maybeMessage.toLowerCase() : ''
+
+  return (
+    code === 'PGRST116' ||
+    message.includes('0 rows') ||
+    message.includes('cannot coerce the result') ||
+    message.includes('row-level security') ||
+    message.includes('permission denied')
+  )
+}
+
+export async function getProfile(userId: string): Promise<ProfileRow | null> {
   const { data, error } = await withRetry(() =>
     supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .single(),
+      .maybeSingle(),
   )
 
   if (error) {
     console.error('[getProfile] Error:', error)
     throw error
   }
-  return data
+  return (data ?? null) as ProfileRow | null
 }
 
 export async function getUserRoles(userId: string): Promise<string[]> {
@@ -127,11 +379,38 @@ export async function getUserRoles(userId: string): Promise<string[]> {
 }
 
 export async function getProfileWithRoles(userId: string): Promise<UserProfile> {
-  const [profile, roles] = await Promise.all([
-    getProfile(userId),
-    getUserRoles(userId),
+  const [profile, roles, sessionResponse] = await Promise.all([
+    getProfile(userId).catch((err) => {
+      if (!isRecoverableProfileError(err)) throw err
+      console.warn('[getProfileWithRoles] Perfil no disponible, se usa fallback de sesion.', err)
+      return null
+    }),
+    getUserRoles(userId).catch((err) => {
+      console.warn('[getProfileWithRoles] No se pudieron cargar roles, se usa fallback.', err)
+      return [] as string[]
+    }),
+    supabase.auth.getSession(),
   ])
-  return { ...profile, roles } as UserProfile
+
+  const authUser = sessionResponse.data.session?.user?.id === userId ? sessionResponse.data.session.user : null
+  const resolvedRoles = resolveRoles(roles, authUser)
+  const email = toText(profile?.email) ?? authUser?.email ?? ''
+  const fallbackNameFromEmail = email.includes('@') ? email.split('@')[0] : null
+
+  return {
+    id: profile?.id ?? userId,
+    name: toText(profile?.name) ?? readUserField(authUser, 'name') ?? fallbackNameFromEmail ?? 'Usuario',
+    last_nmae:
+      toText(profile?.last_nmae) ??
+      readUserField(authUser, 'last_nmae') ??
+      readUserField(authUser, 'last_name') ??
+      '',
+    email,
+    activo: typeof profile?.activo === 'boolean' ? profile.activo : true,
+    created_at: toText(profile?.created_at) ?? authUser?.created_at ?? new Date().toISOString(),
+    avatar_url: toText(profile?.avatar_url),
+    roles: resolvedRoles,
+  }
 }
 
 interface GetCasesParams {
@@ -434,6 +713,224 @@ export async function getCasePhotoUrlFromStorage(caseId: string): Promise<string
   }
 
   return null
+}
+
+export async function getAdminDashboardSummary(): Promise<AdminDashboardSummary> {
+  const now = new Date()
+  const startOfCurrentMonth = getStartOfCurrentMonth(now)
+  const startOfPreviousMonth = getStartOfPreviousMonth(now)
+  const startOfCurrentWeek = getStartOfCurrentWeek(now)
+  const startOfPreviousWeek = getStartOfPreviousWeek(now)
+
+  const [profilesResponse, userRolesResponse, caseMetricsResponse, recentCasesResponse] = await Promise.all([
+    withRetry(
+      () =>
+        supabase
+          .from('profiles')
+          .select('id, name, last_name, email, activo, created_at')
+          .order('created_at', { ascending: false }),
+      { timeoutMs: 30000, retries: 1 },
+    ),
+    withRetry(
+      () =>
+        supabase
+          .from('user_roles')
+          .select('user_id, roles(name)'),
+      { timeoutMs: 30000, retries: 1 },
+    ),
+    withRetry(
+      () =>
+        supabase
+          .from('casos')
+          .select('id, status, workflow_status, created_at, updated_at')
+          .eq('eliminado', false),
+      { timeoutMs: 35000, retries: 1 },
+    ),
+    withRetry(
+      () =>
+        supabase
+          .from('casos')
+          .select(
+            'id, numero_caso, status, workflow_status, nombres, apellidos, edad, ciudad, estado_provincia, lugar_ultima_vez, fecha_desaparicion, created_at, updated_at',
+          )
+          .eq('eliminado', false)
+          .order('created_at', { ascending: false })
+          .limit(12),
+      { timeoutMs: 35000, retries: 1 },
+    ),
+  ])
+
+  if (profilesResponse.error) {
+    console.error('[getAdminDashboardSummary] Profiles error:', profilesResponse.error)
+    throw profilesResponse.error
+  }
+
+  if (userRolesResponse.error) {
+    console.error('[getAdminDashboardSummary] User roles error:', userRolesResponse.error)
+    throw userRolesResponse.error
+  }
+
+  if (caseMetricsResponse.error) {
+    console.error('[getAdminDashboardSummary] Case metrics error:', caseMetricsResponse.error)
+    throw caseMetricsResponse.error
+  }
+
+  if (recentCasesResponse.error) {
+    console.error('[getAdminDashboardSummary] Recent cases error:', recentCasesResponse.error)
+    throw recentCasesResponse.error
+  }
+
+  const profiles = (profilesResponse.data ?? []) as AdminProfileRow[]
+  const userRoles = (userRolesResponse.data ?? []) as UserRoleRelationRow[]
+  const caseMetrics = (caseMetricsResponse.data ?? []) as AdminCaseMetricsRow[]
+  const recentCaseRows = (recentCasesResponse.data ?? []) as AuthorityCaseRow[]
+  const roleMap = buildRoleMap(userRoles)
+
+  let usersThisMonth = 0
+  let usersPreviousMonth = 0
+  let activeAuthorities = 0
+  let authoritiesThisMonth = 0
+  let authoritiesPreviousMonth = 0
+
+  profiles.forEach((profile) => {
+    const createdAt = profile.created_at
+    const roles = roleMap[profile.id] ?? []
+    const isAuthority = roles.includes('authority')
+    const isActive = profile.activo ?? true
+
+    if (isWithinRange(createdAt, startOfCurrentMonth)) {
+      usersThisMonth += 1
+    } else if (isWithinRange(createdAt, startOfPreviousMonth, startOfCurrentMonth)) {
+      usersPreviousMonth += 1
+    }
+
+    if (isAuthority && isActive) {
+      activeAuthorities += 1
+    }
+
+    if (!isAuthority) return
+
+    if (isWithinRange(createdAt, startOfCurrentMonth)) {
+      authoritiesThisMonth += 1
+    } else if (isWithinRange(createdAt, startOfPreviousMonth, startOfCurrentMonth)) {
+      authoritiesPreviousMonth += 1
+    }
+  })
+
+  let activeCases = 0
+  let casesThisWeek = 0
+  let casesPreviousWeek = 0
+  let resolvedCases = 0
+  let resolvedThisMonth = 0
+  let resolvedPreviousMonth = 0
+  let pendingCases = 0
+
+  caseMetrics.forEach((row) => {
+    if (isActiveCase(row.status, row.workflow_status)) {
+      activeCases += 1
+    }
+
+    if (isPendingWorkflow(row.workflow_status)) {
+      pendingCases += 1
+    }
+
+    if (isWithinRange(row.created_at, startOfCurrentWeek)) {
+      casesThisWeek += 1
+    } else if (isWithinRange(row.created_at, startOfPreviousWeek, startOfCurrentWeek)) {
+      casesPreviousWeek += 1
+    }
+
+    if (!isResolvedCase(row.status, row.workflow_status)) return
+
+    resolvedCases += 1
+
+    const resolutionDate = row.updated_at ?? row.created_at
+    if (isWithinRange(resolutionDate, startOfCurrentMonth)) {
+      resolvedThisMonth += 1
+    } else if (isWithinRange(resolutionDate, startOfPreviousMonth, startOfCurrentMonth)) {
+      resolvedPreviousMonth += 1
+    }
+  })
+
+  const recentUsers = profiles.slice(0, 4).flatMap<AdminDashboardActivityItem>((profile) => {
+    if (!profile.created_at) return []
+
+    return [
+      {
+        id: `user-${profile.id}`,
+        type: 'user',
+        title: 'Nuevo usuario registrado',
+        detail: formatDisplayName(profile, 'Usuario nuevo'),
+        created_at: profile.created_at,
+      },
+    ]
+  })
+
+  const recentResolvedCases = [...recentCaseRows]
+    .filter((row) => isResolvedCase(row.status, row.workflow_status))
+    .sort((a, b) => {
+      const aTime = getTimestamp(a.updated_at ?? a.created_at) ?? 0
+      const bTime = getTimestamp(b.updated_at ?? b.created_at) ?? 0
+      return bTime - aTime
+    })
+    .slice(0, 4)
+    .flatMap<AdminDashboardActivityItem>((row) => {
+      const timestamp = row.updated_at ?? row.created_at
+      if (!timestamp) return []
+
+      return [
+        {
+          id: `resolved-${row.id}`,
+          type: 'resolved',
+          title: 'Caso actualizado',
+          detail: `${row.numero_caso} - ${row.nombres} ${row.apellidos}`,
+          created_at: timestamp,
+        },
+      ]
+    })
+
+  const recentCreatedCases = recentCaseRows
+    .filter((row) => !isResolvedCase(row.status, row.workflow_status))
+    .slice(0, 4)
+    .flatMap<AdminDashboardActivityItem>((row) => {
+      if (!row.created_at) return []
+
+      return [
+        {
+          id: `case-${row.id}`,
+          type: 'case',
+          title: 'Nuevo caso registrado',
+          detail: `${row.numero_caso} - ${row.nombres} ${row.apellidos}`,
+          created_at: row.created_at,
+        },
+      ]
+    })
+
+  const recentActivity = [...recentUsers, ...recentResolvedCases, ...recentCreatedCases]
+    .sort((a, b) => {
+      const aTime = getTimestamp(a.created_at) ?? 0
+      const bTime = getTimestamp(b.created_at) ?? 0
+      return bTime - aTime
+    })
+    .slice(0, 6)
+
+  return {
+    totalUsers: profiles.length,
+    usersThisMonth,
+    usersPreviousMonth,
+    activeAuthorities,
+    authoritiesThisMonth,
+    authoritiesPreviousMonth,
+    activeCases,
+    casesThisWeek,
+    casesPreviousWeek,
+    resolvedCases,
+    resolvedThisMonth,
+    resolvedPreviousMonth,
+    pendingCases,
+    recentCases: recentCaseRows.slice(0, 5),
+    recentActivity,
+  }
 }
 
 export async function getAuthorityDashboardSummary(): Promise<AuthorityDashboardSummary> {

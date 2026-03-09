@@ -3,7 +3,6 @@ import { useState } from 'react'
 import { Plus, RefreshCw } from 'lucide-react'
 import AdminSidebar from '../components/Adminsidebar'
 import { useUsers } from '../../../shared/hooks/useUsers'
-import { StatCard } from '../components/StatCard'
 import { UsersFilters } from '../components/UsersFilters'
 import { UsersTable } from '../components/UsersTable'
 import { UserFormModal } from '../components/UserFormModal'
@@ -18,7 +17,7 @@ type ModalState =
 
 export default function AdminUsers() {
   const {
-    users, loading, stats,
+    users, loading, refreshing,
     page, totalPages, totalFiltered, pageSize, setPage,
     search, setSearch,
     filterRole, setFilterRole,
@@ -52,8 +51,8 @@ export default function AdminUsers() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={load} className="btn-secondary flex items-center gap-2">
-              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            <button onClick={() => void load()} className="btn-secondary flex items-center gap-2">
+              <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
               Actualizar
             </button>
             <button
@@ -64,14 +63,6 @@ export default function AdminUsers() {
               Nuevo usuario
             </button>
           </div>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="Total usuarios"  value={stats.total}       colorClass="text-primary" />
-          <StatCard label="Activos"         value={stats.active}      colorClass="text-success" />
-          <StatCard label="Autoridades"     value={stats.authorities} colorClass="text-warning" />
-          <StatCard label="Admins"          value={stats.admins}      colorClass="text-info"    />
         </div>
 
         {/* Filtros */}
@@ -103,7 +94,7 @@ export default function AdminUsers() {
           mode="create"
           user={null}
           onClose={closeModal}
-          onSuccess={() => { closeModal(); load() }}
+          onSuccess={closeModal}
         />
       )}
 
@@ -113,7 +104,7 @@ export default function AdminUsers() {
           mode="edit"
           user={modal.user}
           onClose={closeModal}
-          onSuccess={() => { closeModal(); load() }}
+          onSuccess={closeModal}
         />
       )}
 
