@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { MapPin, Calendar, Search, RefreshCw } from 'lucide-react'
 import { Alert, Spinner, StatusBadge, type WorkflowStatus } from '../../../shared/components/ui'
-import { getAuthorityCases, type AuthorityCaseRow } from '../../../lib/supabase/db'
+import { getAuthorityCases, subscribeToCasesRealtime, type AuthorityCaseRow } from '../../../lib/supabase/db'
 
 type PublicFilter = 'all' | WorkflowStatus
 
@@ -18,9 +18,16 @@ function getDateLabel(caso: AuthorityCaseRow): string {
 }
 
 function getWorkflowStatus(caso: AuthorityCaseRow): WorkflowStatus | null {
-  if (!caso.workflow_status) return null
-  if (caso.workflow_status === 'rejected') return null
-  return caso.workflow_status
+  if (caso.workflow_status) {
+    if (caso.workflow_status === 'rejected') return null
+    return caso.workflow_status
+  }
+
+  // Backward compatibility for datasets that still use only `status`.
+  if (caso.status === 'resuelto') return 'found'
+  if (caso.status === 'cerrado') return 'closed'
+  if (caso.status === 'activo' || caso.status === 'en_proceso') return 'approved'
+  return null
 }
 
 export default function PublicCasesPage() {
@@ -53,6 +60,14 @@ export default function PublicCasesPage() {
 
   useEffect(() => {
     void loadCases()
+  }, [loadCases])
+
+  useEffect(() => {
+    const unsubscribe = subscribeToCasesRealtime(() => {
+      void loadCases()
+    })
+
+    return unsubscribe
   }, [loadCases])
 
   const filtered = useMemo(() => {

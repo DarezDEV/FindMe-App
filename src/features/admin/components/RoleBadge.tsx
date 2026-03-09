@@ -1,12 +1,28 @@
 // src/features/admin/components/users/RoleBadge.tsx
-import { ROLE_META, type Role } from './role-meta'
+import { User, Shield } from 'lucide-react'
+import { roleLabel, type Role } from './roles'
+
+const config: Record<Role, { className: string; Icon: React.ElementType }> = {
+  user: {
+    className: 'badge-user',
+    Icon: User,
+  },
+  authority: {
+    className: 'badge-authority',
+    Icon: Shield,
+  },
+  admin: {
+    className: 'badge-admin',
+    Icon: Shield,
+  },
+}
 
 export function RoleBadge({ role }: { role: Role }) {
-  const { label, className, Icon } = ROLE_META[role]
+  const { className, Icon } = config[role]
   return (
     <span className={className}>
       <Icon size={11} />
-      {label}
+      {roleLabel(role)}
     </span>
   )
 }

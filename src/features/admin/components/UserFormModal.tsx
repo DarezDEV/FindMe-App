@@ -1,14 +1,9 @@
 // src/features/admin/components/users/UserFormModal.tsx
 import { useState } from 'react'
 import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js'
-import { useQueryClient } from '@tanstack/react-query'
 import { X, Check, UserCheck, UserX } from 'lucide-react'
 import { supabase } from '../../../lib/supabase/client'
-import {
-  ADMIN_DASHBOARD_SUMMARY_QUERY_KEY,
-  ADMIN_USERS_QUERY_KEY,
-} from '../hooks/queryKeys'
-import { ROLE_OPTIONS, roleLabel, type Role } from './role-meta'
+import { ROLE_OPTIONS, roleLabel, type Role } from './roles'
 import type { UserRow } from './UserTableRow'
 
 interface Props {
@@ -84,7 +79,6 @@ const parseFunctionError = async (error: FunctionsHttpError) => {
 }
 
 export function UserFormModal({ mode, user, onClose, onSuccess }: Props) {
-  const queryClient = useQueryClient()
   const [form, setForm] = useState({
     name: user?.name ?? '',
     last_name: user?.last_name ?? '',
@@ -213,11 +207,6 @@ export function UserFormModal({ mode, user, onClose, onSuccess }: Props) {
           if (insertRolesError) throw insertRolesError
         }
       }
-
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ADMIN_USERS_QUERY_KEY }),
-        queryClient.invalidateQueries({ queryKey: ADMIN_DASHBOARD_SUMMARY_QUERY_KEY }),
-      ])
 
       onSuccess()
     } catch (err: unknown) {

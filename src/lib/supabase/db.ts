@@ -1,4 +1,3 @@
-import type { User } from '@supabase/supabase-js'
 import { supabase } from './client'
 import type { UserProfile } from '../../features/auth/types'
 
@@ -9,8 +8,6 @@ interface UserRoleRow {
 interface RoleRow {
   name: string
 }
-
-type AppRole = UserProfile['roles'][number]
 
 export type CaseStatus = 'activo' | 'en_proceso' | 'resuelto' | 'cerrado'
 export type CaseWorkflowStatus = 'pending' | 'approved' | 'rejected' | 'found' | 'closed'
@@ -34,7 +31,6 @@ export interface AuthorityCaseRow {
   descripcion_general?: string | null
   fecha_desaparicion: string | null
   created_at: string
-  updated_at?: string | null
 }
 
 export interface ProfileBasicRow {
@@ -57,65 +53,36 @@ export interface AuthorityDashboardSummary {
   recentCases: AuthorityCaseRow[]
 }
 
-export type AdminDashboardActivityType = 'user' | 'case' | 'resolved'
-
-export interface AdminDashboardActivityItem {
+export interface CaseRealtimeRow {
   id: string
-  type: AdminDashboardActivityType
-  title: string
-  detail: string
-  created_at: string
-}
-
-export interface AdminDashboardSummary {
-  totalUsers: number
-  usersThisMonth: number
-  usersPreviousMonth: number
-  activeAuthorities: number
-  authoritiesThisMonth: number
-  authoritiesPreviousMonth: number
-  activeCases: number
-  casesThisWeek: number
-  casesPreviousWeek: number
-  resolvedCases: number
-  resolvedThisMonth: number
-  resolvedPreviousMonth: number
-  pendingCases: number
-  recentCases: AuthorityCaseRow[]
-  recentActivity: AdminDashboardActivityItem[]
-}
-
-interface ProfileRow {
-  id: string
-  name: string | null
-  last_nmae: string | null
-  email: string | null
-  activo: boolean | null
-  created_at: string | null
-  avatar_url: string | null
-}
-
-interface AdminProfileRow {
-  id: string
-  name: string | null
-  last_name: string | null
-  email: string | null
-  activo: boolean | null
-  created_at: string | null
-}
-
-interface UserRoleRelationRow {
-  user_id: string
-  roles: { name: AppRole } | Array<{ name: AppRole }> | null
-}
-
-interface AdminCaseMetricsRow {
-  id: string
+  workflow_status: CaseWorkflowStatus | null
   status: string | null
-  workflow_status: string | null
-  created_at: string | null
-  updated_at: string | null
+  eliminado: boolean | null
 }
+
+export interface CaseRealtimePayload {
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE'
+  new: Partial<CaseRealtimeRow>
+  old: Partial<CaseRealtimeRow>
+}
+
+export interface AuthoritySightingRow {
+  id: string
+  caseId: string | null
+  caseNumber: string | null
+  missingPersonName: string | null
+  reporterId: string | null
+  reporterName: string | null
+  details: string
+  location: string | null
+  status: string | null
+  created_at: string
+  sourceTable: string
+}
+
+export type SightingModerationStatus = 'pending' | 'approved' | 'rejected'
+
+const SIGHTING_TABLE = 'caso_avistamientos'
 
 function withTimeout<T>(promise: PromiseLike<T>, ms = 12000): Promise<T> {
   const timeout = new Promise<never>((_, reject) => {
@@ -146,208 +113,77 @@ async function withRetry<T>(
   throw lastError instanceof Error ? lastError : new Error('Error inesperado al consultar Supabase.')
 }
 
-function toText(value: unknown): string | null {
+function getStringValue(value: unknown): string | null {
   if (typeof value !== 'string') return null
-  const normalized = value.trim()
-  return normalized.length > 0 ? normalized : null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
 }
 
-function toRole(value: unknown): AppRole | null {
-  if (value === 'user' || value === 'authority' || value === 'admin') {
-    return value
+function getBooleanValue(value: unknown): boolean | null {
+  if (typeof value === 'boolean') return value
+  return null
+}
+
+function pickString(row: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = getStringValue(row[key])
+    if (value) return value
   }
   return null
 }
 
-function readMetadataString(metadata: unknown, key: string): string | null {
-  if (!metadata || typeof metadata !== 'object') return null
-  return toText((metadata as Record<string, unknown>)[key])
+function normalizeCaseWorkflowStatus(value: unknown): CaseWorkflowStatus | null {
+  if (typeof value !== 'string') return null
+  if (value === 'pending') return 'pending'
+  if (value === 'approved') return 'approved'
+  if (value === 'rejected') return 'rejected'
+  if (value === 'found') return 'found'
+  if (value === 'closed') return 'closed'
+  return null
 }
 
-function readUserField(authUser: User | null, key: string): string | null {
-  if (!authUser) return null
-  return readMetadataString(authUser.user_metadata, key) ?? readMetadataString(authUser.app_metadata, key)
-}
+function isTableMissingError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
 
-function parseRoleValue(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.filter((entry): entry is string => typeof entry === 'string')
-  }
+  const candidate = error as { code?: unknown; message?: unknown }
+  const code = typeof candidate.code === 'string' ? candidate.code : ''
+  const message = typeof candidate.message === 'string' ? candidate.message.toLowerCase() : ''
 
-  if (typeof value === 'string' && value.trim()) {
-    return [value]
-  }
-
-  return []
-}
-
-function createDateAtMidnight(base: Date) {
-  const date = new Date(base)
-  date.setHours(0, 0, 0, 0)
-  return date
-}
-
-function getStartOfCurrentMonth(base = new Date()) {
-  return new Date(base.getFullYear(), base.getMonth(), 1)
-}
-
-function getStartOfPreviousMonth(base = new Date()) {
-  return new Date(base.getFullYear(), base.getMonth() - 1, 1)
-}
-
-function getStartOfCurrentWeek(base = new Date()) {
-  const date = createDateAtMidnight(base)
-  const currentDay = date.getDay()
-  const diffToMonday = currentDay === 0 ? 6 : currentDay - 1
-  date.setDate(date.getDate() - diffToMonday)
-  return date
-}
-
-function getStartOfPreviousWeek(base = new Date()) {
-  const date = getStartOfCurrentWeek(base)
-  date.setDate(date.getDate() - 7)
-  return date
-}
-
-function getTimestamp(value: string | null | undefined) {
-  if (!value) return null
-  const time = new Date(value).getTime()
-  return Number.isNaN(time) ? null : time
-}
-
-function isWithinRange(value: string | null | undefined, start: Date, end?: Date) {
-  const timestamp = getTimestamp(value)
-  if (timestamp === null) return false
-
-  const startTime = start.getTime()
-  if (timestamp < startTime) return false
-
-  if (!end) return true
-  return timestamp < end.getTime()
-}
-
-function isResolvedCase(status: string | null | undefined, workflowStatus: string | null | undefined) {
-  const normalizedStatus = status?.trim().toLowerCase() ?? ''
   return (
-    workflowStatus === 'found' ||
-    workflowStatus === 'closed' ||
-    normalizedStatus === 'encontrado' ||
-    normalizedStatus === 'resuelto' ||
-    normalizedStatus === 'cerrado'
+    code === '42P01'
+    || message.includes('does not exist')
+    || message.includes('relation')
   )
 }
 
-function isActiveCase(status: string | null | undefined, workflowStatus: string | null | undefined) {
-  if (workflowStatus === 'rejected' || workflowStatus === 'closed' || workflowStatus === 'found') {
-    return false
-  }
+function isColumnMissingError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
 
-  const normalizedStatus = status?.trim().toLowerCase() ?? ''
+  const candidate = error as { code?: unknown; message?: unknown }
+  const code = typeof candidate.code === 'string' ? candidate.code : ''
+  const message = typeof candidate.message === 'string' ? candidate.message.toLowerCase() : ''
+
   return (
-    normalizedStatus === 'activo' ||
-    normalizedStatus === 'en_proceso' ||
-    normalizedStatus === 'en_revision' ||
-    normalizedStatus === 'avistado' ||
-    normalizedStatus.length === 0
+    code === '42703'
+    || message.includes('column')
+    || message.includes('does not exist')
   )
 }
 
-function isPendingWorkflow(workflowStatus: string | null | undefined) {
-  return workflowStatus === 'pending' || workflowStatus === null
-}
-
-function formatDisplayName(
-  value: { name?: string | null; last_name?: string | null; email?: string | null },
-  fallback = 'Usuario',
-) {
-  const name = toText(value.name)
-  const lastName = toText(value.last_name)
-  const fullName = [name, lastName].filter(Boolean).join(' ')
-  if (fullName) return fullName
-
-  const email = toText(value.email)
-  if (!email) return fallback
-
-  return email.includes('@') ? email.split('@')[0] : email
-}
-
-function buildRoleMap(rows: UserRoleRelationRow[]) {
-  const roleMap: Record<string, AppRole[]> = {}
-
-  rows.forEach((row) => {
-    if (!roleMap[row.user_id]) {
-      roleMap[row.user_id] = []
-    }
-
-    if (Array.isArray(row.roles)) {
-      row.roles.forEach((role) => {
-        if (!roleMap[row.user_id].includes(role.name)) {
-          roleMap[row.user_id].push(role.name)
-        }
-      })
-      return
-    }
-
-    if (row.roles?.name && !roleMap[row.user_id].includes(row.roles.name)) {
-      roleMap[row.user_id].push(row.roles.name)
-    }
-  })
-
-  return roleMap
-}
-
-function resolveRoles(dbRoles: string[], authUser: User | null): AppRole[] {
-  const rolesFromDb = dbRoles.map(toRole).filter((role): role is AppRole => role !== null)
-  if (rolesFromDb.length > 0) {
-    return [...new Set(rolesFromDb)]
-  }
-
-  const metadataCandidates = [
-    ...parseRoleValue(authUser?.app_metadata?.roles),
-    ...parseRoleValue(authUser?.app_metadata?.role),
-    ...parseRoleValue(authUser?.user_metadata?.roles),
-    ...parseRoleValue(authUser?.user_metadata?.role),
-  ]
-
-  const rolesFromMetadata = metadataCandidates.map(toRole).filter((role): role is AppRole => role !== null)
-  if (rolesFromMetadata.length > 0) {
-    return [...new Set(rolesFromMetadata)]
-  }
-
-  return ['user']
-}
-
-function isRecoverableProfileError(err: unknown): boolean {
-  if (!err || typeof err !== 'object') return false
-
-  const maybeCode = (err as { code?: unknown }).code
-  const maybeMessage = (err as { message?: unknown }).message
-  const code = typeof maybeCode === 'string' ? maybeCode : ''
-  const message = typeof maybeMessage === 'string' ? maybeMessage.toLowerCase() : ''
-
-  return (
-    code === 'PGRST116' ||
-    message.includes('0 rows') ||
-    message.includes('cannot coerce the result') ||
-    message.includes('row-level security') ||
-    message.includes('permission denied')
-  )
-}
-
-export async function getProfile(userId: string): Promise<ProfileRow | null> {
+export async function getProfile(userId: string) {
   const { data, error } = await withRetry(() =>
     supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
-      .maybeSingle(),
+      .single(),
   )
 
   if (error) {
     console.error('[getProfile] Error:', error)
     throw error
   }
-  return (data ?? null) as ProfileRow | null
+  return data
 }
 
 export async function getUserRoles(userId: string): Promise<string[]> {
@@ -379,38 +215,11 @@ export async function getUserRoles(userId: string): Promise<string[]> {
 }
 
 export async function getProfileWithRoles(userId: string): Promise<UserProfile> {
-  const [profile, roles, sessionResponse] = await Promise.all([
-    getProfile(userId).catch((err) => {
-      if (!isRecoverableProfileError(err)) throw err
-      console.warn('[getProfileWithRoles] Perfil no disponible, se usa fallback de sesion.', err)
-      return null
-    }),
-    getUserRoles(userId).catch((err) => {
-      console.warn('[getProfileWithRoles] No se pudieron cargar roles, se usa fallback.', err)
-      return [] as string[]
-    }),
-    supabase.auth.getSession(),
+  const [profile, roles] = await Promise.all([
+    getProfile(userId),
+    getUserRoles(userId),
   ])
-
-  const authUser = sessionResponse.data.session?.user?.id === userId ? sessionResponse.data.session.user : null
-  const resolvedRoles = resolveRoles(roles, authUser)
-  const email = toText(profile?.email) ?? authUser?.email ?? ''
-  const fallbackNameFromEmail = email.includes('@') ? email.split('@')[0] : null
-
-  return {
-    id: profile?.id ?? userId,
-    name: toText(profile?.name) ?? readUserField(authUser, 'name') ?? fallbackNameFromEmail ?? 'Usuario',
-    last_nmae:
-      toText(profile?.last_nmae) ??
-      readUserField(authUser, 'last_nmae') ??
-      readUserField(authUser, 'last_name') ??
-      '',
-    email,
-    activo: typeof profile?.activo === 'boolean' ? profile.activo : true,
-    created_at: toText(profile?.created_at) ?? authUser?.created_at ?? new Date().toISOString(),
-    avatar_url: toText(profile?.avatar_url),
-    roles: resolvedRoles,
-  }
+  return { ...profile, roles } as UserProfile
 }
 
 interface GetCasesParams {
@@ -448,6 +257,227 @@ export async function getAuthorityCases(params: GetCasesParams = {}): Promise<Au
   }
 
   return (data ?? []) as AuthorityCaseRow[]
+}
+
+export function subscribeToCasesRealtime(
+  onChange: (payload: CaseRealtimePayload) => void,
+): () => void {
+  const channel = supabase
+    .channel(`cases-realtime-${crypto.randomUUID()}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'casos' },
+      (payload) => {
+        const newRowRaw = (payload.new ?? {}) as Record<string, unknown>
+        const oldRowRaw = (payload.old ?? {}) as Record<string, unknown>
+
+        onChange({
+          eventType: payload.eventType as CaseRealtimePayload['eventType'],
+          new: {
+            id: pickString(newRowRaw, ['id']) ?? '',
+            workflow_status: normalizeCaseWorkflowStatus(newRowRaw.workflow_status),
+            status: pickString(newRowRaw, ['status']),
+            eliminado: getBooleanValue(newRowRaw.eliminado),
+          },
+          old: {
+            id: pickString(oldRowRaw, ['id']) ?? '',
+            workflow_status: normalizeCaseWorkflowStatus(oldRowRaw.workflow_status),
+            status: pickString(oldRowRaw, ['status']),
+            eliminado: getBooleanValue(oldRowRaw.eliminado),
+          },
+        })
+      },
+    )
+    .subscribe((status) => {
+      if (status === 'CHANNEL_ERROR') {
+        console.error('[subscribeToCasesRealtime] Error en canal realtime de casos.')
+      }
+    })
+
+  return () => {
+    void supabase.removeChannel(channel)
+  }
+}
+
+export async function getAuthoritySightings(limit = 200): Promise<AuthoritySightingRow[]> {
+  const queryWithCreatedAt = await withRetry(
+    () =>
+      supabase
+        .from(SIGHTING_TABLE)
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit),
+    { timeoutMs: 30000, retries: 0 },
+  )
+
+  let data = queryWithCreatedAt.data
+  let error = queryWithCreatedAt.error
+
+  if (error && isColumnMissingError(error)) {
+    const queryWithFechaReporte = await withRetry(
+      () =>
+        supabase
+          .from(SIGHTING_TABLE)
+          .select('*')
+          .order('fecha_reporte', { ascending: false })
+          .limit(limit),
+      { timeoutMs: 30000, retries: 0 },
+    )
+    data = queryWithFechaReporte.data
+    error = queryWithFechaReporte.error
+  }
+
+  if (error && isColumnMissingError(error)) {
+    const queryWithoutOrder = await withRetry(
+      () => supabase.from(SIGHTING_TABLE).select('*').limit(limit),
+      { timeoutMs: 30000, retries: 0 },
+    )
+    data = queryWithoutOrder.data
+    error = queryWithoutOrder.error
+  }
+
+  if (error) {
+    if (isTableMissingError(error)) return []
+    console.error(`[getAuthoritySightings] Error en tabla ${SIGHTING_TABLE}:`, error)
+    throw error
+  }
+
+  const rawRows = (data ?? []) as Record<string, unknown>[]
+  const rows = rawRows.filter((row) => {
+    const eliminado = row.eliminado
+    return eliminado !== true
+  })
+  if (rows.length === 0) return []
+
+  const caseIds = [
+    ...new Set(
+      rows
+        .map((row) => pickString(row, ['caso_id', 'case_id', 'missing_case_id']))
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ]
+
+  const reporterIds = [
+    ...new Set(
+      rows
+        .map((row) => pickString(row, ['reportado_por', 'reporter_id', 'autor_id', 'user_id', 'created_by']))
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ]
+
+  const caseMap = new Map<string, { numeroCaso: string | null; fullName: string | null }>()
+  if (caseIds.length > 0) {
+    const { data: casesData, error: casesError } = await withRetry(
+      () =>
+        supabase
+          .from('casos')
+          .select('id, numero_caso, nombres, apellidos')
+          .in('id', caseIds),
+      { timeoutMs: 30000, retries: 0 },
+    )
+
+    if (!casesError) {
+      const casesRows = (casesData ?? []) as Array<Record<string, unknown>>
+      casesRows.forEach((caseRow) => {
+        const id = pickString(caseRow, ['id'])
+        if (!id) return
+        const nombres = pickString(caseRow, ['nombres']) ?? ''
+        const apellidos = pickString(caseRow, ['apellidos']) ?? ''
+        caseMap.set(id, {
+          numeroCaso: pickString(caseRow, ['numero_caso']),
+          fullName: `${nombres} ${apellidos}`.trim() || null,
+        })
+      })
+    }
+  }
+
+  const profileMap = new Map<string, string>()
+  if (reporterIds.length > 0) {
+    try {
+      const profiles = await getProfilesBasicByIds(reporterIds)
+      profiles.forEach((profile) => {
+        const fullName = `${profile.name ?? ''} ${profile.last_name ?? ''}`.trim()
+        if (fullName) profileMap.set(profile.id, fullName)
+      })
+    } catch {
+      // If profiles fail, we still return sightings without reporter names.
+    }
+  }
+
+  return rows.map((row) => {
+    const id = pickString(row, ['id', 'avistamiento_id']) ?? crypto.randomUUID()
+    const caseId = pickString(row, ['caso_id', 'case_id', 'missing_case_id'])
+    const caseFromLookup = caseId ? caseMap.get(caseId) : null
+    const reporterId = pickString(row, ['reportado_por', 'reporter_id', 'autor_id', 'user_id', 'created_by'])
+    const reporterName = reporterId ? (profileMap.get(reporterId) ?? null) : null
+    const rawStatus = pickString(row, ['estado', 'status', 'workflow_status'])
+    const details =
+      pickString(row, ['descripcion', 'detalle', 'comentario', 'note', 'contenido', 'texto'])
+      ?? 'Sin detalles del avistamiento.'
+
+    return {
+      id,
+      caseId,
+      caseNumber: pickString(row, ['numero_caso', 'case_number']) ?? caseFromLookup?.numeroCaso ?? null,
+      missingPersonName:
+        pickString(row, ['nombre_persona', 'persona_nombre', 'missing_person_name', 'nombre'])
+        ?? caseFromLookup?.fullName
+        ?? null,
+      reporterId,
+      reporterName,
+      details,
+      location: pickString(row, ['ubicacion', 'location', 'lugar', 'direccion', 'ciudad']),
+      status: rawStatus,
+      created_at:
+        pickString(row, ['created_at', 'fecha_reporte', 'reported_at', 'fecha', 'updated_at'])
+        ?? new Date().toISOString(),
+      sourceTable: SIGHTING_TABLE,
+    }
+  })
+}
+
+export async function updateAuthoritySightingStatus(
+  sightingId: string,
+  status: SightingModerationStatus,
+): Promise<void> {
+  const updatePayload = {
+    updated_at: new Date().toISOString(),
+  }
+
+  const attempts: Array<{ idColumn: string; statusColumn: string }> = [
+    { idColumn: 'id', statusColumn: 'estado' },
+    { idColumn: 'id', statusColumn: 'status' },
+    { idColumn: 'id', statusColumn: 'workflow_status' },
+    { idColumn: 'avistamiento_id', statusColumn: 'estado' },
+    { idColumn: 'avistamiento_id', statusColumn: 'status' },
+    { idColumn: 'avistamiento_id', statusColumn: 'workflow_status' },
+  ]
+
+  for (const attempt of attempts) {
+    const { data, error } = await withRetry(
+      () =>
+        supabase
+          .from(SIGHTING_TABLE)
+          .update({
+            ...updatePayload,
+            [attempt.statusColumn]: status,
+          })
+          .eq(attempt.idColumn, sightingId)
+          .select(attempt.idColumn)
+          .maybeSingle(),
+      { timeoutMs: 30000, retries: 0 },
+    )
+
+    if (error) {
+      if (isColumnMissingError(error)) continue
+      console.error('[updateAuthoritySightingStatus] Error:', error)
+      throw error
+    }
+
+    if (data) return
+  }
+
+  throw new Error('No se pudo actualizar el estado del avistamiento por incompatibilidad de columnas.')
 }
 
 export async function softDeleteCase(caseId: string): Promise<void> {
@@ -713,224 +743,6 @@ export async function getCasePhotoUrlFromStorage(caseId: string): Promise<string
   }
 
   return null
-}
-
-export async function getAdminDashboardSummary(): Promise<AdminDashboardSummary> {
-  const now = new Date()
-  const startOfCurrentMonth = getStartOfCurrentMonth(now)
-  const startOfPreviousMonth = getStartOfPreviousMonth(now)
-  const startOfCurrentWeek = getStartOfCurrentWeek(now)
-  const startOfPreviousWeek = getStartOfPreviousWeek(now)
-
-  const [profilesResponse, userRolesResponse, caseMetricsResponse, recentCasesResponse] = await Promise.all([
-    withRetry(
-      () =>
-        supabase
-          .from('profiles')
-          .select('id, name, last_name, email, activo, created_at')
-          .order('created_at', { ascending: false }),
-      { timeoutMs: 30000, retries: 1 },
-    ),
-    withRetry(
-      () =>
-        supabase
-          .from('user_roles')
-          .select('user_id, roles(name)'),
-      { timeoutMs: 30000, retries: 1 },
-    ),
-    withRetry(
-      () =>
-        supabase
-          .from('casos')
-          .select('id, status, workflow_status, created_at, updated_at')
-          .eq('eliminado', false),
-      { timeoutMs: 35000, retries: 1 },
-    ),
-    withRetry(
-      () =>
-        supabase
-          .from('casos')
-          .select(
-            'id, numero_caso, status, workflow_status, nombres, apellidos, edad, ciudad, estado_provincia, lugar_ultima_vez, fecha_desaparicion, created_at, updated_at',
-          )
-          .eq('eliminado', false)
-          .order('created_at', { ascending: false })
-          .limit(12),
-      { timeoutMs: 35000, retries: 1 },
-    ),
-  ])
-
-  if (profilesResponse.error) {
-    console.error('[getAdminDashboardSummary] Profiles error:', profilesResponse.error)
-    throw profilesResponse.error
-  }
-
-  if (userRolesResponse.error) {
-    console.error('[getAdminDashboardSummary] User roles error:', userRolesResponse.error)
-    throw userRolesResponse.error
-  }
-
-  if (caseMetricsResponse.error) {
-    console.error('[getAdminDashboardSummary] Case metrics error:', caseMetricsResponse.error)
-    throw caseMetricsResponse.error
-  }
-
-  if (recentCasesResponse.error) {
-    console.error('[getAdminDashboardSummary] Recent cases error:', recentCasesResponse.error)
-    throw recentCasesResponse.error
-  }
-
-  const profiles = (profilesResponse.data ?? []) as AdminProfileRow[]
-  const userRoles = (userRolesResponse.data ?? []) as UserRoleRelationRow[]
-  const caseMetrics = (caseMetricsResponse.data ?? []) as AdminCaseMetricsRow[]
-  const recentCaseRows = (recentCasesResponse.data ?? []) as AuthorityCaseRow[]
-  const roleMap = buildRoleMap(userRoles)
-
-  let usersThisMonth = 0
-  let usersPreviousMonth = 0
-  let activeAuthorities = 0
-  let authoritiesThisMonth = 0
-  let authoritiesPreviousMonth = 0
-
-  profiles.forEach((profile) => {
-    const createdAt = profile.created_at
-    const roles = roleMap[profile.id] ?? []
-    const isAuthority = roles.includes('authority')
-    const isActive = profile.activo ?? true
-
-    if (isWithinRange(createdAt, startOfCurrentMonth)) {
-      usersThisMonth += 1
-    } else if (isWithinRange(createdAt, startOfPreviousMonth, startOfCurrentMonth)) {
-      usersPreviousMonth += 1
-    }
-
-    if (isAuthority && isActive) {
-      activeAuthorities += 1
-    }
-
-    if (!isAuthority) return
-
-    if (isWithinRange(createdAt, startOfCurrentMonth)) {
-      authoritiesThisMonth += 1
-    } else if (isWithinRange(createdAt, startOfPreviousMonth, startOfCurrentMonth)) {
-      authoritiesPreviousMonth += 1
-    }
-  })
-
-  let activeCases = 0
-  let casesThisWeek = 0
-  let casesPreviousWeek = 0
-  let resolvedCases = 0
-  let resolvedThisMonth = 0
-  let resolvedPreviousMonth = 0
-  let pendingCases = 0
-
-  caseMetrics.forEach((row) => {
-    if (isActiveCase(row.status, row.workflow_status)) {
-      activeCases += 1
-    }
-
-    if (isPendingWorkflow(row.workflow_status)) {
-      pendingCases += 1
-    }
-
-    if (isWithinRange(row.created_at, startOfCurrentWeek)) {
-      casesThisWeek += 1
-    } else if (isWithinRange(row.created_at, startOfPreviousWeek, startOfCurrentWeek)) {
-      casesPreviousWeek += 1
-    }
-
-    if (!isResolvedCase(row.status, row.workflow_status)) return
-
-    resolvedCases += 1
-
-    const resolutionDate = row.updated_at ?? row.created_at
-    if (isWithinRange(resolutionDate, startOfCurrentMonth)) {
-      resolvedThisMonth += 1
-    } else if (isWithinRange(resolutionDate, startOfPreviousMonth, startOfCurrentMonth)) {
-      resolvedPreviousMonth += 1
-    }
-  })
-
-  const recentUsers = profiles.slice(0, 4).flatMap<AdminDashboardActivityItem>((profile) => {
-    if (!profile.created_at) return []
-
-    return [
-      {
-        id: `user-${profile.id}`,
-        type: 'user',
-        title: 'Nuevo usuario registrado',
-        detail: formatDisplayName(profile, 'Usuario nuevo'),
-        created_at: profile.created_at,
-      },
-    ]
-  })
-
-  const recentResolvedCases = [...recentCaseRows]
-    .filter((row) => isResolvedCase(row.status, row.workflow_status))
-    .sort((a, b) => {
-      const aTime = getTimestamp(a.updated_at ?? a.created_at) ?? 0
-      const bTime = getTimestamp(b.updated_at ?? b.created_at) ?? 0
-      return bTime - aTime
-    })
-    .slice(0, 4)
-    .flatMap<AdminDashboardActivityItem>((row) => {
-      const timestamp = row.updated_at ?? row.created_at
-      if (!timestamp) return []
-
-      return [
-        {
-          id: `resolved-${row.id}`,
-          type: 'resolved',
-          title: 'Caso actualizado',
-          detail: `${row.numero_caso} - ${row.nombres} ${row.apellidos}`,
-          created_at: timestamp,
-        },
-      ]
-    })
-
-  const recentCreatedCases = recentCaseRows
-    .filter((row) => !isResolvedCase(row.status, row.workflow_status))
-    .slice(0, 4)
-    .flatMap<AdminDashboardActivityItem>((row) => {
-      if (!row.created_at) return []
-
-      return [
-        {
-          id: `case-${row.id}`,
-          type: 'case',
-          title: 'Nuevo caso registrado',
-          detail: `${row.numero_caso} - ${row.nombres} ${row.apellidos}`,
-          created_at: row.created_at,
-        },
-      ]
-    })
-
-  const recentActivity = [...recentUsers, ...recentResolvedCases, ...recentCreatedCases]
-    .sort((a, b) => {
-      const aTime = getTimestamp(a.created_at) ?? 0
-      const bTime = getTimestamp(b.created_at) ?? 0
-      return bTime - aTime
-    })
-    .slice(0, 6)
-
-  return {
-    totalUsers: profiles.length,
-    usersThisMonth,
-    usersPreviousMonth,
-    activeAuthorities,
-    authoritiesThisMonth,
-    authoritiesPreviousMonth,
-    activeCases,
-    casesThisWeek,
-    casesPreviousWeek,
-    resolvedCases,
-    resolvedThisMonth,
-    resolvedPreviousMonth,
-    pendingCases,
-    recentCases: recentCaseRows.slice(0, 5),
-    recentActivity,
-  }
 }
 
 export async function getAuthorityDashboardSummary(): Promise<AuthorityDashboardSummary> {

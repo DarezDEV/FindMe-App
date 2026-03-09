@@ -3,7 +3,7 @@ import { Pencil, Trash2 } from 'lucide-react'
 import { UserAvatar } from './UserAvatar'
 import { RoleBadge } from './RoleBadge'
 import { StatusBadge } from './StatusBadge'
-import type { Role } from './role-meta'
+import type { Role } from './roles'
 
 export interface UserRow {
   id: string
