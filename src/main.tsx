@@ -1,8 +1,11 @@
 import { StrictMode } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot } from 'react-dom/client'
+import 'sileo/styles.css'
 import './index.css'
 
 const rootElement = document.getElementById('root')
+const queryClient = new QueryClient()
 
 if (!rootElement) {
   throw new Error('Root element not found.')
@@ -15,7 +18,9 @@ async function bootstrap() {
     const { default: App } = await import('./app/App')
     root.render(
       <StrictMode>
-        <App />
+        <QueryClientProvider client={queryClient}>
+          <App />
+        </QueryClientProvider>
       </StrictMode>,
     )
   } catch (err) {

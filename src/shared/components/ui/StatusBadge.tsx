@@ -6,10 +6,10 @@ interface StatusBadgeProps {
 
 const STATUS_LABEL: Record<WorkflowStatus, string> = {
   pending: 'Pendiente',
-  approved: 'Aprobado',
+  approved: 'Publicada',
   rejected: 'Rechazado',
-  found: 'Encontrado',
-  closed: 'Cerrado',
+  found: 'Reunificada',
+  closed: 'Archivada',
 }
 
 const STATUS_CLASS: Record<WorkflowStatus, string> = {
