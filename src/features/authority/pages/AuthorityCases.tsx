@@ -8,6 +8,7 @@ import {
   getAuthorityCases,
   getCaseComments,
   softDeleteCase,
+  subscribeToCasesRealtime,
   updateCaseComment,
   updateCaseWorkflowStatus,
   type AuthorityCaseRow,
@@ -40,6 +41,18 @@ function getPersistedStatus(row: AuthorityCaseRow): WorkflowStatus {
   if (row.status === 'resuelto') return 'found'
   if (row.status === 'cerrado') return 'closed'
   return 'pending'
+}
+
+function deriveWorkflowStatus(
+  workflowStatus: string | null | undefined,
+  rawStatus: string | null | undefined,
+): WorkflowStatus | null {
+  if (workflowStatus === 'pending' || workflowStatus === 'approved' || workflowStatus === 'rejected' || workflowStatus === 'found' || workflowStatus === 'closed') {
+    return workflowStatus
+  }
+  if (rawStatus === 'resuelto') return 'found'
+  if (rawStatus === 'cerrado') return 'closed'
+  return null
 }
 
 const STATUS_CONFIG: Record<string, { label: string; dot: string; badge: string }> = {
@@ -102,6 +115,47 @@ export default function AuthorityCases() {
   }, [])
 
   useEffect(() => { void loadCases() }, [loadCases])
+
+  useEffect(() => {
+    const unsubscribe = subscribeToCasesRealtime((payload) => {
+      const caseId = payload.new.id || payload.old.id
+      if (!caseId) return
+
+      if (payload.new.eliminado === true) {
+        setCases((prev) => prev.filter((item) => item.id !== caseId))
+        setStatusByCaseId((prev) => {
+          const next = { ...prev }
+          delete next[caseId]
+          return next
+        })
+        setCommentsByCaseId((prev) => {
+          const next = { ...prev }
+          delete next[caseId]
+          return next
+        })
+        return
+      }
+
+      const nextStatus = deriveWorkflowStatus(payload.new.workflow_status, payload.new.status)
+      if (nextStatus) {
+        setStatusByCaseId((prev) => ({ ...prev, [caseId]: nextStatus }))
+      }
+
+      setCases((prev) =>
+        prev.map((item) =>
+          item.id === caseId
+            ? {
+                ...item,
+                status: payload.new.status ?? item.status,
+                workflow_status: payload.new.workflow_status ?? item.workflow_status,
+              }
+            : item,
+        ),
+      )
+    })
+
+    return unsubscribe
+  }, [])
 
   const filteredCases = useMemo(() => {
     const term = search.trim().toLowerCase()

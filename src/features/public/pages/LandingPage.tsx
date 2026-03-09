@@ -1,7 +1,7 @@
 ﻿import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BadgeCheck, HeartHandshake, LockKeyhole, ShieldCheck, Users, Zap, Search, MapPin, Clock, Eye, ArrowRight, CheckCircle } from 'lucide-react'
-import { getAuthorityCases, type AuthorityCaseRow } from '../../../lib/supabase/db'
+import { getAuthorityCases, subscribeToCasesRealtime, type AuthorityCaseRow } from '../../../lib/supabase/db'
 
 type PublicWorkflowStatus = 'approved' | 'found' | 'closed'
 
@@ -57,6 +57,7 @@ export default function LandingPage() {
   const [featuredStatus, setFeaturedStatus] = useState<PublicWorkflowStatus | null>(null)
   const [publicCaseCount, setPublicCaseCount] = useState(0)
   const observerRef = useRef<IntersectionObserver | null>(null)
+  const refreshTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
     document.title = 'FindMe | Plataforma de bÃºsqueda de personas'
@@ -122,8 +123,22 @@ export default function LandingPage() {
 
     void loadPublicCases()
 
+    const unsubscribe = subscribeToCasesRealtime(() => {
+      if (!active) return
+      if (refreshTimerRef.current) {
+        window.clearTimeout(refreshTimerRef.current)
+      }
+      refreshTimerRef.current = window.setTimeout(() => {
+        void loadPublicCases()
+      }, 250)
+    })
+
     return () => {
       active = false
+      if (refreshTimerRef.current) {
+        window.clearTimeout(refreshTimerRef.current)
+      }
+      unsubscribe()
     }
   }, [])
 

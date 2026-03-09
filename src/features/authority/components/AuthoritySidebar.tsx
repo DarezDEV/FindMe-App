@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Bell, FileSearch, LayoutDashboard, LogOut, Menu, ShieldCheck, X, ChevronRight } from 'lucide-react'
+import { Bell, FileSearch, LayoutDashboard, LogOut, Menu, ShieldCheck, X, ChevronRight, Eye } from 'lucide-react'
 import { logoutUser } from '../../auth/services'
 
 const authorityNavItems = [
   { to: '/authority', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { to: '/authority/cases', label: 'Casos', icon: FileSearch, exact: true },
+  { to: '/authority/sightings', label: 'Avistamientos', icon: Eye, exact: true },
   { to: '/authority/cases/pending', label: 'Revisión', icon: Bell, exact: true },
   { label: 'Alertas', icon: Bell },
 ] as const

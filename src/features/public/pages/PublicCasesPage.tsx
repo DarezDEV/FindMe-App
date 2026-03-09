@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { MapPin, Calendar, Search, RefreshCw } from 'lucide-react'
 import { Alert, Spinner, StatusBadge, type WorkflowStatus } from '../../../shared/components/ui'
-import { getAuthorityCases, type AuthorityCaseRow } from '../../../lib/supabase/db'
+import { getAuthorityCases, subscribeToCasesRealtime, type AuthorityCaseRow } from '../../../lib/supabase/db'
 
 type PublicFilter = 'all' | WorkflowStatus
 
@@ -60,6 +60,14 @@ export default function PublicCasesPage() {
 
   useEffect(() => {
     void loadCases()
+  }, [loadCases])
+
+  useEffect(() => {
+    const unsubscribe = subscribeToCasesRealtime(() => {
+      void loadCases()
+    })
+
+    return unsubscribe
   }, [loadCases])
 
   const filtered = useMemo(() => {

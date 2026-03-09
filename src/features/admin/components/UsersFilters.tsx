@@ -1,6 +1,6 @@
 // src/features/admin/components/users/UsersFilters.tsx
 import { Search } from 'lucide-react'
-import type { Role } from './RoleBadge'
+import type { Role } from './roles'
 
 interface Props {
   search: string
@@ -16,6 +16,12 @@ export function UsersFilters({
   filterRole, onRoleChange,
   filterStatus, onStatusChange,
 }: Props) {
+  const parseStatus = (value: string): 'all' | 'active' | 'inactive' => {
+    if (value === 'active') return 'active'
+    if (value === 'inactive') return 'inactive'
+    return 'all'
+  }
+
   return (
     <div className="card p-4">
       <div className="flex flex-col sm:flex-row gap-3">
@@ -49,7 +55,7 @@ export function UsersFilters({
         <select
           className="input-field w-full sm:w-40"
           value={filterStatus}
-          onChange={e => onStatusChange(e.target.value as any)}
+          onChange={(e) => onStatusChange(parseStatus(e.target.value))}
         >
           <option value="all">Todos</option>
           <option value="active">Activos</option>

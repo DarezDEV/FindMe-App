@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js'
 import { X, Check, UserCheck, UserX } from 'lucide-react'
 import { supabase } from '../../../lib/supabase/client'
-import { ROLE_OPTIONS, roleLabel, type Role } from './RoleBadge'
+import { ROLE_OPTIONS, roleLabel, type Role } from './roles'
 import type { UserRow } from './UserTableRow'
 
 interface Props {

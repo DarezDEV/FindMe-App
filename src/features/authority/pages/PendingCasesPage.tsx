@@ -16,6 +16,7 @@ import {
   getPendingModerationCases,
   getProfilesBasicByIds,
   softDeleteCase,
+  subscribeToCasesRealtime,
   updateCaseComment,
   updateCaseWorkflowStatus,
 } from '../../../lib/supabase/db'
@@ -189,13 +190,36 @@ export default function PendingCasesPage() {
     return { ...selectedCase, photoUrl: photoUrlByCaseId[selectedCase.id] ?? undefined }
   }, [photoUrlByCaseId, selectedCase])
 
-  const removeFromPending = (caseId: string) => {
+  const removeFromPending = useCallback((caseId: string) => {
     setPendingCases((prev) => {
       const next = prev.filter((item) => item.id !== caseId)
       setSelectedCaseId(next[0]?.id ?? null)
       return next
     })
-  }
+  }, [])
+
+  useEffect(() => {
+    const unsubscribe = subscribeToCasesRealtime((payload) => {
+      const caseId = payload.new.id || payload.old.id
+      if (!caseId) return
+
+      const nextWorkflowStatus = payload.new.workflow_status
+      const isDeleted = payload.new.eliminado === true
+      const isPending = !nextWorkflowStatus || nextWorkflowStatus === 'pending'
+
+      if (isDeleted || !isPending) {
+        removeFromPending(caseId)
+        return
+      }
+
+      // New pending case created or moved back to pending by another moderator.
+      if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        void loadPendingCases()
+      }
+    })
+
+    return unsubscribe
+  }, [loadPendingCases, removeFromPending])
 
   const approveCase = async () => {
     if (!selectedCase) return

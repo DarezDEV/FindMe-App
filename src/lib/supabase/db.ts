@@ -53,6 +53,37 @@ export interface AuthorityDashboardSummary {
   recentCases: AuthorityCaseRow[]
 }
 
+export interface CaseRealtimeRow {
+  id: string
+  workflow_status: CaseWorkflowStatus | null
+  status: string | null
+  eliminado: boolean | null
+}
+
+export interface CaseRealtimePayload {
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE'
+  new: Partial<CaseRealtimeRow>
+  old: Partial<CaseRealtimeRow>
+}
+
+export interface AuthoritySightingRow {
+  id: string
+  caseId: string | null
+  caseNumber: string | null
+  missingPersonName: string | null
+  reporterId: string | null
+  reporterName: string | null
+  details: string
+  location: string | null
+  status: string | null
+  created_at: string
+  sourceTable: string
+}
+
+export type SightingModerationStatus = 'pending' | 'approved' | 'rejected'
+
+const SIGHTING_TABLE = 'caso_avistamientos'
+
 function withTimeout<T>(promise: PromiseLike<T>, ms = 12000): Promise<T> {
   const timeout = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new Error('Timeout: el servidor tardó demasiado en responder.')), ms)
@@ -80,6 +111,63 @@ async function withRetry<T>(
   }
 
   throw lastError instanceof Error ? lastError : new Error('Error inesperado al consultar Supabase.')
+}
+
+function getStringValue(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function getBooleanValue(value: unknown): boolean | null {
+  if (typeof value === 'boolean') return value
+  return null
+}
+
+function pickString(row: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = getStringValue(row[key])
+    if (value) return value
+  }
+  return null
+}
+
+function normalizeCaseWorkflowStatus(value: unknown): CaseWorkflowStatus | null {
+  if (typeof value !== 'string') return null
+  if (value === 'pending') return 'pending'
+  if (value === 'approved') return 'approved'
+  if (value === 'rejected') return 'rejected'
+  if (value === 'found') return 'found'
+  if (value === 'closed') return 'closed'
+  return null
+}
+
+function isTableMissingError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+
+  const candidate = error as { code?: unknown; message?: unknown }
+  const code = typeof candidate.code === 'string' ? candidate.code : ''
+  const message = typeof candidate.message === 'string' ? candidate.message.toLowerCase() : ''
+
+  return (
+    code === '42P01'
+    || message.includes('does not exist')
+    || message.includes('relation')
+  )
+}
+
+function isColumnMissingError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+
+  const candidate = error as { code?: unknown; message?: unknown }
+  const code = typeof candidate.code === 'string' ? candidate.code : ''
+  const message = typeof candidate.message === 'string' ? candidate.message.toLowerCase() : ''
+
+  return (
+    code === '42703'
+    || message.includes('column')
+    || message.includes('does not exist')
+  )
 }
 
 export async function getProfile(userId: string) {
@@ -169,6 +257,227 @@ export async function getAuthorityCases(params: GetCasesParams = {}): Promise<Au
   }
 
   return (data ?? []) as AuthorityCaseRow[]
+}
+
+export function subscribeToCasesRealtime(
+  onChange: (payload: CaseRealtimePayload) => void,
+): () => void {
+  const channel = supabase
+    .channel(`cases-realtime-${crypto.randomUUID()}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'casos' },
+      (payload) => {
+        const newRowRaw = (payload.new ?? {}) as Record<string, unknown>
+        const oldRowRaw = (payload.old ?? {}) as Record<string, unknown>
+
+        onChange({
+          eventType: payload.eventType as CaseRealtimePayload['eventType'],
+          new: {
+            id: pickString(newRowRaw, ['id']) ?? '',
+            workflow_status: normalizeCaseWorkflowStatus(newRowRaw.workflow_status),
+            status: pickString(newRowRaw, ['status']),
+            eliminado: getBooleanValue(newRowRaw.eliminado),
+          },
+          old: {
+            id: pickString(oldRowRaw, ['id']) ?? '',
+            workflow_status: normalizeCaseWorkflowStatus(oldRowRaw.workflow_status),
+            status: pickString(oldRowRaw, ['status']),
+            eliminado: getBooleanValue(oldRowRaw.eliminado),
+          },
+        })
+      },
+    )
+    .subscribe((status) => {
+      if (status === 'CHANNEL_ERROR') {
+        console.error('[subscribeToCasesRealtime] Error en canal realtime de casos.')
+      }
+    })
+
+  return () => {
+    void supabase.removeChannel(channel)
+  }
+}
+
+export async function getAuthoritySightings(limit = 200): Promise<AuthoritySightingRow[]> {
+  const queryWithCreatedAt = await withRetry(
+    () =>
+      supabase
+        .from(SIGHTING_TABLE)
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit),
+    { timeoutMs: 30000, retries: 0 },
+  )
+
+  let data = queryWithCreatedAt.data
+  let error = queryWithCreatedAt.error
+
+  if (error && isColumnMissingError(error)) {
+    const queryWithFechaReporte = await withRetry(
+      () =>
+        supabase
+          .from(SIGHTING_TABLE)
+          .select('*')
+          .order('fecha_reporte', { ascending: false })
+          .limit(limit),
+      { timeoutMs: 30000, retries: 0 },
+    )
+    data = queryWithFechaReporte.data
+    error = queryWithFechaReporte.error
+  }
+
+  if (error && isColumnMissingError(error)) {
+    const queryWithoutOrder = await withRetry(
+      () => supabase.from(SIGHTING_TABLE).select('*').limit(limit),
+      { timeoutMs: 30000, retries: 0 },
+    )
+    data = queryWithoutOrder.data
+    error = queryWithoutOrder.error
+  }
+
+  if (error) {
+    if (isTableMissingError(error)) return []
+    console.error(`[getAuthoritySightings] Error en tabla ${SIGHTING_TABLE}:`, error)
+    throw error
+  }
+
+  const rawRows = (data ?? []) as Record<string, unknown>[]
+  const rows = rawRows.filter((row) => {
+    const eliminado = row.eliminado
+    return eliminado !== true
+  })
+  if (rows.length === 0) return []
+
+  const caseIds = [
+    ...new Set(
+      rows
+        .map((row) => pickString(row, ['caso_id', 'case_id', 'missing_case_id']))
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ]
+
+  const reporterIds = [
+    ...new Set(
+      rows
+        .map((row) => pickString(row, ['reportado_por', 'reporter_id', 'autor_id', 'user_id', 'created_by']))
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ]
+
+  const caseMap = new Map<string, { numeroCaso: string | null; fullName: string | null }>()
+  if (caseIds.length > 0) {
+    const { data: casesData, error: casesError } = await withRetry(
+      () =>
+        supabase
+          .from('casos')
+          .select('id, numero_caso, nombres, apellidos')
+          .in('id', caseIds),
+      { timeoutMs: 30000, retries: 0 },
+    )
+
+    if (!casesError) {
+      const casesRows = (casesData ?? []) as Array<Record<string, unknown>>
+      casesRows.forEach((caseRow) => {
+        const id = pickString(caseRow, ['id'])
+        if (!id) return
+        const nombres = pickString(caseRow, ['nombres']) ?? ''
+        const apellidos = pickString(caseRow, ['apellidos']) ?? ''
+        caseMap.set(id, {
+          numeroCaso: pickString(caseRow, ['numero_caso']),
+          fullName: `${nombres} ${apellidos}`.trim() || null,
+        })
+      })
+    }
+  }
+
+  const profileMap = new Map<string, string>()
+  if (reporterIds.length > 0) {
+    try {
+      const profiles = await getProfilesBasicByIds(reporterIds)
+      profiles.forEach((profile) => {
+        const fullName = `${profile.name ?? ''} ${profile.last_name ?? ''}`.trim()
+        if (fullName) profileMap.set(profile.id, fullName)
+      })
+    } catch {
+      // If profiles fail, we still return sightings without reporter names.
+    }
+  }
+
+  return rows.map((row) => {
+    const id = pickString(row, ['id', 'avistamiento_id']) ?? crypto.randomUUID()
+    const caseId = pickString(row, ['caso_id', 'case_id', 'missing_case_id'])
+    const caseFromLookup = caseId ? caseMap.get(caseId) : null
+    const reporterId = pickString(row, ['reportado_por', 'reporter_id', 'autor_id', 'user_id', 'created_by'])
+    const reporterName = reporterId ? (profileMap.get(reporterId) ?? null) : null
+    const rawStatus = pickString(row, ['estado', 'status', 'workflow_status'])
+    const details =
+      pickString(row, ['descripcion', 'detalle', 'comentario', 'note', 'contenido', 'texto'])
+      ?? 'Sin detalles del avistamiento.'
+
+    return {
+      id,
+      caseId,
+      caseNumber: pickString(row, ['numero_caso', 'case_number']) ?? caseFromLookup?.numeroCaso ?? null,
+      missingPersonName:
+        pickString(row, ['nombre_persona', 'persona_nombre', 'missing_person_name', 'nombre'])
+        ?? caseFromLookup?.fullName
+        ?? null,
+      reporterId,
+      reporterName,
+      details,
+      location: pickString(row, ['ubicacion', 'location', 'lugar', 'direccion', 'ciudad']),
+      status: rawStatus,
+      created_at:
+        pickString(row, ['created_at', 'fecha_reporte', 'reported_at', 'fecha', 'updated_at'])
+        ?? new Date().toISOString(),
+      sourceTable: SIGHTING_TABLE,
+    }
+  })
+}
+
+export async function updateAuthoritySightingStatus(
+  sightingId: string,
+  status: SightingModerationStatus,
+): Promise<void> {
+  const updatePayload = {
+    updated_at: new Date().toISOString(),
+  }
+
+  const attempts: Array<{ idColumn: string; statusColumn: string }> = [
+    { idColumn: 'id', statusColumn: 'estado' },
+    { idColumn: 'id', statusColumn: 'status' },
+    { idColumn: 'id', statusColumn: 'workflow_status' },
+    { idColumn: 'avistamiento_id', statusColumn: 'estado' },
+    { idColumn: 'avistamiento_id', statusColumn: 'status' },
+    { idColumn: 'avistamiento_id', statusColumn: 'workflow_status' },
+  ]
+
+  for (const attempt of attempts) {
+    const { data, error } = await withRetry(
+      () =>
+        supabase
+          .from(SIGHTING_TABLE)
+          .update({
+            ...updatePayload,
+            [attempt.statusColumn]: status,
+          })
+          .eq(attempt.idColumn, sightingId)
+          .select(attempt.idColumn)
+          .maybeSingle(),
+      { timeoutMs: 30000, retries: 0 },
+    )
+
+    if (error) {
+      if (isColumnMissingError(error)) continue
+      console.error('[updateAuthoritySightingStatus] Error:', error)
+      throw error
+    }
+
+    if (data) return
+  }
+
+  throw new Error('No se pudo actualizar el estado del avistamiento por incompatibilidad de columnas.')
 }
 
 export async function softDeleteCase(caseId: string): Promise<void> {

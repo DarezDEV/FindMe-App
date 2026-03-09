@@ -1,8 +1,9 @@
 // src/features/admin/components/users/UserTableRow.tsx
 import { Pencil, Trash2 } from 'lucide-react'
 import { UserAvatar } from './UserAvatar'
-import { RoleBadge, type Role } from './RoleBadge'
+import { RoleBadge } from './RoleBadge'
 import { StatusBadge } from './StatusBadge'
+import type { Role } from './roles'
 
 export interface UserRow {
   id: string

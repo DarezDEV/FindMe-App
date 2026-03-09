@@ -12,6 +12,7 @@ import AuthorityHome from '../../features/authority/pages/AuthorityHome'
 import AdminUsers from '../../features/admin/pages/AdminUsers'
 import AuthorityCases from '../../features/authority/pages/AuthorityCases'
 import PendingCasesPage from '../../features/authority/pages/PendingCasesPage'
+import AuthoritySightings from '../../features/authority/pages/AuthoritySightings'
 import LandingPage from '../../features/public/pages/LandingPage'
 import PublicCasesPage from '../../features/public/pages/PublicCasesPage'
 import PublishCaseGatePage from '../../features/public/pages/PublishCaseGatePage'
@@ -82,6 +83,7 @@ const router = createBrowserRouter([
     children: [
       { path: '/authority', element: <AuthorityHome /> },
       { path: '/authority/cases', element: <AuthorityCases /> },
+      { path: '/authority/sightings', element: <AuthoritySightings /> },
       { path: '/authority/cases/pending', element: <PendingCasesPage /> },
     ],
   },

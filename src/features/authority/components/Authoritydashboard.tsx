@@ -15,7 +15,12 @@ import {
   Activity,
 } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
-import { getAuthorityDashboardSummary, type AuthorityCaseRow, type AuthorityDashboardSummary } from '../../../lib/supabase/db'
+import {
+  getAuthorityDashboardSummary,
+  subscribeToCasesRealtime,
+  type AuthorityCaseRow,
+  type AuthorityDashboardSummary,
+} from '../../../lib/supabase/db'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -126,6 +131,14 @@ export function AuthorityDashboard() {
   }, [])
 
   useEffect(() => { void loadSummary() }, [loadSummary])
+
+  useEffect(() => {
+    const unsubscribe = subscribeToCasesRealtime(() => {
+      void loadSummary()
+    })
+
+    return unsubscribe
+  }, [loadSummary])
 
   const resolutionRate = summary.total > 0
     ? Math.round(((summary.resolved + summary.found) / summary.total) * 100)
