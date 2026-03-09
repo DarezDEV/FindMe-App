@@ -16,7 +16,7 @@ export function StepUbicacion({ data, set }: Props) {
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" />
           <input
             className="input-field pl-9"
-            placeholder="Direccion, barrio, ciudad, pais"
+            placeholder="Zona, barrio, ciudad, pais"
             value={data.lugarDesaparicion}
             onChange={e => {
               set('lugarDesaparicion', e.target.value)
@@ -32,7 +32,7 @@ export function StepUbicacion({ data, set }: Props) {
           Ubicacion manual
         </p>
         <p className="text-xs text-text-secondary mt-1">
-          Escribe la ubicacion lo mas detallada posible. Ejemplo: "Av. Duarte esquina Mexico, Santo Domingo, Republica Dominicana".
+          Puedes registrar detalle interno, pero en la publicacion se mostrara solo zona aproximada (ciudad/pais).
         </p>
       </div>
     </div>

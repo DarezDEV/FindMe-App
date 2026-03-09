@@ -51,13 +51,13 @@ function formatCreatedBy(userId: string | null | undefined, name?: string | null
 function formatCaseStatus(status: string | null | undefined) {
   switch (status) {
     case 'activo':
-      return 'Activo'
+      return 'Publicada'
     case 'en_proceso':
-      return 'En proceso'
+      return 'Publicada'
     case 'resuelto':
-      return 'Resuelto'
+      return 'Reunificada'
     case 'cerrado':
-      return 'Cerrado'
+      return 'Archivada'
     default:
       return 'Sin estado'
   }
@@ -68,13 +68,13 @@ function formatWorkflowStatus(status: string | null | undefined) {
     case 'pending':
       return 'Pendiente'
     case 'approved':
-      return 'Aprobado'
+      return 'Publicada'
     case 'rejected':
       return 'Rechazado'
     case 'found':
-      return 'Encontrado'
+      return 'Reunificada'
     case 'closed':
-      return 'Cerrado'
+      return 'Archivada'
     default:
       return 'Pendiente'
   }
@@ -239,9 +239,9 @@ export default function PendingCasesPage() {
       await updateCaseWorkflowStatus(selectedCase.id, 'approved')
       removeFromPending(selectedCase.id)
       setFeedbackType('success')
-      setFeedback(`Caso ${selectedCase.name} aprobado.`)
+      setFeedback(`Caso ${selectedCase.name} publicado.`)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudo aprobar el caso.'
+      const message = err instanceof Error ? err.message : 'No se pudo publicar el caso.'
       setFeedbackType('error')
       setFeedback(message)
     } finally {

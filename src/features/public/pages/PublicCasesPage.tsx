@@ -7,7 +7,7 @@ import { getAuthorityCases, type AuthorityCaseRow } from '../../../lib/supabase/
 type PublicFilter = 'all' | WorkflowStatus
 
 function getLocation(caso: AuthorityCaseRow): string {
-  return caso.ciudad || caso.estado_provincia || caso.lugar_ultima_vez || 'Sin ubicacion'
+  return caso.ciudad || caso.estado_provincia || 'Ubicacion reservada'
 }
 
 function getDateLabel(caso: AuthorityCaseRow): string {
@@ -124,9 +124,9 @@ export default function PublicCasesPage() {
           <div className="flex flex-wrap gap-2">
             {[
               { value: 'all', label: 'Todos' },
-              { value: 'approved', label: 'Aprobados' },
-              { value: 'found', label: 'Encontrados' },
-              { value: 'closed', label: 'Cerrados' },
+              { value: 'approved', label: 'Publicadas' },
+              { value: 'found', label: 'Reunificadas' },
+              { value: 'closed', label: 'Archivadas' },
             ].map((item) => (
               <button
                 key={item.value}
