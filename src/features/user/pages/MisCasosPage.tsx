@@ -39,6 +39,8 @@ interface NoticeState {
   message: string
 }
 
+const OWNER_COLUMN_CANDIDATES = ['publicado_por', 'user_id', 'autor_id'] as const
+
 const INITIAL_EDIT_FORM: EditCaseForm = {
   nombres: '',
   apellidos: '',
@@ -122,6 +124,111 @@ function isRecoverableSightingsError(message: string) {
     lowered.includes('relation') ||
     lowered.includes('does not exist')
   )
+}
+
+async function fetchCaseForUser(caseId: string, userId: string) {
+  const errors: string[] = []
+
+  for (const column of OWNER_COLUMN_CANDIDATES) {
+    const { data, error } = await supabase
+      .from('casos')
+      .select('id, nombres, apellidos, fecha_desaparicion, lugar_desaparicion, descripcion_general, workflow_status')
+      .eq('id', caseId)
+      .eq(column, userId)
+      .maybeSingle()
+
+    if (!error && data) return data
+
+    if (error) {
+      const message = error.message.toLowerCase()
+      if (message.includes('column') && message.includes('does not exist')) {
+        errors.push(error.message)
+        continue
+      }
+      if (message.includes('row-level security policy') || message.includes('permission denied')) {
+        throw new Error('No tienes permisos para editar este caso.')
+      }
+      errors.push(error.message)
+      continue
+    }
+  }
+
+  throw new Error(errors[errors.length - 1] ?? 'No se encontro el caso para editar.')
+}
+
+async function updateCaseForUser(
+  caseId: string,
+  userId: string,
+  payload: Record<string, unknown>,
+  requireEditable = false,
+) {
+  const errors: string[] = []
+
+  for (const column of OWNER_COLUMN_CANDIDATES) {
+    let query = supabase
+      .from('casos')
+      .update(payload)
+      .eq('id', caseId)
+      .eq(column, userId)
+
+    if (requireEditable) {
+      query = query.or('workflow_status.is.null,workflow_status.eq.pending,workflow_status.eq.rejected')
+    }
+
+    const { data, error } = await query.select('id').maybeSingle()
+
+    if (!error && data) return true
+
+    if (error) {
+      const message = error.message.toLowerCase()
+      if (message.includes('column') && message.includes('does not exist')) {
+        errors.push(error.message)
+        continue
+      }
+      if (message.includes('row-level security policy') || message.includes('permission denied')) {
+        throw new Error('No tienes permisos para modificar este caso.')
+      }
+      errors.push(error.message)
+      continue
+    }
+  }
+
+  throw new Error(errors[errors.length - 1] ?? 'No se pudo actualizar el caso.')
+}
+
+async function fetchSightingsByUser(
+  table: string,
+  userId: string,
+  columnCandidates: readonly string[],
+) {
+  const errors: string[] = []
+
+  for (const column of columnCandidates) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .eq(column, userId)
+      .order('created_at', { ascending: false })
+
+    if (!error) {
+      return { rows: (data ?? []) as Record<string, unknown>[], errors: [] }
+    }
+
+    const message = error.message.toLowerCase()
+    if (message.includes('column') && message.includes('does not exist')) {
+      errors.push(error.message)
+      continue
+    }
+
+    if (isRecoverableSightingsError(error.message)) {
+      errors.push(error.message)
+      continue
+    }
+
+    throw error
+  }
+
+  return { rows: [] as Record<string, unknown>[], errors }
 }
 
 function parseSightingRow(row: Record<string, unknown>, source: string, index: number): UserSighting | null {
@@ -228,41 +335,27 @@ export default function MisCasosPage() {
       const collected: UserSighting[] = []
       const fatalErrors: string[] = []
 
-      const firstSource = await supabase
-        .from('caso_avistamientos')
-        .select('*')
-        .eq('reportado_por', user.id)
-        .order('created_at', { ascending: false })
+      const [firstSource, secondSource] = await Promise.all([
+        fetchSightingsByUser('caso_avistamientos', user.id, ['reportado_por', 'user_id', 'autor_id']),
+        fetchSightingsByUser('avistamientos', user.id, ['user_id', 'reportado_por', 'autor_id']),
+      ])
 
-      if (firstSource.error) {
-        if (!isRecoverableSightingsError(firstSource.error.message)) {
-          fatalErrors.push(firstSource.error.message)
-        }
-      } else {
-        collected.push(
-          ...(firstSource.data ?? [])
-            .map((row, index) => parseSightingRow(row as Record<string, unknown>, 'caso_avistamientos', index))
-            .filter((item): item is UserSighting => item !== null),
-        )
+      if (firstSource.errors.length > 0) {
+        fatalErrors.push(firstSource.errors[firstSource.errors.length - 1] ?? 'No se pudieron cargar tus avistamientos.')
       }
 
-      const secondSource = await supabase
-        .from('avistamientos')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-
-      if (secondSource.error) {
-        if (!isRecoverableSightingsError(secondSource.error.message)) {
-          fatalErrors.push(secondSource.error.message)
-        }
-      } else {
-        collected.push(
-          ...(secondSource.data ?? [])
-            .map((row, index) => parseSightingRow(row as Record<string, unknown>, 'avistamientos', index))
-            .filter((item): item is UserSighting => item !== null),
-        )
+      if (secondSource.errors.length > 0) {
+        fatalErrors.push(secondSource.errors[secondSource.errors.length - 1] ?? 'No se pudieron cargar tus avistamientos.')
       }
+
+      collected.push(
+        ...firstSource.rows
+          .map((row, index) => parseSightingRow(row as Record<string, unknown>, 'caso_avistamientos', index))
+          .filter((item): item is UserSighting => item !== null),
+        ...secondSource.rows
+          .map((row, index) => parseSightingRow(row as Record<string, unknown>, 'avistamientos', index))
+          .filter((item): item is UserSighting => item !== null),
+      )
 
       if (collected.length === 0 && fatalErrors.length > 0) {
         throw new Error(fatalErrors[fatalErrors.length - 1] ?? 'No se pudieron cargar tus avistamientos.')
@@ -334,19 +427,7 @@ export default function MisCasosPage() {
     setEditLoading(true)
     setNotice(null)
     try {
-      const { data, error } = await supabase
-        .from('casos')
-        .select('id, nombres, apellidos, fecha_desaparicion, lugar_desaparicion, descripcion_general, workflow_status')
-        .eq('id', targetCase.id)
-        .eq('publicado_por', user.id)
-        .maybeSingle()
-
-      if (error) throw error
-      if (!data) {
-        throw new Error('No se encontro el caso para editar.')
-      }
-
-      const row = data as {
+      const row = (await fetchCaseForUser(targetCase.id, user.id)) as {
         id: string
         nombres: string | null
         apellidos: string | null
@@ -399,26 +480,19 @@ export default function MisCasosPage() {
 
     setEditLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('casos')
-        .update({
+      await updateCaseForUser(
+        editingCaseId,
+        user.id,
+        {
           nombres,
           apellidos,
           fecha_desaparicion: editForm.fechaDesaparicion || null,
           lugar_desaparicion: lugarDesaparicion,
           descripcion_general: descripcionGeneral,
           updated_at: new Date().toISOString(),
-        })
-        .eq('id', editingCaseId)
-        .eq('publicado_por', user.id)
-        .or('workflow_status.is.null,workflow_status.eq.pending,workflow_status.eq.rejected')
-        .select('id')
-        .maybeSingle()
-
-      if (error) throw error
-      if (!data) {
-        throw new Error('No se pudo guardar. El caso ya no esta en estado editable.')
-      }
+        },
+        true,
+      )
 
       await refetchCases()
       setNotice({ type: 'success', message: 'Caso actualizado correctamente.' })
@@ -438,22 +512,11 @@ export default function MisCasosPage() {
 
     setRetireLoadingId(targetCase.id)
     try {
-      const { data, error } = await supabase
-        .from('casos')
-        .update({
-          eliminado: true,
-          eliminado_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', targetCase.id)
-        .eq('publicado_por', user.id)
-        .select('id')
-        .maybeSingle()
-
-      if (error) throw error
-      if (!data) {
-        throw new Error('No se pudo retirar el caso seleccionado.')
-      }
+      await updateCaseForUser(targetCase.id, user.id, {
+        eliminado: true,
+        eliminado_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
 
       await refetchCases()
       setNotice({ type: 'success', message: `Caso ${targetCase.numero_caso} retirado.` })
@@ -488,21 +551,40 @@ export default function MisCasosPage() {
             Volver al inicio
           </Link>
 
-          <section className="card p-6">
-            <h1 className="text-2xl font-bold text-text-primary">Mis casos y avistamientos</h1>
-            <p className="text-sm text-text-secondary mt-1">
-              Administra tus reportes, revisa su estado y da seguimiento a tu historial de avistamientos.
-            </p>
+          <section className="card p-6 sm:p-7">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h1 className="text-2xl font-bold text-text-primary">Mis casos y avistamientos</h1>
+                <p className="text-sm text-text-secondary mt-1">
+                  Administra tus reportes, revisa su estado y da seguimiento a tu historial de avistamientos.
+                </p>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs text-text-secondary">
+                <span className="font-semibold text-text-primary">{myCases.length}</span>
+                casos registrados
+              </div>
+            </div>
           </section>
 
           {notice && <Alert type={notice.type} message={notice.message} />}
 
-          <section className="card p-6 space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-text-primary">Mis casos</h2>
+          <section className="card p-6 sm:p-7 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="inline-flex items-center gap-2">
+                <span className="h-9 w-1.5 rounded-full bg-primary/70" />
+                <div>
+                  <h2 className="text-lg font-semibold text-text-primary">Mis casos</h2>
+                  <p className="text-xs text-text-secondary">Listado de reportes activos y en revision.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center rounded-full border border-border bg-background px-2.5 py-1 text-xs text-text-secondary">
+                  Total: <span className="ml-1 font-semibold text-text-primary">{myCases.length}</span>
+                </span>
               <button type="button" onClick={() => refetchCases()} className="btn-secondary text-xs !px-3 !py-1.5">
                 Actualizar
               </button>
+              </div>
             </div>
 
             {casesLoading && (
@@ -519,7 +601,7 @@ export default function MisCasosPage() {
             )}
 
             {!casesLoading && !casesError && myCases.length === 0 && (
-              <div className="rounded-lg border border-border bg-card p-4 text-sm text-text-secondary">
+              <div className="rounded-xl border border-border bg-background p-4 text-sm text-text-secondary">
                 Aun no tienes casos publicados.
               </div>
             )}
@@ -530,7 +612,10 @@ export default function MisCasosPage() {
                   const reviewMeta = getReviewMeta(normalizeReviewStatus(item.workflow_status))
                   const retiring = retireLoadingId === item.id
                   return (
-                    <article key={item.id} className="rounded-xl border border-border bg-card p-4 space-y-3">
+                    <article
+                      key={item.id}
+                      className="card p-4 space-y-3 transition-shadow duration-200 hover:shadow-md"
+                    >
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <p className="text-xs font-mono text-text-secondary">{item.numero_caso}</p>
@@ -587,12 +672,23 @@ export default function MisCasosPage() {
             )}
           </section>
 
-          <section className="card p-6 space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-text-primary">Mis avistamientos</h2>
-              <button type="button" onClick={() => void loadMySightings()} className="btn-secondary text-xs !px-3 !py-1.5">
-                Actualizar
-              </button>
+          <section className="card p-6 sm:p-7 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="inline-flex items-center gap-2">
+                <span className="h-9 w-1.5 rounded-full bg-info/70" />
+                <div>
+                  <h2 className="text-lg font-semibold text-text-primary">Mis avistamientos</h2>
+                  <p className="text-xs text-text-secondary">Historial de reportes enviados por ti.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center rounded-full border border-border bg-background px-2.5 py-1 text-xs text-text-secondary">
+                  Total: <span className="ml-1 font-semibold text-text-primary">{sightings.length}</span>
+                </span>
+                <button type="button" onClick={() => void loadMySightings()} className="btn-secondary text-xs !px-3 !py-1.5">
+                  Actualizar
+                </button>
+              </div>
             </div>
 
             {sightingsLoading && (
@@ -615,7 +711,7 @@ export default function MisCasosPage() {
             )}
 
             {!sightingsLoading && !sightingsError && sightings.length === 0 && (
-              <div className="rounded-lg border border-border bg-card p-4 text-sm text-text-secondary">
+              <div className="rounded-xl border border-border bg-background p-4 text-sm text-text-secondary">
                 Aun no has enviado avistamientos.
               </div>
             )}
@@ -630,7 +726,10 @@ export default function MisCasosPage() {
                     : `Caso ${item.casoId.slice(0, 8)}`
 
                   return (
-                    <article key={item.id} className="rounded-xl border border-border bg-card p-4 space-y-2">
+                    <article
+                      key={item.id}
+                      className="card p-4 space-y-2 transition-shadow duration-200 hover:shadow-md"
+                    >
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm font-semibold text-text-primary">{caseLabel}</p>
                         <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${statusMeta.className}`}>

@@ -4,6 +4,11 @@ import { supabase } from '../../../lib/supabase/client'
 type CasoStatus = 'activo' | 'en_revision' | 'avistado' | 'encontrado'
 type CasoWorkflowStatus = 'pending' | 'approved' | 'rejected' | 'found' | 'closed'
 
+interface FetchCaseOptions {
+  hideResolved?: boolean
+  hideRejected?: boolean
+}
+
 export interface CasoReciente {
   id: string
   numero_caso: string
@@ -216,31 +221,53 @@ const MEDIA_SELECT = 'id, caso_id, tipo, url, es_principal, orden, mime_type, cr
 const QUERY_STALE_TIME = 1000 * 60 * 2
 
 function normalizeStatus(value: string | null): CasoStatus {
-  if (value === 'activo' || value === 'en_revision' || value === 'avistado' || value === 'encontrado') {
-    return value
+  const normalized = value?.trim().toLowerCase() ?? ''
+  if (normalized === 'activo' || normalized === 'en_revision' || normalized === 'avistado' || normalized === 'encontrado') {
+    return normalized
   }
-  if (value === 'resuelto' || value === 'cerrado') {
+  if (normalized === 'resuelto' || normalized === 'cerrado') {
     return 'encontrado'
   }
   return 'activo'
 }
 
 function normalizeWorkflowStatus(value: string | null): CasoWorkflowStatus | null {
-  if (value === 'pending' || value === 'approved' || value === 'rejected' || value === 'found' || value === 'closed') {
-    return value
+  const normalized = value?.trim().toLowerCase() ?? null
+  if (
+    normalized === 'pending' ||
+    normalized === 'approved' ||
+    normalized === 'rejected' ||
+    normalized === 'found' ||
+    normalized === 'closed'
+  ) {
+    return normalized
   }
   return null
 }
 
 function isResolvedCase(status: string | null, workflowStatus: string | null) {
   const normalizedStatus = status?.trim().toLowerCase() ?? ''
+  const normalizedWorkflowStatus = workflowStatus?.trim().toLowerCase() ?? ''
   return (
-    workflowStatus === 'found' ||
-    workflowStatus === 'closed' ||
+    normalizedWorkflowStatus === 'found' ||
+    normalizedWorkflowStatus === 'closed' ||
     normalizedStatus === 'encontrado' ||
     normalizedStatus === 'resuelto' ||
     normalizedStatus === 'cerrado'
   )
+}
+
+function shouldIncludeCase(status: string | null, workflowStatus: string | null, options: FetchCaseOptions) {
+  const normalizedWorkflowStatus = workflowStatus?.trim().toLowerCase() ?? ''
+  if (options.hideRejected && normalizedWorkflowStatus === 'rejected') {
+    return false
+  }
+
+  if (options.hideResolved && isResolvedCase(status, workflowStatus)) {
+    return false
+  }
+
+  return true
 }
 
 function isViewErrorRecoverable(message: string) {
@@ -410,8 +437,10 @@ function mapRecienteFromFallback(rows: CasoFallbackRow[], media: CasoMedia[]): C
   })
 }
 
-async function fetchCasosFallback(limit?: number, userId?: string, hideResolved = false): Promise<CasoReciente[]> {
-  const queryLimit = typeof limit === 'number' ? (hideResolved ? limit * 4 : limit) : undefined
+async function fetchCasosFallback(limit?: number, userId?: string, options: FetchCaseOptions = {}): Promise<CasoReciente[]> {
+  const hideResolved = options.hideResolved ?? false
+  const hideRejected = options.hideRejected ?? false
+  const queryLimit = typeof limit === 'number' ? (hideResolved || hideRejected ? limit * 4 : limit) : undefined
 
   let query = supabase
     .from('casos')
@@ -431,15 +460,17 @@ async function fetchCasosFallback(limit?: number, userId?: string, hideResolved 
   if (error) throw error
 
   const rows = (data ?? []) as CasoFallbackRow[]
-  const visibleRows = hideResolved ? rows.filter(row => !isResolvedCase(row.status, row.workflow_status)) : rows
+  const visibleRows = rows.filter(row => shouldIncludeCase(row.status, row.workflow_status, { hideResolved, hideRejected }))
   const limitedRows = typeof limit === 'number' ? visibleRows.slice(0, limit) : visibleRows
   const media = await fetchMediaForCases(limitedRows.map(row => row.id))
 
   return mapRecienteFromFallback(limitedRows, media)
 }
 
-async function fetchCasos(limit?: number, userId?: string, hideResolved = false): Promise<CasoReciente[]> {
-  const queryLimit = typeof limit === 'number' ? (hideResolved ? limit * 4 : limit) : undefined
+async function fetchCasos(limit?: number, userId?: string, options: FetchCaseOptions = {}): Promise<CasoReciente[]> {
+  const hideResolved = options.hideResolved ?? false
+  const hideRejected = options.hideRejected ?? false
+  const queryLimit = typeof limit === 'number' ? (hideResolved || hideRejected ? limit * 4 : limit) : undefined
 
   let query = supabase
     .from('casos_con_media')
@@ -457,15 +488,13 @@ async function fetchCasos(limit?: number, userId?: string, hideResolved = false)
   const { data, error } = await query
   if (error) {
     if (isViewErrorRecoverable(error.message)) {
-      return fetchCasosFallback(limit, userId, hideResolved)
+      return fetchCasosFallback(limit, userId, { hideResolved, hideRejected })
     }
     throw error
   }
 
   const rows = (data ?? []) as CasoViewRow[]
-  const visibleRows = hideResolved
-    ? rows.filter(row => !isResolvedCase(row.status, row.workflow_status))
-    : rows
+  const visibleRows = rows.filter(row => shouldIncludeCase(row.status, row.workflow_status, { hideResolved, hideRejected }))
   const limitedRows = typeof limit === 'number' ? visibleRows.slice(0, limit) : visibleRows
 
   return limitedRows.map(row => ({
@@ -493,12 +522,13 @@ export function useMisCasos(userId: string, limit = 3) {
   })
 }
 
-export function useCasosGenerales(limit = 24, options: { hideResolved?: boolean } = {}) {
+export function useCasosGenerales(limit = 24, options: { hideResolved?: boolean; hideRejected?: boolean } = {}) {
   const hideResolved = options.hideResolved ?? false
+  const hideRejected = options.hideRejected ?? false
 
   return useQuery({
-    queryKey: ['casos-generales', limit, hideResolved],
-    queryFn: () => fetchCasos(limit, undefined, hideResolved),
+    queryKey: ['casos-generales', limit, hideResolved, hideRejected],
+    queryFn: () => fetchCasos(limit, undefined, { hideResolved, hideRejected }),
     staleTime: QUERY_STALE_TIME,
   })
 }

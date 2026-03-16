@@ -117,23 +117,28 @@ export default function MiPerfilPage() {
             Volver al inicio
           </Link>
 
-          <section className="card p-6 space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-12 h-12 rounded-xl bg-primary-soft text-primary flex items-center justify-center">
-                <UserCircle2 size={22} />
+          <section className="card p-6 sm:p-7 space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-primary-soft text-primary flex items-center justify-center ring-4 ring-primary/10">
+                  <UserCircle2 size={22} />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-text-primary">Mi perfil</h1>
+                  <p className="text-sm text-text-secondary mt-1">
+                    Gestiona tus datos personales y revisa la informacion de tu cuenta.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-2xl font-bold text-text-primary">Mi perfil</h1>
-                <p className="text-sm text-text-secondary mt-1">
-                  Gestiona tus datos personales y revisa la informacion de tu cuenta.
-                </p>
+              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs text-text-secondary">
+                Miembro desde <span className="font-semibold text-text-primary">{formatDate(user.created_at)}</span>
               </div>
             </div>
 
             {notice && <Alert type={notice.type} message={notice.message} />}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="rounded-lg border border-border bg-card p-4 space-y-2">
+              <div className="rounded-xl border border-border bg-background p-4 space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Correo</p>
                 <p className="text-sm text-text-primary inline-flex items-center gap-2">
                   <Mail size={14} className="text-primary" />
@@ -141,13 +146,13 @@ export default function MiPerfilPage() {
                 </p>
               </div>
 
-              <div className="rounded-lg border border-border bg-card p-4 space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Miembro desde</p>
-                <p className="text-sm text-text-primary">{formatDate(user.created_at)}</p>
+              <div className="rounded-xl border border-border bg-background p-4 space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Estado de cuenta</p>
+                <p className="text-sm text-text-primary">Activa</p>
               </div>
             </div>
 
-            <div className="rounded-lg border border-border bg-card p-4 space-y-2">
+            <div className="rounded-xl border border-border bg-background p-4 space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Roles activos</p>
               <div className="flex flex-wrap gap-2">
                 {roles.map((role) => (

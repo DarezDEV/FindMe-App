@@ -14,6 +14,24 @@ const STATUS_CONFIG: Record<CasoReciente['status'], { label: string; className: 
   encontrado: { label: 'Reunificada', className: 'bg-success/10 text-success' },
 }
 
+function getCaseStatusLabel(caso: CasoReciente) {
+  if (caso.workflow_status === 'rejected') return 'Rechazada'
+  if (caso.workflow_status === 'approved') return 'Aprobada'
+  if (caso.workflow_status === 'found' || caso.status === 'encontrado') return 'Reunificada'
+  if (caso.workflow_status === 'closed') return 'Archivada'
+  return STATUS_CONFIG[caso.status].label
+}
+
+function getPosterStatus(caso: CasoReciente) {
+  const found = caso.workflow_status === 'found' || caso.status === 'encontrado'
+  return {
+    label: found ? 'ENCONTRADO' : 'DESAPARECIDO',
+    headerClass: found ? 'bg-primary' : 'bg-primary',
+    footerClass: found ? 'bg-primary' : 'bg-primary',
+    dateClass: found ? 'text-primary' : 'text-primary',
+  }
+}
+
 function formatPosterDate(value: string | null) {
   if (!value) return 'Sin fecha'
   const parsed = new Date(value)
@@ -28,10 +46,10 @@ function formatPosterDate(value: string | null) {
 function CasoSkeleton() {
   return (
     <div className="card p-4 flex items-center gap-4">
-      <div className="w-12 h-12 rounded-xl bg-border animate-pulse shrink-0" />
+      <div className="w-12 h-12 rounded-xl bg-border/70 animate-pulse shrink-0" />
       <div className="flex-1 space-y-2">
-        <div className="h-4 w-40 bg-border rounded animate-pulse" />
-        <div className="h-3 w-56 bg-border rounded animate-pulse" />
+        <div className="h-4 w-40 bg-border/70 rounded animate-pulse" />
+        <div className="h-3 w-56 bg-border/70 rounded animate-pulse" />
       </div>
     </div>
   )
@@ -46,7 +64,7 @@ export default function UserHome() {
     isLoading: casosLoading,
     isError: casosError,
     refetch: refetchCasos,
-  } = useCasosGenerales(24, { hideResolved: true })
+  } = useCasosGenerales(24, { hideResolved: true, hideRejected: true })
 
   useEffect(() => {
     const channel = supabase
@@ -139,90 +157,99 @@ export default function UserHome() {
           )}
 
           {!casosLoading && !casosError && casosGenerales.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-fr">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {casosGenerales.map(caso => (
                 <article
                   key={caso.id}
-                  className="relative h-full min-h-[460px] border border-border rounded-sm bg-card shadow-sm hover:shadow-md transition-shadow duration-200 flex flex-col"
+                  className="card relative h-full overflow-hidden flex flex-col transition-shadow duration-200 hover:shadow-md"
                 >
-                  <header className="bg-primary-soft px-3 py-2 rounded-t-sm border-b border-border">
-                    <p className="text-primary text-center font-black tracking-wide text-xl sm:text-2xl leading-none">
-                      DESAPARECIDO
-                    </p>
-                  </header>
+                  {(() => {
+                    const poster = getPosterStatus(caso)
+                    return (
+                      <>
+                        <header className={`${poster.headerClass} px-3 py-1.5`}>
+                          <p className="text-white text-center font-black tracking-wide text-lg sm:text-xl leading-none">
+                            {poster.label}
+                          </p>
+                        </header>
 
-                  <div className="bg-background p-3 grid grid-cols-[1fr_0.9fr] gap-3 items-stretch">
-                    <div className="bg-card border border-border aspect-[3/4] overflow-hidden flex items-center justify-center rounded-sm">
-                      {caso.foto_principal_url ? (
-                        <img
-                          src={caso.foto_principal_url}
-                          alt={`${caso.nombres} ${caso.apellidos}`}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <UserSearch size={30} className="text-primary" />
-                      )}
-                    </div>
+                        <div className="bg-white p-2.5 grid grid-cols-[1fr_0.95fr] gap-2.5 items-stretch">
+                          <div className="bg-white border border-border aspect-[3/4] overflow-hidden flex items-center justify-center">
+                            {caso.foto_principal_url ? (
+                              <img
+                                src={caso.foto_principal_url}
+                                alt={`${caso.nombres} ${caso.apellidos}`}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <UserSearch size={30} className="text-text-secondary" />
+                            )}
+                          </div>
 
-                    <div className="bg-card border border-border p-2.5 flex flex-col rounded-sm">
-                      <p className="text-[11px] font-extrabold text-center tracking-wide text-text-primary">DESAPARECIDO DESDE</p>
-                      <p className="text-lg font-black text-primary text-center leading-none mt-1">
-                        {formatPosterDate(caso.fecha_desaparicion)}
-                      </p>
+                          <div className="bg-white border border-border p-2 flex flex-col">
+                            <p className="text-[11px] font-black text-center tracking-wide text-text-primary">
+                              DESAPARECIDO DESDE
+                            </p>
+                            <p className={`text-base font-black ${poster.dateClass} text-center leading-none mt-1`}>
+                              {formatPosterDate(caso.fecha_desaparicion)}
+                            </p>
 
-                      <div className="mt-3 space-y-1.5 text-[11px] text-text-primary">
-                        <p className="font-semibold">Estado: {STATUS_CONFIG[caso.status].label}</p>
-                        <p className="font-semibold">Ciudad: {caso.ciudad ?? 'Sin ciudad'}</p>
-                        <p className="font-semibold">Vistas: {caso.vistas}</p>
-                        <p className="font-mono text-[10px] text-text-secondary">{caso.numero_caso}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-text-primary px-3 py-2 h-14 flex items-center justify-center">
-                    <p className="text-white text-sm font-black tracking-wide uppercase text-center leading-tight truncate w-full">
-                      {caso.nombres} {caso.apellidos}
-                    </p>
-                  </div>
-
-                  <footer className="bg-card border-t border-border px-3 py-2.5 flex items-center justify-between gap-2 rounded-b-sm mt-auto">
-                    <Link
-                      to={`/caso/${caso.id}`}
-                      className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline"
-                    >
-                      Ver detalles
-                    </Link>
-
-                    <div className="relative" data-case-menu>
-                      <button
-                        type="button"
-                        onClick={() => setOpenMenuCaseId((current) => (current === caso.id ? null : caso.id))}
-                        className="w-9 h-9 rounded-full bg-card text-text-primary border border-border shadow-sm flex items-center justify-center hover:bg-primary-soft/40 transition-colors"
-                        aria-label="Mas acciones"
-                      >
-                        <MoreVertical size={18} strokeWidth={2.7} />
-                      </button>
-
-                      {openMenuCaseId === caso.id && (
-                        <div className="absolute right-0 bottom-full mb-2 w-48 bg-card border border-border rounded-lg shadow-lg z-30 p-1.5">
-                          <Link
-                            to={`/caso/${caso.id}/avistamiento`}
-                            onClick={() => setOpenMenuCaseId(null)}
-                            className="block px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40"
-                          >
-                            Reportar avistamiento
-                          </Link>
-                          <Link
-                            to={`/caso/${caso.id}/reportar`}
-                            onClick={() => setOpenMenuCaseId(null)}
-                            className="block px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40"
-                          >
-                            Reportar contenido
-                          </Link>
+                            <div className="mt-2 space-y-1 text-[11px] text-text-primary">
+                              <p className="font-semibold">Estado: {getCaseStatusLabel(caso)}</p>
+                              <p className="font-semibold">Ciudad: {caso.ciudad ?? 'Sin ciudad'}</p>
+                              <p className="font-semibold">Vistas: {caso.vistas}</p>
+                              <p className="font-mono text-[10px] text-text-secondary">{caso.numero_caso}</p>
+                            </div>
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  </footer>
+
+                        <div className="bg-black px-3 py-2 h-9 flex items-center justify-center">
+                          <p className="text-white text-sm font-black tracking-wide uppercase text-center leading-tight truncate w-full">
+                            {caso.nombres} {caso.apellidos}
+                          </p>
+                        </div>
+
+                        <footer className={`${poster.footerClass} px-3 py-2 flex items-center justify-between gap-2 mt-auto`}>
+                          <Link
+                            to={`/caso/${caso.id}`}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-white/90 hover:text-white"
+                          >
+                            Ver detalles
+                          </Link>
+
+                          <div className="relative" data-case-menu>
+                            <button
+                              type="button"
+                              onClick={() => setOpenMenuCaseId((current) => (current === caso.id ? null : caso.id))}
+                              className="w-9 h-9 rounded-full bg-white/10 text-white border border-white/20 shadow-sm flex items-center justify-center hover:bg-white/20 transition-colors"
+                              aria-label="Mas acciones"
+                            >
+                              <MoreVertical size={18} strokeWidth={2.7} />
+                            </button>
+
+                            {openMenuCaseId === caso.id && (
+                              <div className="absolute right-0 bottom-full mb-2 w-48 bg-card border border-border rounded-lg shadow-lg z-30 p-1.5">
+                                <Link
+                                  to={`/caso/${caso.id}/avistamiento`}
+                                  onClick={() => setOpenMenuCaseId(null)}
+                                  className="block px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40"
+                                >
+                                  Reportar avistamiento
+                                </Link>
+                                <Link
+                                  to={`/caso/${caso.id}/reportar`}
+                                  onClick={() => setOpenMenuCaseId(null)}
+                                  className="block px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40"
+                                >
+                                  Reportar contenido
+                                </Link>
+                              </div>
+                            )}
+                          </div>
+                        </footer>
+                      </>
+                    )
+                  })()}
                 </article>
               ))}
             </div>
