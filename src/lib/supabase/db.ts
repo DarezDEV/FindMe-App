@@ -423,7 +423,7 @@ export async function getAuthorityCases(params: GetCasesParams = {}): Promise<Au
   const { search, status = 'all', limit = 100 } = params
 
   let query = supabase
-    .from('casos')
+    .from('cases')
     .select(
       'id, numero_caso, status, workflow_status, nombres, apellidos, edad, ciudad, estado_provincia, lugar_ultima_vez, fecha_desaparicion, created_at',
     )
@@ -453,7 +453,7 @@ export async function getAuthorityCases(params: GetCasesParams = {}): Promise<Au
 export async function softDeleteCase(caseId: string): Promise<void> {
   const { error } = await withRetry(() =>
     supabase
-      .from('casos')
+      .from('cases')
       .update({
         eliminado: true,
         eliminado_at: new Date().toISOString(),
@@ -471,7 +471,7 @@ export async function getPendingModerationCases(limit = 200): Promise<AuthorityC
   const { data, error } = await withRetry(
     () =>
       supabase
-        .from('casos')
+        .from('cases')
         .select(
           'id, numero_caso, status, workflow_status, publicado_por, nombres, apellidos, edad, genero, telefono_contacto, email_contacto, fecha_nacimiento, ciudad, estado_provincia, lugar_ultima_vez, descripcion_general, fecha_desaparicion, created_at',
         )
@@ -514,7 +514,7 @@ export async function getProfilesBasicByIds(userIds: string[]): Promise<ProfileB
 export async function updateCaseWorkflowStatus(caseId: string, status: CaseWorkflowStatus): Promise<void> {
   const { error } = await withRetry(() =>
     supabase
-      .from('casos')
+      .from('cases')
       .update({
         workflow_status: status,
         updated_at: new Date().toISOString(),
@@ -541,7 +541,7 @@ export async function getCaseComments(caseIds: string[]): Promise<CaseCommentRow
 
   const { data, error } = await withRetry(() =>
     supabase
-      .from('caso_comentarios')
+      .from('case_comments')
       .select('id, caso_id, autor_id, comentario, created_at')
       .in('caso_id', caseIds)
       .order('created_at', { ascending: true }),
@@ -562,7 +562,7 @@ export async function createCaseComment(
 ): Promise<{ id: string }> {
   const { data, error } = await withRetry(() =>
     supabase
-      .from('caso_comentarios')
+      .from('case_comments')
       .insert({
         caso_id: caseId,
         autor_id: authorId,
@@ -584,7 +584,7 @@ export async function createCaseComment(
 export async function updateCaseComment(commentId: string, newText: string): Promise<void> {
   const { data, error } = await withRetry(() =>
     supabase
-      .from('caso_comentarios')
+      .from('case_comments')
       .update({ comentario: newText })
       .eq('id', commentId)
       .select('id')
@@ -605,7 +605,7 @@ export async function updateCaseComment(commentId: string, newText: string): Pro
 export async function deleteCaseComment(commentId: string): Promise<void> {
   const { data, error } = await withRetry(() =>
     supabase
-      .from('caso_comentarios')
+      .from('case_comments')
       .delete()
       .eq('id', commentId)
       .select('id')
@@ -741,7 +741,7 @@ export async function getAdminDashboardSummary(): Promise<AdminDashboardSummary>
     withRetry(
       () =>
         supabase
-          .from('casos')
+          .from('cases')
           .select('id, status, workflow_status, created_at, updated_at')
           .eq('eliminado', false),
       { timeoutMs: 35000, retries: 1 },
@@ -749,7 +749,7 @@ export async function getAdminDashboardSummary(): Promise<AdminDashboardSummary>
     withRetry(
       () =>
         supabase
-          .from('casos')
+          .from('cases')
           .select(
             'id, numero_caso, status, workflow_status, nombres, apellidos, edad, ciudad, estado_provincia, lugar_ultima_vez, fecha_desaparicion, created_at, updated_at',
           )
@@ -937,7 +937,7 @@ export async function getAuthorityDashboardSummary(): Promise<AuthorityDashboard
   const { data, error } = await withRetry(
     () =>
       supabase
-        .from('casos')
+        .from('cases')
         .select(
           'id, numero_caso, status, workflow_status, nombres, apellidos, edad, ciudad, estado_provincia, lugar_ultima_vez, fecha_desaparicion, created_at',
         )

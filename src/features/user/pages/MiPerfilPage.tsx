@@ -18,22 +18,31 @@ async function updateProfileBasics(userId: string, form: ProfileFormState) {
   const lastName = form.lastName.trim()
   const avatarUrl = form.avatarUrl.trim() || null
 
-  const payloads: Array<Record<string, string | null>> = [
-    { name, last_nmae: lastName, avatar_url: avatarUrl, updated_at: now },
-    { name, last_name: lastName, avatar_url: avatarUrl, updated_at: now },
-  ]
+  const nameKeys = ['name', 'nombre', 'nombres', 'first_name']
+  const lastNameKeys = ['last_name', 'apellido', 'apellidos', 'last_nmae', 'surname']
+
+  const payloads: Array<Record<string, string | null>> = []
+
+  for (const nameKey of nameKeys) {
+    for (const lastKey of lastNameKeys) {
+      payloads.push({ [nameKey]: name, [lastKey]: lastName, avatar_url: avatarUrl, updated_at: now })
+      payloads.push({ [nameKey]: name, [lastKey]: lastName, avatar_url: avatarUrl })
+      payloads.push({ [nameKey]: name, [lastKey]: lastName, updated_at: now })
+      payloads.push({ [nameKey]: name, [lastKey]: lastName })
+    }
+  }
 
   for (const payload of payloads) {
-    const { error } = await supabase
-      .from('profiles')
-      .update(payload)
-      .eq('id', userId)
+    const { error } = await supabase.from('profiles').update(payload).eq('id', userId)
 
     if (!error) return
 
     const message = error.message.toLowerCase()
     if (message.includes('column') && message.includes('does not exist')) {
       continue
+    }
+    if (message.includes('row-level security policy') || message.includes('permission denied')) {
+      throw new Error('No tienes permisos para actualizar tu perfil. Revisa las politicas RLS de profiles.')
     }
 
     throw error
@@ -62,7 +71,11 @@ export default function MiPerfilPage() {
     if (!user) return
     setForm({
       name: user.name ?? '',
-      lastName: user.last_nmae ?? '',
+      lastName: (user as { last_nmae?: string; last_name?: string; apellido?: string; apellidos?: string }).last_nmae ??
+        (user as { last_name?: string; apellido?: string; apellidos?: string }).last_name ??
+        (user as { apellido?: string; apellidos?: string }).apellido ??
+        (user as { apellidos?: string }).apellidos ??
+        '',
       avatarUrl: user.avatar_url ?? '',
     })
   }, [user])

@@ -131,7 +131,7 @@ async function fetchCaseForUser(caseId: string, userId: string) {
 
   for (const column of OWNER_COLUMN_CANDIDATES) {
     const { data, error } = await supabase
-      .from('casos')
+      .from('cases')
       .select('id, nombres, apellidos, fecha_desaparicion, lugar_desaparicion, descripcion_general, workflow_status')
       .eq('id', caseId)
       .eq(column, userId)
@@ -166,7 +166,7 @@ async function updateCaseForUser(
 
   for (const column of OWNER_COLUMN_CANDIDATES) {
     let query = supabase
-      .from('casos')
+      .from('cases')
       .update(payload)
       .eq('id', caseId)
       .eq(column, userId)
@@ -335,25 +335,19 @@ export default function MisCasosPage() {
       const collected: UserSighting[] = []
       const fatalErrors: string[] = []
 
-      const [firstSource, secondSource] = await Promise.all([
-        fetchSightingsByUser('caso_avistamientos', user.id, ['reportado_por', 'user_id', 'autor_id']),
-        fetchSightingsByUser('avistamientos', user.id, ['user_id', 'reportado_por', 'autor_id']),
+      const { rows, errors } = await fetchSightingsByUser('case_sightings', user.id, [
+        'reportado_por',
+        'user_id',
+        'autor_id',
       ])
 
-      if (firstSource.errors.length > 0) {
-        fatalErrors.push(firstSource.errors[firstSource.errors.length - 1] ?? 'No se pudieron cargar tus avistamientos.')
-      }
-
-      if (secondSource.errors.length > 0) {
-        fatalErrors.push(secondSource.errors[secondSource.errors.length - 1] ?? 'No se pudieron cargar tus avistamientos.')
+      if (errors.length > 0) {
+        fatalErrors.push(errors[errors.length - 1] ?? 'No se pudieron cargar tus avistamientos.')
       }
 
       collected.push(
-        ...firstSource.rows
-          .map((row, index) => parseSightingRow(row as Record<string, unknown>, 'caso_avistamientos', index))
-          .filter((item): item is UserSighting => item !== null),
-        ...secondSource.rows
-          .map((row, index) => parseSightingRow(row as Record<string, unknown>, 'avistamientos', index))
+        ...rows
+          .map((row, index) => parseSightingRow(row as Record<string, unknown>, 'case_sightings', index))
           .filter((item): item is UserSighting => item !== null),
       )
 
@@ -382,7 +376,7 @@ export default function MisCasosPage() {
         setExternalCaseReferenceById({})
       } else {
         const { data, error } = await supabase
-          .from('casos')
+          .from('cases')
           .select('id, numero_caso, nombres, apellidos')
           .in('id', caseIds)
 
@@ -399,7 +393,11 @@ export default function MisCasosPage() {
         }
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudo cargar el historial de avistamientos.'
+      let message = err instanceof Error ? err.message : 'No se pudo cargar el historial de avistamientos.'
+      const lowered = message.toLowerCase()
+      if (lowered.includes('row-level security policy') || lowered.includes('permission denied')) {
+        message = 'No tienes permisos para ver tus avistamientos. Revisa las politicas RLS en Supabase.'
+      }
       setSightingsError(message)
       setSightings([])
       setExternalCaseReferenceById({})

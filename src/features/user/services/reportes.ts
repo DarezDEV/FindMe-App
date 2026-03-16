@@ -64,7 +64,7 @@ async function getAuthenticatedUserId() {
 
 async function ensureCaseExists(casoId: string) {
   const { error } = await supabase
-    .from('casos')
+    .from('cases')
     .select('id')
     .eq('id', casoId)
     .limit(1)
@@ -115,7 +115,7 @@ export async function reportarAvistamiento(input: AvistamientoInput): Promise<vo
 
   await runInsertAttempts([
     async () => {
-      const { error } = await supabase.from('caso_avistamientos').insert({
+      const { error } = await supabase.from('case_sightings').insert({
         caso_id: casoId,
         reportado_por: userId,
         fecha_avistamiento: fecha,
@@ -127,7 +127,7 @@ export async function reportarAvistamiento(input: AvistamientoInput): Promise<vo
       return error?.message ?? null
     },
     async () => {
-      const { error } = await supabase.from('avistamientos').insert({
+      const { error } = await supabase.from('case_sightings').insert({
         caso_id: casoId,
         user_id: userId,
         fecha,

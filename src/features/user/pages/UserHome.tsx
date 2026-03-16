@@ -71,7 +71,7 @@ export default function UserHome() {
       .channel('user-home-casos-realtime')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'casos' },
+        { event: '*', schema: 'public', table: 'cases' },
         () => {
           void refetchCasos()
         }

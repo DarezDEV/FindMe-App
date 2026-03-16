@@ -81,21 +81,6 @@ interface CasoFallbackRow {
   created_at: string | null
 }
 
-interface CasoViewRow {
-  id: string
-  numero_caso: string
-  nombres: string
-  apellidos: string
-  status: string | null
-  workflow_status: string | null
-  fecha_desaparicion: string | null
-  ciudad: string | null
-  foto_principal_url: string | null
-  vistas: number | null
-  total_fotos: number | null
-  created_at: string | null
-}
-
 interface CasoDetalleFallbackRow {
   id: string
   numero_caso: string
@@ -126,21 +111,6 @@ interface CasoDetalleFallbackRow {
   created_at: string | null
 }
 
-const CASOS_SELECT = `
-  id,
-  numero_caso,
-  nombres,
-  apellidos,
-  status,
-  workflow_status,
-  fecha_desaparicion,
-  ciudad,
-  foto_principal_url,
-  vistas,
-  total_fotos,
-  created_at
-`
-
 const CASOS_FALLBACK_SELECT = `
   id,
   numero_caso,
@@ -151,38 +121,6 @@ const CASOS_FALLBACK_SELECT = `
   fecha_desaparicion,
   ciudad,
   vistas,
-  created_at
-`
-
-const CASO_DETALLE_SELECT = `
-  id,
-  numero_caso,
-  nombres,
-  apellidos,
-  edad,
-  genero,
-  status,
-  workflow_status,
-  vistas,
-  fecha_desaparicion,
-  hora_desaparicion,
-  lugar_desaparicion,
-  lugar_ultima_vez,
-  ciudad,
-  pais,
-  color_piel,
-  color_cabello,
-  color_ojos,
-  senas_particulares,
-  descripcion_general,
-  circunstancias,
-  ropa_descripcion,
-  idioma,
-  visibilidad_contacto,
-  telefono_contacto,
-  email_contacto,
-  foto_principal_url,
-  total_fotos,
   created_at
 `
 
@@ -270,16 +208,6 @@ function shouldIncludeCase(status: string | null, workflowStatus: string | null,
   return true
 }
 
-function isViewErrorRecoverable(message: string) {
-  const lowered = message.toLowerCase()
-  return (
-    lowered.includes('row-level security policy') ||
-    lowered.includes('permission denied') ||
-    lowered.includes('relation') ||
-    lowered.includes('does not exist')
-  )
-}
-
 function normalizeText(value: unknown) {
   if (typeof value !== 'string') return null
   const normalized = value.trim()
@@ -350,59 +278,68 @@ function isCommentListRecoverableError(message: string) {
   )
 }
 
-async function fetchCaseComments(caseId: string) {
-  const queries = [
-    () =>
-      supabase
-        .from('caso_comentarios')
-        .select('*')
-        .eq('caso_id', caseId)
-        .order('created_at', { ascending: false }),
-    () =>
-      supabase
-        .from('caso_comentarios')
-        .select('*')
-        .eq('caso_id', caseId)
-        .order('id', { ascending: false }),
-    () =>
-      supabase
-        .from('caso_comentarios')
-        .select('*')
-        .eq('caso_id', caseId),
-  ] as const
+async function fetchRowsByCaseId(table: string, caseId: string) {
+  const attempts = [
+    () => supabase.from(table).select('*').eq('caso_id', caseId),
+    () => supabase.from(table).select('*').eq('case_id', caseId),
+  ]
 
-  for (const runQuery of queries) {
+  const errors: string[] = []
+  for (const runQuery of attempts) {
     const response = await runQuery()
-
-    if (!response.error) {
-      return (response.data ?? [])
-        .map((row, index) => normalizeCommentRow(row as Record<string, unknown>, index))
-        .filter((row): row is CasoComentario => row !== null)
-    }
+    if (!response.error) return response.data ?? []
 
     const message = response.error.message.toLowerCase()
     if (message.includes('column') && message.includes('does not exist')) {
+      errors.push(response.error.message)
       continue
     }
-
-    if (isCommentListRecoverableError(response.error.message)) {
-      return [] as CasoComentario[]
-    }
-
     throw response.error
   }
 
-  return [] as CasoComentario[]
+  return [] as unknown[]
+}
+
+async function fetchCaseComments(caseId: string) {
+  try {
+    const rows = (await fetchRowsByCaseId('case_comments', caseId)) as Record<string, unknown>[]
+    return rows
+      .map((row, index) => normalizeCommentRow(row as Record<string, unknown>, index))
+      .filter((row): row is CasoComentario => row !== null)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'No se pudieron cargar los comentarios.'
+    if (isCommentListRecoverableError(message)) {
+      return [] as CasoComentario[]
+    }
+    throw error
+  }
 }
 
 async function fetchMediaForCases(caseIds: string[]) {
   if (caseIds.length === 0) return [] as CasoMedia[]
 
-  const { data, error } = await supabase
-    .from('caso_media')
-    .select(MEDIA_SELECT)
-    .in('caso_id', caseIds)
-    .order('orden', { ascending: true })
+  const attempts = [
+    () => supabase.from('media_case').select(MEDIA_SELECT).in('caso_id', caseIds).order('orden', { ascending: true }),
+    () => supabase.from('media_case').select(MEDIA_SELECT).in('case_id', caseIds).order('orden', { ascending: true }),
+  ]
+
+  let data: CasoMedia[] | null = null
+  let error: { message: string } | null = null
+
+  for (const runQuery of attempts) {
+    const response = await runQuery()
+    if (!response.error) {
+      data = (response.data ?? []) as CasoMedia[]
+      error = null
+      break
+    }
+    error = response.error
+    const message = response.error.message.toLowerCase()
+    if (message.includes('column') && message.includes('does not exist')) {
+      continue
+    }
+    break
+  }
 
   if (error) {
     const message = error.message.toLowerCase()
@@ -412,7 +349,17 @@ async function fetchMediaForCases(caseIds: string[]) {
     throw error
   }
 
-  return (data ?? []) as CasoMedia[]
+  const rows = (data ?? []) as Array<Record<string, unknown>>
+  return rows.map((row) => ({
+    id: String(row.id ?? ''),
+    caso_id: (row.caso_id as string | undefined) ?? (row.case_id as string | undefined) ?? '',
+    tipo: (row.tipo as CasoMedia['tipo']) ?? 'foto',
+    url: (row.url as string) ?? '',
+    es_principal: Boolean(row.es_principal ?? row.is_primary ?? row.principal ?? false),
+    orden: typeof row.orden === 'number' ? row.orden : 0,
+    mime_type: (row.mime_type as string | null) ?? null,
+    created_at: (row.created_at as string | null) ?? null,
+  }))
 }
 
 function mapRecienteFromFallback(rows: CasoFallbackRow[], media: CasoMedia[]): CasoReciente[] {
@@ -443,7 +390,7 @@ async function fetchCasosFallback(limit?: number, userId?: string, options: Fetc
   const queryLimit = typeof limit === 'number' ? (hideResolved || hideRejected ? limit * 4 : limit) : undefined
 
   let query = supabase
-    .from('casos')
+    .from('cases')
     .select(CASOS_FALLBACK_SELECT)
     .eq('eliminado', false)
     .order('created_at', { ascending: false })
@@ -468,49 +415,7 @@ async function fetchCasosFallback(limit?: number, userId?: string, options: Fetc
 }
 
 async function fetchCasos(limit?: number, userId?: string, options: FetchCaseOptions = {}): Promise<CasoReciente[]> {
-  const hideResolved = options.hideResolved ?? false
-  const hideRejected = options.hideRejected ?? false
-  const queryLimit = typeof limit === 'number' ? (hideResolved || hideRejected ? limit * 4 : limit) : undefined
-
-  let query = supabase
-    .from('casos_con_media')
-    .select(CASOS_SELECT)
-    .order('created_at', { ascending: false })
-
-  if (userId) {
-    query = query.eq('publicado_por', userId)
-  }
-
-  if (typeof queryLimit === 'number') {
-    query = query.limit(queryLimit)
-  }
-
-  const { data, error } = await query
-  if (error) {
-    if (isViewErrorRecoverable(error.message)) {
-      return fetchCasosFallback(limit, userId, { hideResolved, hideRejected })
-    }
-    throw error
-  }
-
-  const rows = (data ?? []) as CasoViewRow[]
-  const visibleRows = rows.filter(row => shouldIncludeCase(row.status, row.workflow_status, { hideResolved, hideRejected }))
-  const limitedRows = typeof limit === 'number' ? visibleRows.slice(0, limit) : visibleRows
-
-  return limitedRows.map(row => ({
-    id: row.id,
-    numero_caso: row.numero_caso,
-    nombres: row.nombres,
-    apellidos: row.apellidos,
-    status: normalizeStatus(row.status),
-    workflow_status: normalizeWorkflowStatus(row.workflow_status),
-    fecha_desaparicion: row.fecha_desaparicion,
-    ciudad: row.ciudad,
-    foto_principal_url: row.foto_principal_url,
-    vistas: row.vistas ?? 0,
-    total_fotos: row.total_fotos ?? 0,
-    created_at: row.created_at,
-  }))
+  return fetchCasosFallback(limit, userId, options)
 }
 
 export function useMisCasos(userId: string, limit = 3) {
@@ -539,89 +444,49 @@ export function useCasoDetalle(caseId: string) {
     enabled: !!caseId,
     staleTime: QUERY_STALE_TIME,
     queryFn: async () => {
-      const [caseResponse, mediaResponse, comentarios] = await Promise.all([
-        supabase
-          .from('casos_con_media')
-          .select(CASO_DETALLE_SELECT)
-          .eq('id', caseId)
-          .single(),
-        supabase
-          .from('caso_media')
-          .select(MEDIA_SELECT)
-          .eq('caso_id', caseId)
-          .order('orden', { ascending: true }),
+      const [fallback, media, comentarios] = await Promise.all([
+        supabase.from('cases').select(CASO_DETALLE_FALLBACK_SELECT).eq('id', caseId).single(),
+        fetchMediaForCases([caseId]),
         fetchCaseComments(caseId),
       ])
 
-      if (caseResponse.error) {
-        if (!isViewErrorRecoverable(caseResponse.error.message)) {
-          throw caseResponse.error
-        }
+      if (fallback.error) throw fallback.error
 
-        if (mediaResponse.error) {
-          const message = mediaResponse.error.message.toLowerCase()
-          if (!message.includes('row-level security policy') && !message.includes('permission denied')) {
-            throw mediaResponse.error
-          }
-        }
+      const fallbackCase = fallback.data as CasoDetalleFallbackRow
+      const photoMedia = media.filter(item => item.tipo === 'foto')
+      const mainPhoto = photoMedia.find(item => item.es_principal) ?? photoMedia[0]
 
-        const fallback = await supabase
-          .from('casos')
-          .select(CASO_DETALLE_FALLBACK_SELECT)
-          .eq('id', caseId)
-          .single()
-
-        if (fallback.error) throw fallback.error
-
-        const fallbackCase = fallback.data as CasoDetalleFallbackRow
-        const safeMedia = (mediaResponse.data ?? []) as CasoMedia[]
-        const photoMedia = safeMedia.filter(item => item.tipo === 'foto')
-        const mainPhoto = photoMedia.find(item => item.es_principal) ?? photoMedia[0]
-
-        const caso: CasoDetalle = {
-          id: fallbackCase.id,
-          numero_caso: fallbackCase.numero_caso,
-          nombres: fallbackCase.nombres,
-          apellidos: fallbackCase.apellidos,
-          edad: fallbackCase.edad,
-          genero: fallbackCase.genero,
-          status: normalizeStatus(fallbackCase.status),
-          workflow_status: normalizeWorkflowStatus(fallbackCase.workflow_status),
-          vistas: fallbackCase.vistas ?? 0,
-          fecha_desaparicion: fallbackCase.fecha_desaparicion,
-          hora_desaparicion: fallbackCase.hora_desaparicion,
-          lugar_desaparicion: fallbackCase.lugar_desaparicion,
-          lugar_ultima_vez: fallbackCase.lugar_ultima_vez,
-          ciudad: fallbackCase.ciudad,
-          pais: fallbackCase.pais,
-          color_piel: fallbackCase.color_piel,
-          color_cabello: fallbackCase.color_cabello,
-          color_ojos: fallbackCase.color_ojos,
-          senas_particulares: fallbackCase.senas_particulares,
-          descripcion_general: fallbackCase.descripcion_general,
-          circunstancias: fallbackCase.circunstancias,
-          ropa_descripcion: fallbackCase.ropa_descripcion,
-          idioma: fallbackCase.idioma,
-          visibilidad_contacto: fallbackCase.visibilidad_contacto,
-          telefono_contacto: fallbackCase.telefono_contacto,
-          email_contacto: fallbackCase.email_contacto,
-          foto_principal_url: mainPhoto?.url ?? null,
-          total_fotos: photoMedia.length,
-          created_at: fallbackCase.created_at,
-        }
-
-        return { caso, media: safeMedia, comentarios }
+      const caso: CasoDetalle = {
+        id: fallbackCase.id,
+        numero_caso: fallbackCase.numero_caso,
+        nombres: fallbackCase.nombres,
+        apellidos: fallbackCase.apellidos,
+        edad: fallbackCase.edad,
+        genero: fallbackCase.genero,
+        status: normalizeStatus(fallbackCase.status),
+        workflow_status: normalizeWorkflowStatus(fallbackCase.workflow_status),
+        vistas: fallbackCase.vistas ?? 0,
+        fecha_desaparicion: fallbackCase.fecha_desaparicion,
+        hora_desaparicion: fallbackCase.hora_desaparicion,
+        lugar_desaparicion: fallbackCase.lugar_desaparicion,
+        lugar_ultima_vez: fallbackCase.lugar_ultima_vez,
+        ciudad: fallbackCase.ciudad,
+        pais: fallbackCase.pais,
+        color_piel: fallbackCase.color_piel,
+        color_cabello: fallbackCase.color_cabello,
+        color_ojos: fallbackCase.color_ojos,
+        senas_particulares: fallbackCase.senas_particulares,
+        descripcion_general: fallbackCase.descripcion_general,
+        circunstancias: fallbackCase.circunstancias,
+        ropa_descripcion: fallbackCase.ropa_descripcion,
+        idioma: fallbackCase.idioma,
+        visibilidad_contacto: fallbackCase.visibilidad_contacto,
+        telefono_contacto: fallbackCase.telefono_contacto,
+        email_contacto: fallbackCase.email_contacto,
+        foto_principal_url: mainPhoto?.url ?? null,
+        total_fotos: photoMedia.length,
+        created_at: fallbackCase.created_at,
       }
-
-      if (mediaResponse.error) {
-        const message = mediaResponse.error.message.toLowerCase()
-        if (!message.includes('row-level security policy')) {
-          throw mediaResponse.error
-        }
-      }
-
-      const caso = caseResponse.data as CasoDetalle
-      const media = (mediaResponse.data ?? []) as CasoMedia[]
 
       return { caso, media, comentarios }
     },
@@ -634,7 +499,7 @@ export function useMisEstadisticas(userId: string) {
     queryKey: ['mis-estadisticas', userId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('casos')
+        .from('cases')
         .select('status, vistas')
         .eq('publicado_por', userId)
         .eq('eliminado', false)
