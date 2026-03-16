@@ -6,17 +6,13 @@ import LoginPage from '../../features/auth/pages/LoginPage'
 import RegisterPage from '../../features/auth/pages/RegisterPage'
 import ForgotPasswordPage from '../../features/auth/pages/ForgotPasswordPage'
 import ResetPasswordPage from '../../features/auth/pages/ResetPasswordPage'
-import AdminHome from '../../features/admin/pages/AdminHome'
 import UserHome from '../../features/user/pages/UserHome'
-import PublicarPersonaPerdidaPage from '../../features/user/pages/PublicarPersonaPerdidaPage'
-import CasoDetallePage from '../../features/user/pages/CasoDetallePage'
-import ReportarAvistamientoPage from '../../features/user/pages/ReportarAvistamientoPage'
-import ReportarContenidoPage from '../../features/user/pages/ReportarContenidoPage'
-
+import AdminHome from '../../features/admin/pages/AdminHome'
 import AuthorityHome from '../../features/authority/pages/AuthorityHome'
+import AdminUsers from '../../features/admin/pages/AdminUsers'
 import AuthorityCases from '../../features/authority/pages/AuthorityCases'
 import PendingCasesPage from '../../features/authority/pages/PendingCasesPage'
-import AdminUsers from '../../features/admin/pages/AdminUsers'
+import AuthoritySightings from '../../features/authority/pages/AuthoritySightings'
 import LandingPage from '../../features/public/pages/LandingPage'
 import PublicCasesPage from '../../features/public/pages/PublicCasesPage'
 import PublishCaseGatePage from '../../features/public/pages/PublishCaseGatePage'
@@ -47,22 +43,21 @@ function UnauthorizedPage() {
 
 const router = createBrowserRouter([
   // Publicas
+  { path: '/', element: <LandingPage /> },
   { path: '/cases', element: <PublicCasesPage /> },
   { path: '/publish-case', element: <PublishCaseGatePage /> },
   { path: '/unauthorized', element: <UnauthorizedPage /> },
 
   // Solo usuarios no autenticados
   {
-    path: '/',
     element: <GuestRoute />,
     children: [
-      { index: true, element: <LandingPage /> },
-      { path: 'login', element: <LoginPage /> },
-      { path: 'register', element: <RegisterPage /> },
-      { path: 'forgot-password', element: <ForgotPasswordPage /> },
+      { path: '/login', element: <LoginPage /> },
+      { path: '/register', element: <RegisterPage /> },
+      { path: '/forgot-password', element: <ForgotPasswordPage /> },
+      { path: '/reset-password', element: <ResetPasswordPage /> },
     ],
   },
-  { path: '/reset-password', element: <ResetPasswordPage /> },
 
   // Usuario comun
   {
@@ -70,12 +65,6 @@ const router = createBrowserRouter([
     children: [
       { path: '/dashboard', element: <UserHome /> },
       { path: '/user', element: <UserHome /> },
-      { path: '/publicar', element: <PublicarPersonaPerdidaPage /> },
-      { path: '/caso/:id', element: <CasoDetallePage /> },
-      { path: '/avistamiento', element: <ReportarAvistamientoPage /> },
-      { path: '/caso/:id/avistamiento', element: <ReportarAvistamientoPage /> },
-      { path: '/reportar', element: <ReportarContenidoPage /> },
-      { path: '/caso/:id/reportar', element: <ReportarContenidoPage /> },
     ],
   },
 
@@ -94,6 +83,7 @@ const router = createBrowserRouter([
     children: [
       { path: '/authority', element: <AuthorityHome /> },
       { path: '/authority/cases', element: <AuthorityCases /> },
+      { path: '/authority/sightings', element: <AuthoritySightings /> },
       { path: '/authority/cases/pending', element: <PendingCasesPage /> },
     ],
   },

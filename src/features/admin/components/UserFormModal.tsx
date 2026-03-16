@@ -1,7 +1,7 @@
 // src/features/admin/components/users/UserFormModal.tsx
 import { useState } from 'react'
-import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js'
 import { useQueryClient } from '@tanstack/react-query'
+import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js'
 import { X, Check, UserCheck, UserX } from 'lucide-react'
 import { supabase } from '../../../lib/supabase/client'
 import { appToast } from '../../../shared/components/ui'
@@ -9,7 +9,7 @@ import {
   ADMIN_DASHBOARD_SUMMARY_QUERY_KEY,
   ADMIN_USERS_QUERY_KEY,
 } from '../hooks/queryKeys'
-import { ROLE_OPTIONS, roleLabel, type Role } from './role-meta'
+import { ROLE_OPTIONS, roleLabel, type Role } from './roles'
 import type { UserRow } from './UserTableRow'
 
 interface Props {
