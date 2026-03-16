@@ -18,37 +18,76 @@ async function updateProfileBasics(userId: string, form: ProfileFormState) {
   const lastName = form.lastName.trim()
   const avatarUrl = form.avatarUrl.trim() || null
 
-  const nameKeys = ['name', 'nombre', 'nombres', 'first_name']
+  const nameKeys = ['name', 'nombre', 'nombres', 'first_name', 'full_name', 'display_name']
   const lastNameKeys = ['last_name', 'apellido', 'apellidos', 'last_nmae', 'surname']
+  const avatarKeys = ['avatar_url', 'avatar', 'foto', 'photo_url']
+  const updatedAtKeys = ['updated_at', 'updatedAt']
+
+  const { data: profileRow, error: profileError } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle()
+
+  if (profileError) {
+    const lowered = profileError.message.toLowerCase()
+    if (lowered.includes('row-level security policy') || lowered.includes('permission denied')) {
+      throw new Error('No tienes permisos para actualizar tu perfil. Revisa las politicas RLS de profiles.')
+    }
+  }
+
+  const existingColumns = new Set<string>(profileRow ? Object.keys(profileRow as Record<string, unknown>) : [])
+
+  const pickExisting = (keys: string[]) => keys.find((key) => existingColumns.has(key)) ?? null
 
   const payloads: Array<Record<string, string | null>> = []
 
-  for (const nameKey of nameKeys) {
-    for (const lastKey of lastNameKeys) {
-      payloads.push({ [nameKey]: name, [lastKey]: lastName, avatar_url: avatarUrl, updated_at: now })
-      payloads.push({ [nameKey]: name, [lastKey]: lastName, avatar_url: avatarUrl })
-      payloads.push({ [nameKey]: name, [lastKey]: lastName, updated_at: now })
-      payloads.push({ [nameKey]: name, [lastKey]: lastName })
+  if (existingColumns.size > 0) {
+    const nameKey = pickExisting(nameKeys)
+    const lastKey = pickExisting(lastNameKeys)
+    const avatarKey = pickExisting(avatarKeys)
+    const updatedKey = pickExisting(updatedAtKeys)
+
+    const payload: Record<string, string | null> = {}
+    if (nameKey) payload[nameKey] = name
+    if (lastKey) payload[lastKey] = lastName
+    if (avatarKey) payload[avatarKey] = avatarUrl
+    if (updatedKey) payload[updatedKey] = now
+
+    if (Object.keys(payload).length > 0) {
+      payloads.push(payload)
+    }
+  } else {
+    for (const nameKey of nameKeys) {
+      for (const lastKey of lastNameKeys) {
+        const base = { [nameKey]: name, [lastKey]: lastName }
+        payloads.push({ ...base })
+        payloads.push({ ...base, avatar_url: avatarUrl })
+        payloads.push({ ...base, updated_at: now })
+        payloads.push({ ...base, avatar_url: avatarUrl, updated_at: now })
+      }
     }
   }
 
   for (const payload of payloads) {
-    const { error } = await supabase.from('profiles').update(payload).eq('id', userId)
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(payload)
+      .eq('id', userId)
+      .select('id')
+      .maybeSingle()
 
-    if (!error) return
+    if (!error && data) return
 
-    const message = error.message.toLowerCase()
-    if (message.includes('column') && message.includes('does not exist')) {
-      continue
+    if (error) {
+      const message = error.message.toLowerCase()
+      if (message.includes('column') && message.includes('does not exist')) {
+        continue
+      }
+      if (message.includes('row-level security policy') || message.includes('permission denied')) {
+        throw new Error('No tienes permisos para actualizar tu perfil. Revisa las politicas RLS de profiles.')
+      }
+      throw error
     }
-    if (message.includes('row-level security policy') || message.includes('permission denied')) {
-      throw new Error('No tienes permisos para actualizar tu perfil. Revisa las politicas RLS de profiles.')
-    }
-
-    throw error
   }
 
-  throw new Error('No se pudo actualizar el perfil. Verifica la estructura de la tabla profiles.')
+  throw new Error('No se pudo actualizar el perfil. Verifica las columnas de la tabla profiles.')
 }
 
 function formatDate(value: string) {
