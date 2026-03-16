@@ -82,7 +82,7 @@ export interface AuthoritySightingRow {
 
 export type SightingModerationStatus = 'pending' | 'approved' | 'rejected'
 
-const SIGHTING_TABLE = 'caso_avistamientos'
+const SIGHTING_TABLE = 'case_sightings'
 
 function withTimeout<T>(promise: PromiseLike<T>, ms = 12000): Promise<T> {
   const timeout = new Promise<never>((_, reject) => {
@@ -232,7 +232,7 @@ export async function getAuthorityCases(params: GetCasesParams = {}): Promise<Au
   const { search, status = 'all', limit = 100 } = params
 
   let query = supabase
-    .from('casos')
+    .from('cases')
     .select(
       'id, numero_caso, status, workflow_status, nombres, apellidos, edad, ciudad, estado_provincia, lugar_ultima_vez, fecha_desaparicion, created_at',
     )
@@ -266,7 +266,7 @@ export function subscribeToCasesRealtime(
     .channel(`cases-realtime-${crypto.randomUUID()}`)
     .on(
       'postgres_changes',
-      { event: '*', schema: 'public', table: 'casos' },
+      { event: '*', schema: 'public', table: 'cases' },
       (payload) => {
         const newRowRaw = (payload.new ?? {}) as Record<string, unknown>
         const oldRowRaw = (payload.old ?? {}) as Record<string, unknown>
@@ -370,7 +370,7 @@ export async function getAuthoritySightings(limit = 200): Promise<AuthoritySight
     const { data: casesData, error: casesError } = await withRetry(
       () =>
         supabase
-          .from('casos')
+          .from('cases')
           .select('id, numero_caso, nombres, apellidos')
           .in('id', caseIds),
       { timeoutMs: 30000, retries: 0 },
@@ -483,7 +483,7 @@ export async function updateAuthoritySightingStatus(
 export async function softDeleteCase(caseId: string): Promise<void> {
   const { error } = await withRetry(() =>
     supabase
-      .from('casos')
+      .from('cases')
       .update({
         eliminado: true,
         eliminado_at: new Date().toISOString(),
@@ -501,7 +501,7 @@ export async function getPendingModerationCases(limit = 200): Promise<AuthorityC
   const { data, error } = await withRetry(
     () =>
       supabase
-        .from('casos')
+        .from('cases')
         .select(
           'id, numero_caso, status, workflow_status, publicado_por, nombres, apellidos, edad, genero, telefono_contacto, email_contacto, fecha_nacimiento, ciudad, estado_provincia, lugar_ultima_vez, descripcion_general, fecha_desaparicion, created_at',
         )
@@ -544,7 +544,7 @@ export async function getProfilesBasicByIds(userIds: string[]): Promise<ProfileB
 export async function updateCaseWorkflowStatus(caseId: string, status: CaseWorkflowStatus): Promise<void> {
   const { error } = await withRetry(() =>
     supabase
-      .from('casos')
+      .from('cases')
       .update({
         workflow_status: status,
         updated_at: new Date().toISOString(),
@@ -571,7 +571,7 @@ export async function getCaseComments(caseIds: string[]): Promise<CaseCommentRow
 
   const { data, error } = await withRetry(() =>
     supabase
-      .from('caso_comentarios')
+      .from('case_comments')
       .select('id, caso_id, autor_id, comentario, created_at')
       .in('caso_id', caseIds)
       .order('created_at', { ascending: true }),
@@ -592,7 +592,7 @@ export async function createCaseComment(
 ): Promise<{ id: string }> {
   const { data, error } = await withRetry(() =>
     supabase
-      .from('caso_comentarios')
+      .from('case_comments')
       .insert({
         caso_id: caseId,
         autor_id: authorId,
@@ -614,7 +614,7 @@ export async function createCaseComment(
 export async function updateCaseComment(commentId: string, newText: string): Promise<void> {
   const { data, error } = await withRetry(() =>
     supabase
-      .from('caso_comentarios')
+      .from('case_comments')
       .update({ comentario: newText })
       .eq('id', commentId)
       .select('id')
@@ -635,7 +635,7 @@ export async function updateCaseComment(commentId: string, newText: string): Pro
 export async function deleteCaseComment(commentId: string): Promise<void> {
   const { data, error } = await withRetry(() =>
     supabase
-      .from('caso_comentarios')
+      .from('case_comments')
       .delete()
       .eq('id', commentId)
       .select('id')
@@ -749,7 +749,7 @@ export async function getAuthorityDashboardSummary(): Promise<AuthorityDashboard
   const { data, error } = await withRetry(
     () =>
       supabase
-        .from('casos')
+        .from('cases')
         .select(
           'id, numero_caso, status, workflow_status, nombres, apellidos, edad, ciudad, estado_provincia, lugar_ultima_vez, fecha_desaparicion, created_at',
         )
@@ -793,3 +793,10 @@ export async function getAuthorityDashboardSummary(): Promise<AuthorityDashboard
 
   return summary
 }
+
+export type AdminDashboardSummary = AuthorityDashboardSummary
+
+export async function getAdminDashboardSummary(): Promise<AdminDashboardSummary> {
+  return getAuthorityDashboardSummary()
+}
+

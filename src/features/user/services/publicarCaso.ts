@@ -227,15 +227,15 @@ function mapCasoMediaInsertErrorMessage(message: string) {
   const lower = message.toLowerCase()
 
   if (lower.includes('row-level security policy')) {
-    return 'No tienes permisos para registrar la media en la tabla "caso_media". Revisa policies INSERT/SELECT en public.caso_media para usuarios autenticados.'
+    return 'No tienes permisos para registrar la media en la tabla "media_case". Revisa policies INSERT/SELECT en public.media_case para usuarios autenticados.'
   }
 
   if (lower.includes('storage_path') && lower.includes('not-null')) {
-    return 'No se pudo registrar la ruta del archivo (storage_path) en caso_media.'
+    return 'No se pudo registrar la ruta del archivo (storage_path) en media_case.'
   }
 
   if (lower.includes('subido_por') && lower.includes('not-null')) {
-    return 'No se pudo registrar el usuario que sube la media (subido_por) en caso_media.'
+    return 'No se pudo registrar el usuario que sube la media (subido_por) en media_case.'
   }
 
   if (lower.includes('foreign key')) {
@@ -244,7 +244,7 @@ function mapCasoMediaInsertErrorMessage(message: string) {
 
   const missingColumnMatch = message.match(/null value in column "([^"]+)"/i)
   if (lower.includes('not-null constraint') && missingColumnMatch?.[1]) {
-    return `Falta un campo obligatorio en caso_media: ${missingColumnMatch[1]}.`
+    return `Falta un campo obligatorio en media_case: ${missingColumnMatch[1]}.`
   }
 
   return message
@@ -464,7 +464,7 @@ async function uploadCaseMedia(caseId: string, uploadedBy: string, formData: For
   if (mediaRows.length === 0) return
 
   const { error } = await withTimeout(
-    Promise.resolve(supabase.from('caso_media').insert(mediaRows)),
+    Promise.resolve(supabase.from('media_case').insert(mediaRows)),
     QUERY_TIMEOUT_MS,
     'Se agoto el tiempo al guardar la media del caso.'
   )
@@ -477,7 +477,7 @@ async function uploadCaseMedia(caseId: string, uploadedBy: string, formData: For
 async function rollbackCase(caseId: string) {
   try {
     const { error } = await withTimeout(
-      Promise.resolve(supabase.from('casos').delete().eq('id', caseId)),
+      Promise.resolve(supabase.from('cases').delete().eq('id', caseId)),
       QUERY_TIMEOUT_MS,
       'Timeout al revertir caso fallido.'
     )
@@ -544,7 +544,7 @@ export async function publicarCaso(formData: FormData): Promise<PublishCaseResul
   const { data: createdCase, error: caseError } = await withTimeout(
     Promise.resolve(
       supabase
-        .from('casos')
+        .from('cases')
         .insert(payload)
         .select('id, numero_caso')
         .single()
@@ -571,3 +571,4 @@ export async function publicarCaso(formData: FormData): Promise<PublishCaseResul
     caseNumber: caseRow.numero_caso,
   }
 }
+
