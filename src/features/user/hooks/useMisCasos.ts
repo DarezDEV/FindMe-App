@@ -248,6 +248,7 @@ function isViewErrorRecoverable(message: string) {
   return (
     lowered.includes('row-level security policy') ||
     lowered.includes('permission denied') ||
+    (lowered.includes('column') && lowered.includes('does not exist')) ||
     lowered.includes('relation') ||
     lowered.includes('does not exist')
   )
@@ -327,19 +328,19 @@ async function fetchCaseComments(caseId: string) {
   const queries = [
     () =>
       supabase
-        .from('caso_comentarios')
+        .from('case_comments')
         .select('*')
         .eq('caso_id', caseId)
         .order('created_at', { ascending: false }),
     () =>
       supabase
-        .from('caso_comentarios')
+        .from('case_comments')
         .select('*')
         .eq('caso_id', caseId)
         .order('id', { ascending: false }),
     () =>
       supabase
-        .from('caso_comentarios')
+        .from('case_comments')
         .select('*')
         .eq('caso_id', caseId),
   ] as const
@@ -372,7 +373,7 @@ async function fetchMediaForCases(caseIds: string[]) {
   if (caseIds.length === 0) return [] as CasoMedia[]
 
   const { data, error } = await supabase
-    .from('caso_media')
+    .from('media_case')
     .select(MEDIA_SELECT)
     .in('caso_id', caseIds)
     .order('orden', { ascending: true })
@@ -414,7 +415,7 @@ async function fetchCasosFallback(limit?: number, userId?: string, hideResolved 
   const queryLimit = typeof limit === 'number' ? (hideResolved ? limit * 4 : limit) : undefined
 
   let query = supabase
-    .from('casos')
+    .from('cases')
     .select(CASOS_FALLBACK_SELECT)
     .eq('eliminado', false)
     .order('created_at', { ascending: false })
@@ -516,7 +517,7 @@ export function useCasoDetalle(caseId: string) {
           .eq('id', caseId)
           .single(),
         supabase
-          .from('caso_media')
+          .from('media_case')
           .select(MEDIA_SELECT)
           .eq('caso_id', caseId)
           .order('orden', { ascending: true }),
@@ -536,7 +537,7 @@ export function useCasoDetalle(caseId: string) {
         }
 
         const fallback = await supabase
-          .from('casos')
+          .from('cases')
           .select(CASO_DETALLE_FALLBACK_SELECT)
           .eq('id', caseId)
           .single()
@@ -604,7 +605,7 @@ export function useMisEstadisticas(userId: string) {
     queryKey: ['mis-estadisticas', userId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('casos')
+        .from('cases')
         .select('status, vistas')
         .eq('publicado_por', userId)
         .eq('eliminado', false)
@@ -623,3 +624,4 @@ export function useMisEstadisticas(userId: string) {
     staleTime: QUERY_STALE_TIME,
   })
 }
+
