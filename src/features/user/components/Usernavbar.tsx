@@ -9,7 +9,6 @@ import {
   LogOut,
   MapPin,
   Menu,
-  MessageCircle,
   Plus,
   Search,
   Settings,
@@ -21,7 +20,7 @@ import { useAuth } from '../../auth/hooks'
 import { supabase } from '../../../lib/supabase/client'
 import { type CasoReciente, useMisCasos } from '../hooks/useMisCasos'
 
-type DropdownKey = 'notifications' | 'messages' | 'user' | 'publish' | null
+type DropdownKey = 'notifications' | 'user' | 'publish' | null
 
 type NotificationType = 'info' | 'warning' | 'success'
 
@@ -31,15 +30,6 @@ interface NavbarNotification {
   time: string
   unread: boolean
   type: NotificationType
-}
-
-interface NavbarMessage {
-  id: string
-  from: string
-  avatar: string
-  preview: string
-  time: string
-  unread: boolean
 }
 
 interface PublishOption {
@@ -126,20 +116,6 @@ function buildNotifications(cases: CasoReciente[]): NavbarNotification[] {
   })
 }
 
-function buildMessages(cases: CasoReciente[]): NavbarMessage[] {
-  return cases
-    .filter(caso => caso.total_fotos > 0)
-    .slice(0, 5)
-    .map(caso => ({
-      id: `msg-${caso.id}`,
-      from: `${caso.nombres} ${caso.apellidos}`.trim(),
-      avatar: getInitials(caso.nombres, caso.apellidos),
-      preview: `${caso.total_fotos} archivo(s) multimedia en ${caso.numero_caso}.`,
-      time: formatTime(caso.created_at),
-      unread: caso.status !== 'encontrado',
-    }))
-}
-
 function notifIcon(type: NotificationType) {
   if (type === 'warning') return <AlertTriangle size={14} className="text-warning" />
   if (type === 'success') return <CheckCircle size={14} className="text-success" />
@@ -204,10 +180,7 @@ export default function UserNavbar() {
   const { data: myCases = [], isLoading: casesLoading } = useMisCasos(user?.id ?? '', 6)
 
   const notifications = useMemo(() => buildNotifications(myCases), [myCases])
-  const messages = useMemo(() => buildMessages(myCases), [myCases])
-
   const unreadNotifs = notifications.filter(item => item.unread).length
-  const unreadMsgs = messages.filter(item => item.unread).length
 
   const userName = user?.name ?? 'Usuario'
   const userLastName = user?.last_nmae ?? ''
@@ -380,62 +353,6 @@ export default function UserNavbar() {
                               <p className="text-[11px] text-text-secondary mt-1">{item.time}</p>
                             </div>
                             {item.unread && <div className="w-2 h-2 rounded-full bg-primary mt-1 shrink-0" />}
-                          </div>
-                        ))}
-                    </div>
-                  </DropdownPanel>
-                )}
-              </div>
-
-              <div className="relative ml-0.5">
-                <IconBtn
-                  active={open === 'messages'}
-                  onClick={() => toggle('messages')}
-                  badge={unreadMsgs}
-                  title="Mensajes"
-                >
-                  <MessageCircle size={18} />
-                </IconBtn>
-
-                {open === 'messages' && (
-                  <DropdownPanel className="right-0 w-80">
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                      <span className="font-semibold text-sm text-text-primary">Mensajes</span>
-                      <Link
-                        to="/mensajes"
-                        onClick={closeAll}
-                        className="text-xs text-primary hover:text-primary-hover font-medium transition-colors"
-                      >
-                        Ver todos
-                      </Link>
-                    </div>
-                    <div className="max-h-72 overflow-y-auto divide-y divide-border">
-                      {casesLoading && <p className="px-4 py-3 text-xs text-text-secondary">Cargando...</p>}
-                      {!casesLoading && messages.length === 0 && (
-                        <p className="px-4 py-3 text-xs text-text-secondary">No hay mensajes recientes.</p>
-                      )}
-                      {!casesLoading &&
-                        messages.map(message => (
-                          <div
-                            key={message.id}
-                            className={`flex items-start gap-3 px-4 py-3 hover:bg-background transition-colors ${
-                              message.unread ? 'bg-primary-soft/40' : ''
-                            }`}
-                          >
-                            <div className="w-8 h-8 rounded-full bg-primary-soft text-primary text-[11px] font-bold flex items-center justify-center shrink-0">
-                              {message.avatar}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p
-                                className={`text-xs ${
-                                  message.unread ? 'font-semibold text-text-primary' : 'text-text-secondary'
-                                }`}
-                              >
-                                {message.from}
-                              </p>
-                              <p className="text-xs text-text-secondary truncate mt-0.5">{message.preview}</p>
-                            </div>
-                            <div className="shrink-0 text-[11px] text-text-secondary">{message.time}</div>
                           </div>
                         ))}
                     </div>

@@ -7,6 +7,7 @@ type CasoWorkflowStatus = 'pending' | 'approved' | 'rejected' | 'found' | 'close
 interface FetchCaseOptions {
   hideResolved?: boolean
   hideRejected?: boolean
+  approvedOnly?: boolean
 }
 
 export interface CasoReciente {
@@ -124,6 +125,18 @@ const CASOS_FALLBACK_SELECT = `
   created_at
 `
 
+const CASOS_FALLBACK_SELECT_NO_WORKFLOW = `
+  id,
+  numero_caso,
+  nombres,
+  apellidos,
+  status,
+  fecha_desaparicion,
+  ciudad,
+  vistas,
+  created_at
+`
+
 const CASO_DETALLE_FALLBACK_SELECT = `
   id,
   numero_caso,
@@ -133,6 +146,35 @@ const CASO_DETALLE_FALLBACK_SELECT = `
   genero,
   status,
   workflow_status,
+  vistas,
+  fecha_desaparicion,
+  hora_desaparicion,
+  lugar_desaparicion,
+  lugar_ultima_vez,
+  ciudad,
+  pais,
+  color_piel,
+  color_cabello,
+  color_ojos,
+  senas_particulares,
+  descripcion_general,
+  circunstancias,
+  ropa_descripcion,
+  idioma,
+  visibilidad_contacto,
+  telefono_contacto,
+  email_contacto,
+  created_at
+`
+
+const CASO_DETALLE_FALLBACK_SELECT_NO_WORKFLOW = `
+  id,
+  numero_caso,
+  nombres,
+  apellidos,
+  edad,
+  genero,
+  status,
   vistas,
   fecha_desaparicion,
   hora_desaparicion,
@@ -198,6 +240,16 @@ function isResolvedCase(status: string | null, workflowStatus: string | null) {
 function shouldIncludeCase(status: string | null, workflowStatus: string | null, options: FetchCaseOptions) {
   const normalizedWorkflowStatus = workflowStatus?.trim().toLowerCase() ?? ''
   if (options.hideRejected && normalizedWorkflowStatus === 'rejected') {
+    return false
+  }
+
+  if (
+    options.approvedOnly &&
+    normalizedWorkflowStatus !== 'approved' &&
+    normalizedWorkflowStatus !== 'found' &&
+    normalizedWorkflowStatus !== 'closed' &&
+    normalizedStatus !== 'encontrado'
+  ) {
     return false
   }
 
@@ -387,6 +439,7 @@ function mapRecienteFromFallback(rows: CasoFallbackRow[], media: CasoMedia[]): C
 async function fetchCasosFallback(limit?: number, userId?: string, options: FetchCaseOptions = {}): Promise<CasoReciente[]> {
   const hideResolved = options.hideResolved ?? false
   const hideRejected = options.hideRejected ?? false
+  const approvedOnly = options.approvedOnly ?? false
   const queryLimit = typeof limit === 'number' ? (hideResolved || hideRejected ? limit * 4 : limit) : undefined
 
   let query = supabase
@@ -403,11 +456,25 @@ async function fetchCasosFallback(limit?: number, userId?: string, options: Fetc
     query = query.limit(queryLimit)
   }
 
-  const { data, error } = await query
+  let { data, error } = await query
+  if (error) {
+    const message = error.message.toLowerCase()
+    if (message.includes('column') && message.includes('workflow_status')) {
+      const retry = await supabase
+        .from('cases')
+        .select(CASOS_FALLBACK_SELECT_NO_WORKFLOW)
+        .eq('eliminado', false)
+        .order('created_at', { ascending: false })
+      data = retry.data
+      error = retry.error ?? null
+    }
+  }
   if (error) throw error
 
   const rows = (data ?? []) as CasoFallbackRow[]
-  const visibleRows = rows.filter(row => shouldIncludeCase(row.status, row.workflow_status, { hideResolved, hideRejected }))
+  const visibleRows = rows.filter(row =>
+    shouldIncludeCase(row.status, row.workflow_status, { hideResolved, hideRejected, approvedOnly })
+  )
   const limitedRows = typeof limit === 'number' ? visibleRows.slice(0, limit) : visibleRows
   const media = await fetchMediaForCases(limitedRows.map(row => row.id))
 
@@ -427,13 +494,17 @@ export function useMisCasos(userId: string, limit = 3) {
   })
 }
 
-export function useCasosGenerales(limit = 24, options: { hideResolved?: boolean; hideRejected?: boolean } = {}) {
+export function useCasosGenerales(
+  limit = 24,
+  options: { hideResolved?: boolean; hideRejected?: boolean; approvedOnly?: boolean } = {}
+) {
   const hideResolved = options.hideResolved ?? false
   const hideRejected = options.hideRejected ?? false
+  const approvedOnly = options.approvedOnly ?? false
 
   return useQuery({
-    queryKey: ['casos-generales', limit, hideResolved, hideRejected],
-    queryFn: () => fetchCasos(limit, undefined, { hideResolved, hideRejected }),
+    queryKey: ['casos-generales', limit, hideResolved, hideRejected, approvedOnly],
+    queryFn: () => fetchCasos(limit, undefined, { hideResolved, hideRejected, approvedOnly }),
     staleTime: QUERY_STALE_TIME,
   })
 }
@@ -450,7 +521,53 @@ export function useCasoDetalle(caseId: string) {
         fetchCaseComments(caseId),
       ])
 
-      if (fallback.error) throw fallback.error
+      if (fallback.error) {
+        const message = fallback.error.message.toLowerCase()
+        if (message.includes('column') && message.includes('workflow_status')) {
+          const retry = await supabase
+            .from('cases')
+            .select(CASO_DETALLE_FALLBACK_SELECT_NO_WORKFLOW)
+            .eq('id', caseId)
+            .single()
+          if (retry.error) throw retry.error
+          const fallbackCase = retry.data as CasoDetalleFallbackRow
+          const photoMedia = media.filter(item => item.tipo === 'foto')
+          const mainPhoto = photoMedia.find(item => item.es_principal) ?? photoMedia[0]
+          const caso: CasoDetalle = {
+            id: fallbackCase.id,
+            numero_caso: fallbackCase.numero_caso,
+            nombres: fallbackCase.nombres,
+            apellidos: fallbackCase.apellidos,
+            edad: fallbackCase.edad,
+            genero: fallbackCase.genero,
+            status: normalizeStatus(fallbackCase.status),
+            workflow_status: null,
+            vistas: fallbackCase.vistas ?? 0,
+            fecha_desaparicion: fallbackCase.fecha_desaparicion,
+            hora_desaparicion: fallbackCase.hora_desaparicion,
+            lugar_desaparicion: fallbackCase.lugar_desaparicion,
+            lugar_ultima_vez: fallbackCase.lugar_ultima_vez,
+            ciudad: fallbackCase.ciudad,
+            pais: fallbackCase.pais,
+            color_piel: fallbackCase.color_piel,
+            color_cabello: fallbackCase.color_cabello,
+            color_ojos: fallbackCase.color_ojos,
+            senas_particulares: fallbackCase.senas_particulares,
+            descripcion_general: fallbackCase.descripcion_general,
+            circunstancias: fallbackCase.circunstancias,
+            ropa_descripcion: fallbackCase.ropa_descripcion,
+            idioma: fallbackCase.idioma,
+            visibilidad_contacto: fallbackCase.visibilidad_contacto,
+            telefono_contacto: fallbackCase.telefono_contacto,
+            email_contacto: fallbackCase.email_contacto,
+            foto_principal_url: mainPhoto?.url ?? null,
+            total_fotos: photoMedia.length,
+            created_at: fallbackCase.created_at,
+          }
+          return { caso, media, comentarios }
+        }
+        throw fallback.error
+      }
 
       const fallbackCase = fallback.data as CasoDetalleFallbackRow
       const photoMedia = media.filter(item => item.tipo === 'foto')

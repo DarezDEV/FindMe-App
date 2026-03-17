@@ -64,7 +64,7 @@ export default function UserHome() {
     isLoading: casosLoading,
     isError: casosError,
     refetch: refetchCasos,
-  } = useCasosGenerales(24, { hideResolved: true, hideRejected: true })
+  } = useCasosGenerales(24, { hideResolved: false, hideRejected: true, approvedOnly: true })
 
   useEffect(() => {
     const channel = supabase

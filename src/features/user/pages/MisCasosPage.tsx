@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, Calendar, ChevronLeft, Clock3, Edit3, Eye, MapPin, Trash2 } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
 import { Alert, Spinner } from '../../../shared/components/ui'
 import { supabase } from '../../../lib/supabase/client'
+import { uploadFile } from '../../../shared/utils/api'
 import UserNavbar from '../components/Usernavbar'
 import { type CasoReciente, useMisCasos } from '../hooks/useMisCasos'
 
 type ReviewStatus = 'pending' | 'approved' | 'rejected' | 'found' | 'closed'
 type SightingStatus = 'pendiente' | 'validado' | 'rechazado'
+type UserCaseState = 'borrador' | 'publicado' | 'encontrado' | 'archivado'
 
 interface CaseReference {
   caseNumber: string
@@ -31,6 +33,10 @@ interface EditCaseForm {
   apellidos: string
   fechaDesaparicion: string
   lugarDesaparicion: string
+  lugarUltimaVez: string
+  ciudad: string
+  lat: string
+  lng: string
   descripcionGeneral: string
 }
 
@@ -41,11 +47,44 @@ interface NoticeState {
 
 const OWNER_COLUMN_CANDIDATES = ['publicado_por', 'user_id', 'autor_id'] as const
 
+const CASES_BUCKET = 'casos-media'
+const CONFIGURED_CASES_BUCKET = (import.meta.env.VITE_CASES_BUCKET as string | undefined)?.trim()
+const ACTIVE_CASES_BUCKET = CONFIGURED_CASES_BUCKET || CASES_BUCKET
+
+const MAX_PHOTOS = 10
+const MAX_PHOTO_SIZE = 10 * 1024 * 1024
+const MAX_VIDEO_SIZE = 50 * 1024 * 1024
+const OFFICIAL_DOCUMENT_PATTERNS = [
+  'cedula',
+  'dni',
+  'pasaporte',
+  'passport',
+  'documento',
+  'document',
+  'identidad',
+  'idcard',
+  'id_card',
+  'licencia',
+  'license',
+]
+
+interface MediaMeta {
+  total: number
+  nextOrder: number
+  hasPrincipal: boolean
+  ids: string[]
+  paths: string[]
+}
+
 const INITIAL_EDIT_FORM: EditCaseForm = {
   nombres: '',
   apellidos: '',
   fechaDesaparicion: '',
   lugarDesaparicion: '',
+  lugarUltimaVez: '',
+  ciudad: '',
+  lat: '',
+  lng: '',
   descripcionGeneral: '',
 }
 
@@ -96,6 +135,19 @@ function normalizeSightingStatus(value: unknown): SightingStatus {
   return 'pendiente'
 }
 
+function getUserCaseState(caso: CasoReciente): { value: UserCaseState; label: string; className: string } {
+  if (caso.workflow_status === 'closed') {
+    return { value: 'archivado', label: 'Archivado', className: 'bg-text-secondary/10 text-text-secondary' }
+  }
+  if (caso.workflow_status === 'found' || caso.status === 'encontrado') {
+    return { value: 'encontrado', label: 'Encontrado', className: 'bg-success/10 text-success' }
+  }
+  if (!caso.workflow_status) {
+    return { value: 'borrador', label: 'Borrador', className: 'bg-warning/10 text-warning' }
+  }
+  return { value: 'publicado', label: 'Publicado', className: 'bg-info/10 text-info' }
+}
+
 function getSightingStatusMeta(status: SightingStatus) {
   if (status === 'validado') {
     return { label: 'Validado', className: 'bg-success/10 text-success' }
@@ -126,13 +178,202 @@ function isRecoverableSightingsError(message: string) {
   )
 }
 
+function normalizeFileName(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+}
+
+function isOfficialDocumentFileName(name: string) {
+  const normalized = normalizeFileName(name)
+  return OFFICIAL_DOCUMENT_PATTERNS.some(pattern => normalized.includes(pattern))
+}
+
+function getFileExtension(file: File, fallback: string) {
+  const fromName = file.name.split('.').pop()?.toLowerCase()
+  if (fromName) return fromName
+  if (file.type.includes('/')) return file.type.split('/')[1] ?? fallback
+  return fallback
+}
+
+function createMediaToken() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`
+}
+
+function buildUbicacionPoint(lat: string, lng: string) {
+  const latNum = Number(lat)
+  const lngNum = Number(lng)
+  if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) return null
+  return `POINT(${lngNum} ${latNum})`
+}
+
+async function fetchMediaMeta(caseId: string): Promise<MediaMeta> {
+  const attempts = [
+    () => supabase.from('media_case').select('id, storage_path, es_principal, orden').eq('caso_id', caseId),
+    () => supabase.from('media_case').select('id, storage_path, es_principal, orden').eq('case_id', caseId),
+  ]
+
+  for (const runQuery of attempts) {
+    const response = await runQuery()
+    if (!response.error) {
+      const rows = (response.data ?? []) as Array<Record<string, unknown>>
+      const maxOrder = rows.reduce((acc, row) => Math.max(acc, Number(row.orden ?? 0)), 0)
+      const hasPrincipal = rows.some(row => Boolean(row.es_principal))
+      const ids = rows.map(row => String(row.id ?? '')).filter(Boolean)
+      const paths = rows
+        .map(row => (row.storage_path as string | undefined) ?? '')
+        .filter(Boolean)
+      return {
+        total: rows.length,
+        nextOrder: maxOrder + 1,
+        hasPrincipal,
+        ids,
+        paths,
+      }
+    }
+
+    const message = response.error.message.toLowerCase()
+    if (message.includes('column') && message.includes('does not exist')) {
+      continue
+    }
+  }
+
+  return { total: 0, nextOrder: 1, hasPrincipal: false, ids: [], paths: [] }
+}
+
+function validateEditMedia(photos: File[], video: File | null, existingTotal: number) {
+  if (photos.length > MAX_PHOTOS) {
+    throw new Error(`Solo se permiten ${MAX_PHOTOS} fotos por caso.`)
+  }
+
+  if (existingTotal + photos.length > MAX_PHOTOS) {
+    throw new Error(`Ya tienes ${existingTotal} fotos. El limite total es ${MAX_PHOTOS}.`)
+  }
+
+  const documentPhoto = photos.find(file => isOfficialDocumentFileName(file.name))
+  if (documentPhoto) {
+    throw new Error(`No se permiten documentos oficiales. Elimina "${documentPhoto.name}".`)
+  }
+
+  const invalidPhoto = photos.find(file => !file.type.startsWith('image/'))
+  if (invalidPhoto) {
+    throw new Error(`"${invalidPhoto.name}" no es una imagen valida.`)
+  }
+
+  const largePhoto = photos.find(file => file.size > MAX_PHOTO_SIZE)
+  if (largePhoto) {
+    throw new Error(`"${largePhoto.name}" supera el limite de 10 MB.`)
+  }
+
+  if (video) {
+    if (isOfficialDocumentFileName(video.name)) {
+      throw new Error('No se permiten documentos oficiales en el video.')
+    }
+    if (!video.type.startsWith('video/')) {
+      throw new Error('El archivo de video no tiene un formato valido.')
+    }
+    if (video.size > MAX_VIDEO_SIZE) {
+      throw new Error('El video supera el limite de 50 MB.')
+    }
+  }
+}
+
+async function uploadCaseMediaUpdate(
+  caseId: string,
+  userId: string,
+  photos: File[],
+  video: File | null,
+  meta: MediaMeta,
+) {
+  const mediaRows: Array<Record<string, unknown>> = []
+  let order = meta.nextOrder
+  let principalAssigned = meta.hasPrincipal
+
+  for (const [index, file] of photos.entries()) {
+    const ext = getFileExtension(file, 'jpg')
+    const path = `cases/${caseId}/images/${createMediaToken()}-${index}.${ext}`
+    const url = await uploadFile(ACTIVE_CASES_BUCKET, path, file)
+    mediaRows.push({
+      caso_id: caseId,
+      subido_por: userId,
+      storage_path: path,
+      tipo: 'foto',
+      url,
+      es_principal: !principalAssigned,
+      orden: order,
+      mime_type: file.type || null,
+    })
+    principalAssigned = true
+    order += 1
+  }
+
+  if (video) {
+    const ext = getFileExtension(video, 'mp4')
+    const path = `cases/${caseId}/videos/${createMediaToken()}.${ext}`
+    const url = await uploadFile(ACTIVE_CASES_BUCKET, path, video)
+    mediaRows.push({
+      caso_id: caseId,
+      subido_por: userId,
+      storage_path: path,
+      tipo: 'video',
+      url,
+      es_principal: false,
+      orden: order,
+      mime_type: video.type || null,
+    })
+  }
+
+  if (mediaRows.length === 0) return
+
+  const attempts = [
+    () => supabase.from('media_case').insert(mediaRows),
+    () =>
+      supabase.from('media_case').insert(
+        mediaRows.map((row) => {
+          const { caso_id: _, ...rest } = row
+          return { ...rest, case_id: caseId }
+        }),
+      ),
+  ]
+
+  let lastError: string | null = null
+  for (const runInsert of attempts) {
+    const { error } = await runInsert()
+    if (!error) return
+    lastError = error.message
+    const message = error.message.toLowerCase()
+    if (message.includes('column') && message.includes('does not exist')) {
+      continue
+    }
+    throw error
+  }
+
+  if (lastError) throw new Error(lastError)
+}
+
+async function deleteCaseMedia(meta: MediaMeta) {
+  if (meta.ids.length > 0) {
+    await supabase.from('media_case').delete().in('id', meta.ids)
+  }
+  if (meta.paths.length > 0) {
+    await supabase.storage.from(ACTIVE_CASES_BUCKET).remove(meta.paths)
+  }
+}
+
 async function fetchCaseForUser(caseId: string, userId: string) {
   const errors: string[] = []
 
   for (const column of OWNER_COLUMN_CANDIDATES) {
     const { data, error } = await supabase
       .from('cases')
-      .select('id, nombres, apellidos, fecha_desaparicion, lugar_desaparicion, descripcion_general, workflow_status')
+      .select(
+        'id, nombres, apellidos, fecha_desaparicion, lugar_desaparicion, lugar_ultima_vez, ciudad, descripcion_general, workflow_status'
+      )
       .eq('id', caseId)
       .eq(column, userId)
       .maybeSingle()
@@ -181,6 +422,19 @@ async function updateCaseForUser(
 
     if (error) {
       const message = error.message.toLowerCase()
+      if (message.includes('column') && message.includes('workflow_status')) {
+        const { workflow_status: _, ...rest } = payload
+        if (Object.keys(rest).length > 0) {
+          const retry = await supabase
+            .from('cases')
+            .update(rest)
+            .eq('id', caseId)
+            .eq(column, userId)
+            .select('id')
+            .maybeSingle()
+          if (!retry.error && retry.data) return true
+        }
+      }
       if (message.includes('column') && message.includes('does not exist')) {
         errors.push(error.message)
         continue
@@ -301,6 +555,12 @@ export default function MisCasosPage() {
   const [editForm, setEditForm] = useState<EditCaseForm>(INITIAL_EDIT_FORM)
   const [editLoading, setEditLoading] = useState(false)
   const [retireLoadingId, setRetireLoadingId] = useState<string | null>(null)
+  const [stateLoadingId, setStateLoadingId] = useState<string | null>(null)
+  const [mediaMeta, setMediaMeta] = useState<MediaMeta>({ total: 0, nextOrder: 1, hasPrincipal: false, ids: [], paths: [] })
+  const [newPhotos, setNewPhotos] = useState<File[]>([])
+  const [newVideo, setNewVideo] = useState<File | null>(null)
+  const [replaceMedia, setReplaceMedia] = useState(false)
+  const [mediaError, setMediaError] = useState<string | null>(null)
 
   const {
     data: myCases = [],
@@ -431,6 +691,8 @@ export default function MisCasosPage() {
         apellidos: string | null
         fecha_desaparicion: string | null
         lugar_desaparicion: string | null
+        lugar_ultima_vez: string | null
+        ciudad: string | null
         descripcion_general: string | null
         workflow_status: CasoReciente['workflow_status']
       }
@@ -446,8 +708,18 @@ export default function MisCasosPage() {
         apellidos: row.apellidos ?? '',
         fechaDesaparicion: row.fecha_desaparicion ?? '',
         lugarDesaparicion: row.lugar_desaparicion ?? '',
+        lugarUltimaVez: row.lugar_ultima_vez ?? '',
+        ciudad: row.ciudad ?? '',
+        lat: '',
+        lng: '',
         descripcionGeneral: row.descripcion_general ?? '',
       })
+      const meta = await fetchMediaMeta(row.id)
+      setMediaMeta(meta)
+      setNewPhotos([])
+      setNewVideo(null)
+      setReplaceMedia(false)
+      setMediaError(null)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'No se pudo abrir el formulario de edicion.'
       setNotice({ type: 'error', message })
@@ -460,6 +732,20 @@ export default function MisCasosPage() {
     if (editLoading) return
     setEditingCaseId(null)
     setEditForm(INITIAL_EDIT_FORM)
+    setNewPhotos([])
+    setNewVideo(null)
+    setReplaceMedia(false)
+    setMediaError(null)
+  }
+
+  const handlePhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? [])
+    setNewPhotos(files)
+  }
+
+  const handleVideoChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null
+    setNewVideo(file)
   }
 
   const saveCaseChanges = async (event: FormEvent) => {
@@ -469,6 +755,8 @@ export default function MisCasosPage() {
     const nombres = editForm.nombres.trim()
     const apellidos = editForm.apellidos.trim()
     const lugarDesaparicion = editForm.lugarDesaparicion.trim()
+    const lugarUltimaVez = editForm.lugarUltimaVez.trim()
+    const ciudad = editForm.ciudad.trim()
     const descripcionGeneral = editForm.descripcionGeneral.trim()
 
     if (!nombres || !apellidos || !lugarDesaparicion || !descripcionGeneral) {
@@ -476,8 +764,20 @@ export default function MisCasosPage() {
       return
     }
 
+    setMediaError(null)
+    try {
+      if (newPhotos.length > 0 || newVideo) {
+        validateEditMedia(newPhotos, newVideo, replaceMedia ? 0 : mediaMeta.total)
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Archivos invalidos.'
+      setMediaError(message)
+      return
+    }
+
     setEditLoading(true)
     try {
+      const ubicacion = buildUbicacionPoint(editForm.lat, editForm.lng)
       await updateCaseForUser(
         editingCaseId,
         user.id,
@@ -486,11 +786,26 @@ export default function MisCasosPage() {
           apellidos,
           fecha_desaparicion: editForm.fechaDesaparicion || null,
           lugar_desaparicion: lugarDesaparicion,
+          lugar_ultima_vez: lugarUltimaVez || null,
+          ciudad: ciudad || null,
+          ubicacion,
           descripcion_general: descripcionGeneral,
           updated_at: new Date().toISOString(),
         },
         true,
       )
+
+      if (newPhotos.length > 0 || newVideo) {
+        if (replaceMedia) {
+          await deleteCaseMedia(mediaMeta)
+        }
+        const nextMeta = replaceMedia
+          ? { total: 0, nextOrder: 1, hasPrincipal: false, ids: [], paths: [] }
+          : mediaMeta
+        await uploadCaseMediaUpdate(editingCaseId, user.id, newPhotos, newVideo, nextMeta)
+        const refreshed = await fetchMediaMeta(editingCaseId)
+        setMediaMeta(refreshed)
+      }
 
       await refetchCases()
       setNotice({ type: 'success', message: 'Caso actualizado correctamente.' })
@@ -523,6 +838,49 @@ export default function MisCasosPage() {
       setNotice({ type: 'error', message })
     } finally {
       setRetireLoadingId(null)
+    }
+  }
+
+  const updateCaseState = async (targetCase: CasoReciente, nextState: UserCaseState) => {
+    if (!user?.id || stateLoadingId) return
+
+    const confirmMessage = `Cambiar estado a "${nextState}" para el caso ${targetCase.numero_caso}?`
+    if (!window.confirm(confirmMessage)) return
+
+    setStateLoadingId(targetCase.id)
+    setNotice(null)
+
+    const basePayload: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    }
+
+    if (nextState === 'encontrado') {
+      basePayload.status = 'encontrado'
+      basePayload.workflow_status = 'found'
+    }
+
+    if (nextState === 'archivado') {
+      basePayload.workflow_status = 'closed'
+    }
+
+    if (nextState === 'publicado') {
+      basePayload.status = 'activo'
+      basePayload.workflow_status = 'pending'
+    }
+
+    if (nextState === 'borrador') {
+      basePayload.workflow_status = null
+    }
+
+    try {
+      await updateCaseForUser(targetCase.id, user.id, basePayload)
+      await refetchCases()
+      setNotice({ type: 'success', message: `Estado actualizado a "${nextState}".` })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo actualizar el estado.'
+      setNotice({ type: 'error', message })
+    } finally {
+      setStateLoadingId(null)
     }
   }
 
@@ -609,6 +967,8 @@ export default function MisCasosPage() {
                 {myCases.map((item) => {
                   const reviewMeta = getReviewMeta(normalizeReviewStatus(item.workflow_status))
                   const retiring = retireLoadingId === item.id
+                  const caseState = getUserCaseState(item)
+                  const updatingState = stateLoadingId === item.id
                   return (
                     <article
                       key={item.id}
@@ -621,9 +981,14 @@ export default function MisCasosPage() {
                             {item.nombres} {item.apellidos}
                           </p>
                         </div>
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${reviewMeta.className}`}>
-                          {reviewMeta.label}
-                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${reviewMeta.className}`}>
+                            {reviewMeta.label}
+                          </span>
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${caseState.className}`}>
+                            {caseState.label}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="flex flex-wrap items-center gap-3 text-xs text-text-secondary">
@@ -662,6 +1027,46 @@ export default function MisCasosPage() {
                           <Trash2 size={12} />
                           {retiring ? 'Retirando...' : 'Retirar'}
                         </button>
+                        {caseState.value !== 'encontrado' && (
+                          <button
+                            type="button"
+                            onClick={() => void updateCaseState(item, 'encontrado')}
+                            className="btn-secondary text-xs !px-3 !py-1.5 inline-flex items-center gap-1"
+                            disabled={updatingState}
+                          >
+                            Marcar encontrada
+                          </button>
+                        )}
+                        {caseState.value !== 'archivado' && (
+                          <button
+                            type="button"
+                            onClick={() => void updateCaseState(item, 'archivado')}
+                            className="btn-secondary text-xs !px-3 !py-1.5 inline-flex items-center gap-1"
+                            disabled={updatingState}
+                          >
+                            Archivar
+                          </button>
+                        )}
+                        {(caseState.value === 'archivado' || caseState.value === 'borrador') && (
+                          <button
+                            type="button"
+                            onClick={() => void updateCaseState(item, 'publicado')}
+                            className="btn-secondary text-xs !px-3 !py-1.5 inline-flex items-center gap-1"
+                            disabled={updatingState}
+                          >
+                            Publicar
+                          </button>
+                        )}
+                        {caseState.value === 'encontrado' && (
+                          <button
+                            type="button"
+                            onClick={() => void updateCaseState(item, 'publicado')}
+                            className="btn-secondary text-xs !px-3 !py-1.5 inline-flex items-center gap-1"
+                            disabled={updatingState}
+                          >
+                            Reabrir
+                          </button>
+                        )}
                       </div>
                     </article>
                   )
@@ -802,6 +1207,36 @@ export default function MisCasosPage() {
                 onChange={(event) => setEditForm((prev) => ({ ...prev, lugarDesaparicion: event.target.value }))}
               />
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <input
+                  className="input-field"
+                  placeholder="Ciudad"
+                  value={editForm.ciudad}
+                  onChange={(event) => setEditForm((prev) => ({ ...prev, ciudad: event.target.value }))}
+                />
+                <input
+                  className="input-field"
+                  placeholder="Lugar ultima vez"
+                  value={editForm.lugarUltimaVez}
+                  onChange={(event) => setEditForm((prev) => ({ ...prev, lugarUltimaVez: event.target.value }))}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <input
+                  className="input-field"
+                  placeholder="Latitud (opcional)"
+                  value={editForm.lat}
+                  onChange={(event) => setEditForm((prev) => ({ ...prev, lat: event.target.value }))}
+                />
+                <input
+                  className="input-field"
+                  placeholder="Longitud (opcional)"
+                  value={editForm.lng}
+                  onChange={(event) => setEditForm((prev) => ({ ...prev, lng: event.target.value }))}
+                />
+              </div>
+
               <textarea
                 rows={4}
                 className="input-field resize-none"
@@ -809,6 +1244,35 @@ export default function MisCasosPage() {
                 value={editForm.descripcionGeneral}
                 onChange={(event) => setEditForm((prev) => ({ ...prev, descripcionGeneral: event.target.value.slice(0, 500) }))}
               />
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Actualizar fotos y video</p>
+                <p className="text-xs text-text-secondary">
+                  Fotos actuales: {mediaMeta.total}. Puedes agregar nuevas o reemplazar todo.
+                </p>
+                <label className="flex items-center gap-2 text-xs text-text-secondary">
+                  <input
+                    type="checkbox"
+                    checked={replaceMedia}
+                    onChange={(event) => setReplaceMedia(event.target.checked)}
+                  />
+                  Reemplazar media actual
+                </label>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={handlePhotoChange}
+                  className="input-field"
+                />
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={handleVideoChange}
+                  className="input-field"
+                />
+                {mediaError && <p className="text-xs text-error">{mediaError}</p>}
+              </div>
 
               <div className="flex items-center justify-end gap-2 pt-1">
                 <button type="button" className="btn-secondary" onClick={closeEditModal} disabled={editLoading}>
