@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom'
 import { ChevronLeft, Eye, Link2, Mail, MapPin, MessageSquare, MoreVertical, Phone, Share2, UserSearch, Video } from 'lucide-react'
 import UserNavbar from '../components/Usernavbar'
 import { Alert, Spinner } from '../../../shared/components/ui'
+import { createCaseComment, getCaseComments, getProfilesBasicByIds, type CaseCommentRow } from '../../../lib/supabase/db'
+import { useAuth } from '../../auth/hooks'
 import { useCasoDetalle } from '../hooks/useMisCasos'
 
 function LabelValue({ label, value }: { label: string; value: string | number | null }) {
@@ -46,6 +48,17 @@ function buildApproximateLocation(city: string | null, country: string | null) {
 }
 
 type ShareNetwork = 'whatsapp' | 'facebook' | 'x'
+type NoticeType = 'error' | 'success' | 'warning' | 'info'
+
+interface PublicComment {
+  id: string
+  caseId: string
+  authorId: string
+  text: string
+  createdAt: string
+}
+
+const PUBLIC_COMMENT_PREFIX = '[PUBLICO]'
 
 function buildCaseShareUrl(caseId: string) {
   if (typeof window === 'undefined') return `/cases?caseId=${caseId}`
@@ -68,12 +81,58 @@ function buildSocialShareUrl(network: ShareNetwork, url: string, text: string) {
   return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`
 }
 
+function toPublicComment(row: CaseCommentRow): PublicComment | null {
+  const rawText = row.comentario.trim()
+  if (!rawText.toUpperCase().startsWith(PUBLIC_COMMENT_PREFIX)) {
+    return null
+  }
+
+  const text = rawText.slice(PUBLIC_COMMENT_PREFIX.length).trim()
+  if (!text) return null
+
+  return {
+    id: row.id,
+    caseId: row.caso_id,
+    authorId: row.autor_id,
+    text,
+    createdAt: row.created_at,
+  }
+}
+
+function formatPublicCommentDate(value: string) {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return 'Reciente'
+  return new Intl.DateTimeFormat('es-DO', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(parsed)
+}
+
+function getPublicCommentAuthorLabel(authorId: string, currentUserId: string | undefined) {
+  if (currentUserId && authorId === currentUserId) return 'Tu'
+  return `Usuario ${authorId.slice(0, 8)}`
+}
+
+function isPublicCommentEnabled(workflowStatus: string | null) {
+  return workflowStatus === 'approved'
+}
+
 export default function CasoDetallePage() {
-  const [shareNotice, setShareNotice] = useState<{ type: 'error' | 'success' | 'warning' | 'info'; message: string } | null>(null)
+  const { user } = useAuth()
+  const [shareNotice, setShareNotice] = useState<{ type: NoticeType; message: string } | null>(null)
+  const [commentNotice, setCommentNotice] = useState<{ type: NoticeType; message: string } | null>(null)
   const [actionsOpen, setActionsOpen] = useState(false)
   const actionsMenuRef = useRef<HTMLDivElement | null>(null)
   const { id = '' } = useParams<{ id: string }>()
   const { data, isLoading, isError, error, refetch } = useCasoDetalle(id)
+  const [publicComments, setPublicComments] = useState<PublicComment[]>([])
+  const [publicCommentDraft, setPublicCommentDraft] = useState('')
+  const [publicCommentsLoading, setPublicCommentsLoading] = useState(false)
+  const [publicCommentsError, setPublicCommentsError] = useState<string | null>(null)
+  const [publicCommentSubmitting, setPublicCommentSubmitting] = useState(false)
+  const [commentAuthorById, setCommentAuthorById] = useState<Record<string, string>>({})
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -85,6 +144,71 @@ export default function CasoDetallePage() {
     document.addEventListener('mousedown', handleOutsideClick)
     return () => document.removeEventListener('mousedown', handleOutsideClick)
   }, [])
+
+  useEffect(() => {
+    if (!data?.caso?.id) return
+
+    const loadPublicComments = async () => {
+      setPublicCommentsLoading(true)
+      setPublicCommentsError(null)
+      try {
+        const rows = await getCaseComments([data.caso.id])
+        const mapped = rows.map(toPublicComment).filter((entry): entry is PublicComment => entry !== null)
+        setPublicComments(mapped)
+
+        const authorityAuthorIds = data.comentarios
+          .map((entry) => entry.autor_id)
+          .filter((value): value is string => Boolean(value))
+        const publicAuthorIds = mapped.map((entry) => entry.authorId)
+        const uniqueAuthors = Array.from(new Set([...authorityAuthorIds, ...publicAuthorIds]))
+        if (uniqueAuthors.length > 0) {
+          try {
+            const profiles = await getProfilesBasicByIds(uniqueAuthors)
+            const profileMap: Record<string, string> = {}
+            profiles.forEach((profile) => {
+              const fullName = [profile.name, profile.last_name].filter(Boolean).join(' ').trim()
+              profileMap[profile.id] = fullName || profile.email || `Usuario ${profile.id.slice(0, 8)}`
+            })
+            setCommentAuthorById(profileMap)
+          } catch {
+            setCommentAuthorById({})
+          }
+        } else {
+          setCommentAuthorById({})
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'No se pudieron cargar los comentarios.'
+        setPublicCommentsError(message)
+        setPublicComments([])
+        setCommentAuthorById({})
+      } finally {
+        setPublicCommentsLoading(false)
+      }
+    }
+
+    void loadPublicComments()
+  }, [data?.caso?.id, data?.comentarios])
+
+  useEffect(() => {
+    if (!data?.comentarios?.length) return
+    const authorityAuthorIds = data.comentarios
+      .map((entry) => entry.autor_id)
+      .filter((value): value is string => Boolean(value))
+    const uniqueAuthors = Array.from(new Set(authorityAuthorIds))
+    if (uniqueAuthors.length === 0) return
+    void getProfilesBasicByIds(uniqueAuthors)
+      .then((profiles) => {
+        const profileMap: Record<string, string> = {}
+        profiles.forEach((profile) => {
+          const fullName = [profile.name, profile.last_name].filter(Boolean).join(' ').trim()
+          profileMap[profile.id] = fullName || profile.email || `Usuario ${profile.id.slice(0, 8)}`
+        })
+        setCommentAuthorById((prev) => ({ ...prev, ...profileMap }))
+      })
+      .catch(() => {
+        return
+      })
+  }, [data?.comentarios])
 
   if (isLoading) {
     return (
@@ -125,6 +249,50 @@ export default function CasoDetallePage() {
   const mainPhoto = photos.find(item => item.es_principal)?.url ?? caso.foto_principal_url ?? photos[0]?.url ?? null
   const safeLocation = buildApproximateLocation(caso.ciudad, caso.pais)
   const fullName = `${caso.nombres} ${caso.apellidos}`.trim()
+  const commentsEnabled = isPublicCommentEnabled(caso.workflow_status)
+
+  const submitPublicComment = async () => {
+    setCommentNotice(null)
+
+    if (!commentsEnabled) {
+      setCommentNotice({ type: 'warning', message: 'Los comentarios solo estan habilitados en publicaciones activas.' })
+      return
+    }
+
+    if (!user?.id) {
+      setCommentNotice({ type: 'warning', message: 'Inicia sesion para comentar en publicaciones activas.' })
+      return
+    }
+
+    const trimmed = publicCommentDraft.trim()
+    if (trimmed.length < 3) {
+      setCommentNotice({ type: 'warning', message: 'Escribe un comentario de al menos 3 caracteres.' })
+      return
+    }
+
+    setPublicCommentSubmitting(true)
+    try {
+      const payload = `${PUBLIC_COMMENT_PREFIX} ${trimmed}`
+      const created = await createCaseComment(caso.id, user.id, payload)
+      setPublicComments((prev) => [
+        ...prev,
+        {
+          id: created.id,
+          caseId: caso.id,
+          authorId: user.id,
+          text: trimmed,
+          createdAt: new Date().toISOString(),
+        },
+      ])
+      setPublicCommentDraft('')
+      setCommentNotice({ type: 'success', message: 'Comentario publicado.' })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo publicar el comentario.'
+      setCommentNotice({ type: 'error', message })
+    } finally {
+      setPublicCommentSubmitting(false)
+    }
+  }
 
   const copyShareLink = async () => {
     const shareUrl = buildCaseShareUrl(caso.id)
@@ -375,7 +543,11 @@ export default function CasoDetallePage() {
                 {comentarios.map(comentario => (
                   <article key={comentario.id} className="border border-border rounded-lg p-4 bg-background/60">
                     <div className="flex items-center justify-between gap-3 flex-wrap">
-                      <p className="text-sm font-semibold text-text-primary">{comentario.autor}</p>
+                      <p className="text-sm font-semibold text-text-primary">
+                        {comentario.autor_id
+                          ? commentAuthorById[comentario.autor_id] ?? comentario.autor
+                          : comentario.autor}
+                      </p>
                       <p className="text-xs text-text-secondary">{formatDateTime(comentario.created_at)}</p>
                     </div>
 
@@ -389,6 +561,70 @@ export default function CasoDetallePage() {
                   </article>
                 ))}
               </div>
+            )}
+          </section>
+
+          <section className="card p-5 space-y-4">
+            <h2 className="text-lg font-semibold text-text-primary">Comentarios publicos</h2>
+            {commentNotice && <Alert type={commentNotice.type} message={commentNotice.message} />}
+
+            {publicCommentsLoading && (
+              <div className="text-sm text-text-secondary">Cargando comentarios...</div>
+            )}
+
+            {publicCommentsError && (
+              <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
+                <p className="text-xs text-text-secondary">{publicCommentsError}</p>
+              </div>
+            )}
+
+            {!publicCommentsLoading && !publicCommentsError && publicComments.length === 0 && (
+              <p className="text-sm text-text-secondary">Aun no hay comentarios publicos para este caso.</p>
+            )}
+
+            {publicComments.length > 0 && (
+              <div className="space-y-3">
+                {publicComments.map((comment) => (
+                  <article key={comment.id} className="border border-border rounded-lg p-4 bg-background/60">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <p className="text-sm font-semibold text-text-primary">
+                        {commentAuthorById[comment.authorId] ??
+                          getPublicCommentAuthorLabel(comment.authorId, user?.id)}
+                      </p>
+                      <p className="text-xs text-text-secondary">{formatPublicCommentDate(comment.createdAt)}</p>
+                    </div>
+                    <p className="text-sm text-text-primary mt-2 whitespace-pre-wrap">{comment.text}</p>
+                  </article>
+                ))}
+              </div>
+            )}
+
+            {commentsEnabled ? (
+              <div className="space-y-2">
+                <textarea
+                  rows={3}
+                  value={publicCommentDraft}
+                  onChange={(event) => setPublicCommentDraft(event.target.value.slice(0, 300))}
+                  placeholder={user ? 'Escribe un comentario de apoyo o informacion util...' : 'Inicia sesion para comentar'}
+                  className="input-field resize-none"
+                  disabled={!user || publicCommentSubmitting}
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] text-text-secondary">{publicCommentDraft.length}/300</p>
+                  <button
+                    type="button"
+                    onClick={() => void submitPublicComment()}
+                    className="btn-primary !px-4 !py-2 text-xs"
+                    disabled={!user || !publicCommentDraft.trim() || publicCommentSubmitting}
+                  >
+                    {publicCommentSubmitting ? 'Publicando...' : 'Comentar'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-text-secondary">
+                Comentarios cerrados: solo se permite comentar en publicaciones activas.
+              </p>
             )}
           </section>
 

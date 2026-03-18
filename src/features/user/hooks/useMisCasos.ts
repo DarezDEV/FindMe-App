@@ -58,6 +58,7 @@ export interface CasoMedia {
 
 export interface CasoComentario {
   id: string
+  autor_id: string | null
   autor: string
   contenido: string
   estado: string | null
@@ -238,6 +239,7 @@ function isResolvedCase(status: string | null, workflowStatus: string | null) {
 }
 
 function shouldIncludeCase(status: string | null, workflowStatus: string | null, options: FetchCaseOptions) {
+  const normalizedStatus = status?.trim().toLowerCase() ?? ''
   const normalizedWorkflowStatus = workflowStatus?.trim().toLowerCase() ?? ''
   if (options.hideRejected && normalizedWorkflowStatus === 'rejected') {
     return false
@@ -295,7 +297,11 @@ function normalizeCommentRow(row: Record<string, unknown>, index: number): CasoC
   if (!contenido) return null
 
   const normalizedContent = contenido.trim().toUpperCase()
-  if (normalizedContent.startsWith('[AVISTAMIENTO]') || normalizedContent.startsWith('[REPORTE_CONTENIDO]')) {
+  if (
+    normalizedContent.startsWith('[PUBLICO]') ||
+    normalizedContent.startsWith('[AVISTAMIENTO]') ||
+    normalizedContent.startsWith('[REPORTE_CONTENIDO]')
+  ) {
     return null
   }
 
@@ -308,11 +314,12 @@ function normalizeCommentRow(row: Record<string, unknown>, index: number): CasoC
     'created_by_name',
   ])
 
-  const autoridadId = pickText(row, ['autoridad_id', 'creado_por', 'created_by', 'user_id'])
+  const autoridadId = pickText(row, ['autor_id', 'autoridad_id', 'creado_por', 'created_by', 'user_id'])
   const autor = autoridadNombre ?? (autoridadId ? `Autoridad ${autoridadId.slice(0, 8)}` : 'Autoridad')
 
   return {
     id: toCommentId(row.id, `comentario-${index + 1}`),
+    autor_id: autoridadId,
     autor,
     contenido,
     estado: pickText(row, ['estado', 'status', 'tipo']),
@@ -331,25 +338,9 @@ function isCommentListRecoverableError(message: string) {
 }
 
 async function fetchRowsByCaseId(table: string, caseId: string) {
-  const attempts = [
-    () => supabase.from(table).select('*').eq('caso_id', caseId),
-    () => supabase.from(table).select('*').eq('case_id', caseId),
-  ]
-
-  const errors: string[] = []
-  for (const runQuery of attempts) {
-    const response = await runQuery()
-    if (!response.error) return response.data ?? []
-
-    const message = response.error.message.toLowerCase()
-    if (message.includes('column') && message.includes('does not exist')) {
-      errors.push(response.error.message)
-      continue
-    }
-    throw response.error
-  }
-
-  return [] as unknown[]
+  const response = await supabase.from(table).select('*').eq('caso_id', caseId)
+  if (!response.error) return response.data ?? []
+  throw response.error
 }
 
 async function fetchCaseComments(caseId: string) {
@@ -370,41 +361,24 @@ async function fetchCaseComments(caseId: string) {
 async function fetchMediaForCases(caseIds: string[]) {
   if (caseIds.length === 0) return [] as CasoMedia[]
 
-  const attempts = [
-    () => supabase.from('media_case').select(MEDIA_SELECT).in('caso_id', caseIds).order('orden', { ascending: true }),
-    () => supabase.from('media_case').select(MEDIA_SELECT).in('case_id', caseIds).order('orden', { ascending: true }),
-  ]
+  const response = await supabase
+    .from('media_case')
+    .select(MEDIA_SELECT)
+    .in('caso_id', caseIds)
+    .order('orden', { ascending: true })
 
-  let data: CasoMedia[] | null = null
-  let error: { message: string } | null = null
-
-  for (const runQuery of attempts) {
-    const response = await runQuery()
-    if (!response.error) {
-      data = (response.data ?? []) as CasoMedia[]
-      error = null
-      break
-    }
-    error = response.error
+  if (response.error) {
     const message = response.error.message.toLowerCase()
-    if (message.includes('column') && message.includes('does not exist')) {
-      continue
-    }
-    break
-  }
-
-  if (error) {
-    const message = error.message.toLowerCase()
     if (message.includes('row-level security policy') || message.includes('permission denied')) {
       return [] as CasoMedia[]
     }
-    throw error
+    throw response.error
   }
 
-  const rows = (data ?? []) as Array<Record<string, unknown>>
+  const rows = (response.data ?? []) as Array<Record<string, unknown>>
   return rows.map((row) => ({
     id: String(row.id ?? ''),
-    caso_id: (row.caso_id as string | undefined) ?? (row.case_id as string | undefined) ?? '',
+    caso_id: (row.caso_id as string | undefined) ?? '',
     tipo: (row.tipo as CasoMedia['tipo']) ?? 'foto',
     url: (row.url as string) ?? '',
     es_principal: Boolean(row.es_principal ?? row.is_primary ?? row.principal ?? false),

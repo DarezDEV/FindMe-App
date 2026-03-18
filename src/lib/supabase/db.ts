@@ -536,23 +536,53 @@ export interface CaseCommentRow {
   created_at: string
 }
 
+function normalizeCaseCommentRow(row: Record<string, unknown>): CaseCommentRow {
+  const casoId = (row.caso_id as string | undefined) ?? ''
+  return {
+    id: String(row.id ?? ''),
+    caso_id: casoId,
+    autor_id: String(row.autor_id ?? ''),
+    comentario: String(row.comentario ?? ''),
+    created_at: String(row.created_at ?? ''),
+  }
+}
+
 export async function getCaseComments(caseIds: string[]): Promise<CaseCommentRow[]> {
   if (caseIds.length === 0) return []
 
-  const { data, error } = await withRetry(() =>
-    supabase
-      .from('case_comments')
-      .select('id, caso_id, autor_id, comentario, created_at')
-      .in('caso_id', caseIds)
-      .order('created_at', { ascending: true }),
-  )
+  const attempts = [
+    () =>
+      supabase
+        .from('case_comments')
+        .select('id, caso_id, autor_id, comentario, created_at')
+        .in('caso_id', caseIds)
+        .order('created_at', { ascending: true }),
+  ]
+
+  let data: Array<Record<string, unknown>> | null = null
+  let error: { message: string } | null = null
+
+  for (const runQuery of attempts) {
+    const response = await withRetry(runQuery)
+    if (!response.error) {
+      data = (response.data ?? []) as Array<Record<string, unknown>>
+      error = null
+      break
+    }
+    error = response.error
+    const message = response.error.message.toLowerCase()
+    if (message.includes('column') && message.includes('does not exist')) {
+      continue
+    }
+    break
+  }
 
   if (error) {
     console.error('[getCaseComments] Error:', error)
     throw error
   }
 
-  return (data ?? []) as CaseCommentRow[]
+  return (data ?? []).map(normalizeCaseCommentRow)
 }
 
 export async function createCaseComment(
@@ -560,17 +590,36 @@ export async function createCaseComment(
   authorId: string,
   comment: string,
 ): Promise<{ id: string }> {
-  const { data, error } = await withRetry(() =>
-    supabase
-      .from('case_comments')
-      .insert({
-        caso_id: caseId,
-        autor_id: authorId,
-        comentario: comment,
-      })
-      .select('id')
-      .single(),
-  )
+  const attempts = [
+    () =>
+      supabase
+        .from('case_comments')
+        .insert({
+          caso_id: caseId,
+          autor_id: authorId,
+          comentario: comment,
+        })
+        .select('id')
+        .single(),
+  ]
+
+  let data: { id: string } | null = null
+  let error: { message: string } | null = null
+
+  for (const runInsert of attempts) {
+    const response = await withRetry(runInsert)
+    if (!response.error) {
+      data = response.data as { id: string }
+      error = null
+      break
+    }
+    error = response.error
+    const message = response.error.message.toLowerCase()
+    if (message.includes('column') && message.includes('does not exist')) {
+      continue
+    }
+    break
+  }
 
   if (error) {
     console.error('[createCaseComment] Error:', error)

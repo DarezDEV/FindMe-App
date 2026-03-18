@@ -4,6 +4,7 @@ import { AlertTriangle, Calendar, ChevronLeft, Clock3, Edit3, Eye, MapPin, Trash
 import { useAuth } from '../../auth/hooks'
 import { Alert, Spinner } from '../../../shared/components/ui'
 import { supabase } from '../../../lib/supabase/client'
+import { getProfilesBasicByIds } from '../../../lib/supabase/db'
 import { uploadFile } from '../../../shared/utils/api'
 import UserNavbar from '../components/Usernavbar'
 import { type CasoReciente, useMisCasos } from '../hooks/useMisCasos'
@@ -25,6 +26,14 @@ interface UserSighting {
   lugar: string
   descripcion: string
   status: SightingStatus
+  createdAt: string | null
+}
+
+interface CaseComment {
+  id: string
+  caseId: string
+  authorId: string
+  text: string
   createdAt: string | null
 }
 
@@ -213,37 +222,29 @@ function buildUbicacionPoint(lat: string, lng: string) {
 }
 
 async function fetchMediaMeta(caseId: string): Promise<MediaMeta> {
-  const attempts = [
-    () => supabase.from('media_case').select('id, storage_path, es_principal, orden').eq('caso_id', caseId),
-    () => supabase.from('media_case').select('id, storage_path, es_principal, orden').eq('case_id', caseId),
-  ]
+  const response = await supabase
+    .from('media_case')
+    .select('id, storage_path, es_principal, orden')
+    .eq('caso_id', caseId)
 
-  for (const runQuery of attempts) {
-    const response = await runQuery()
-    if (!response.error) {
-      const rows = (response.data ?? []) as Array<Record<string, unknown>>
-      const maxOrder = rows.reduce((acc, row) => Math.max(acc, Number(row.orden ?? 0)), 0)
-      const hasPrincipal = rows.some(row => Boolean(row.es_principal))
-      const ids = rows.map(row => String(row.id ?? '')).filter(Boolean)
-      const paths = rows
-        .map(row => (row.storage_path as string | undefined) ?? '')
-        .filter(Boolean)
-      return {
-        total: rows.length,
-        nextOrder: maxOrder + 1,
-        hasPrincipal,
-        ids,
-        paths,
-      }
-    }
-
-    const message = response.error.message.toLowerCase()
-    if (message.includes('column') && message.includes('does not exist')) {
-      continue
-    }
+  if (response.error) {
+    return { total: 0, nextOrder: 1, hasPrincipal: false, ids: [], paths: [] }
   }
 
-  return { total: 0, nextOrder: 1, hasPrincipal: false, ids: [], paths: [] }
+  const rows = (response.data ?? []) as Array<Record<string, unknown>>
+  const maxOrder = rows.reduce((acc, row) => Math.max(acc, Number(row.orden ?? 0)), 0)
+  const hasPrincipal = rows.some(row => Boolean(row.es_principal))
+  const ids = rows.map(row => String(row.id ?? '')).filter(Boolean)
+  const paths = rows
+    .map(row => (row.storage_path as string | undefined) ?? '')
+    .filter(Boolean)
+  return {
+    total: rows.length,
+    nextOrder: maxOrder + 1,
+    hasPrincipal,
+    ids,
+    paths,
+  }
 }
 
 function validateEditMedia(photos: File[], video: File | null, existingTotal: number) {
@@ -330,30 +331,8 @@ async function uploadCaseMediaUpdate(
 
   if (mediaRows.length === 0) return
 
-  const attempts = [
-    () => supabase.from('media_case').insert(mediaRows),
-    () =>
-      supabase.from('media_case').insert(
-        mediaRows.map((row) => {
-          const { caso_id: _, ...rest } = row
-          return { ...rest, case_id: caseId }
-        }),
-      ),
-  ]
-
-  let lastError: string | null = null
-  for (const runInsert of attempts) {
-    const { error } = await runInsert()
-    if (!error) return
-    lastError = error.message
-    const message = error.message.toLowerCase()
-    if (message.includes('column') && message.includes('does not exist')) {
-      continue
-    }
-    throw error
-  }
-
-  if (lastError) throw new Error(lastError)
+  const { error } = await supabase.from('media_case').insert(mediaRows)
+  if (error) throw error
 }
 
 async function deleteCaseMedia(meta: MediaMeta) {
@@ -544,12 +523,66 @@ function formatRelativeDate(value: string | null) {
   })
 }
 
+function formatCommentDate(value: string | null) {
+  if (!value) return 'Reciente'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleString('es-DO', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function normalizeCommentRow(row: Record<string, unknown>): CaseComment | null {
+  const rawText = typeof row.comentario === 'string' ? row.comentario.trim() : ''
+  if (!rawText) return null
+
+  const upper = rawText.toUpperCase()
+  if (upper.startsWith('[PUBLICO]') || upper.startsWith('[AVISTAMIENTO]') || upper.startsWith('[REPORTE_CONTENIDO]')) {
+    return null
+  }
+
+  const caseId = (row.caso_id as string | undefined) ?? ''
+  if (!caseId) return null
+
+  return {
+    id: String(row.id ?? ''),
+    caseId,
+    authorId: String(row.autor_id ?? ''),
+    text: rawText,
+    createdAt: (row.created_at as string | null) ?? null,
+  }
+}
+
+async function fetchCaseCommentsByIds(caseIds: string[]) {
+  if (caseIds.length === 0) return [] as CaseComment[]
+
+  const response = await supabase
+    .from('case_comments')
+    .select('id, caso_id, autor_id, comentario, created_at')
+    .in('caso_id', caseIds)
+    .order('created_at', { ascending: true })
+
+  if (response.error) throw response.error
+
+  return (response.data ?? [])
+    .map((row) => normalizeCommentRow(row as Record<string, unknown>))
+    .filter((row): row is CaseComment => row !== null)
+}
+
 export default function MisCasosPage() {
   const { user, loading: authLoading } = useAuth()
   const [notice, setNotice] = useState<NoticeState | null>(null)
   const [sightings, setSightings] = useState<UserSighting[]>([])
   const [sightingsLoading, setSightingsLoading] = useState(false)
   const [sightingsError, setSightingsError] = useState<string | null>(null)
+  const [commentsByCaseId, setCommentsByCaseId] = useState<Record<string, CaseComment[]>>({})
+  const [commentsLoading, setCommentsLoading] = useState(false)
+  const [commentsError, setCommentsError] = useState<string | null>(null)
+  const [commentAuthorById, setCommentAuthorById] = useState<Record<string, string>>({})
+  const [expandedCommentsByCaseId, setExpandedCommentsByCaseId] = useState<Record<string, boolean>>({})
   const [externalCaseReferenceById, setExternalCaseReferenceById] = useState<Record<string, CaseReference>>({})
   const [editingCaseId, setEditingCaseId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<EditCaseForm>(INITIAL_EDIT_FORM)
@@ -584,6 +617,47 @@ export default function MisCasosPage() {
     () => ({ ...externalCaseReferenceById, ...ownCaseReferenceById }),
     [externalCaseReferenceById, ownCaseReferenceById],
   )
+
+  const loadCaseComments = useCallback(async () => {
+    if (!user?.id) return
+    const caseIds = myCases.map((item) => item.id)
+    setCommentsLoading(true)
+    setCommentsError(null)
+
+    try {
+      const comments = await fetchCaseCommentsByIds(caseIds)
+      const grouped: Record<string, CaseComment[]> = {}
+      comments.forEach((comment) => {
+        if (!grouped[comment.caseId]) grouped[comment.caseId] = []
+        grouped[comment.caseId].push(comment)
+      })
+      setCommentsByCaseId(grouped)
+
+      const authorIds = Array.from(new Set(comments.map((comment) => comment.authorId).filter(Boolean)))
+      if (authorIds.length > 0) {
+        try {
+          const profiles = await getProfilesBasicByIds(authorIds)
+          const mapped: Record<string, string> = {}
+          profiles.forEach((profile) => {
+            const fullName = [profile.name, profile.last_name].filter(Boolean).join(' ').trim()
+            mapped[profile.id] = fullName || profile.email || `Usuario ${profile.id.slice(0, 8)}`
+          })
+          setCommentAuthorById(mapped)
+        } catch {
+          setCommentAuthorById({})
+        }
+      } else {
+        setCommentAuthorById({})
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudieron cargar los comentarios.'
+      setCommentsError(message)
+      setCommentsByCaseId({})
+      setCommentAuthorById({})
+    } finally {
+      setCommentsLoading(false)
+    }
+  }, [myCases, user?.id])
 
   const loadMySightings = useCallback(async () => {
     if (!user?.id) return
@@ -669,6 +743,10 @@ export default function MisCasosPage() {
   useEffect(() => {
     void loadMySightings()
   }, [loadMySightings])
+
+  useEffect(() => {
+    void loadCaseComments()
+  }, [loadCaseComments])
 
   const openEditModal = async (targetCase: CasoReciente) => {
     if (!user?.id) return
@@ -969,6 +1047,9 @@ export default function MisCasosPage() {
                   const retiring = retireLoadingId === item.id
                   const caseState = getUserCaseState(item)
                   const updatingState = stateLoadingId === item.id
+                  const caseComments = commentsByCaseId[item.id] ?? []
+                  const isExpanded = expandedCommentsByCaseId[item.id] ?? false
+                  const visibleComments = isExpanded ? caseComments : caseComments.slice(-3)
                   return (
                     <article
                       key={item.id}
@@ -1066,6 +1147,59 @@ export default function MisCasosPage() {
                           >
                             Reabrir
                           </button>
+                        )}
+                      </div>
+
+                      <div className="border-t border-border pt-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-semibold text-text-primary">Comentarios</p>
+                          <span className="text-[11px] text-text-secondary">
+                            {commentsLoading ? 'Cargando...' : caseComments.length}
+                          </span>
+                        </div>
+
+                        {commentsError && (
+                          <p className="text-[11px] text-error">{commentsError}</p>
+                        )}
+
+                        {!commentsLoading && caseComments.length === 0 && !commentsError && (
+                          <p className="text-xs text-text-secondary">Aun no hay comentarios para este caso.</p>
+                        )}
+
+                        {caseComments.length > 0 && (
+                          <div className="space-y-2">
+                            {visibleComments.map((comment) => (
+                              <div key={comment.id} className="rounded-md border border-border bg-background px-3 py-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-[11px] font-semibold text-text-primary">
+                                    {comment.authorId === user?.id
+                                      ? 'Tu'
+                                      : commentAuthorById[comment.authorId] ?? `Usuario ${comment.authorId.slice(0, 8)}`}
+                                  </p>
+                                  <p className="text-[11px] text-text-secondary">
+                                    {formatCommentDate(comment.createdAt)}
+                                  </p>
+                                </div>
+                                <p className="text-sm text-text-primary mt-1 whitespace-pre-wrap">
+                                  {comment.text}
+                                </p>
+                              </div>
+                            ))}
+                            {caseComments.length > 3 && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedCommentsByCaseId((prev) => ({
+                                    ...prev,
+                                    [item.id]: !isExpanded,
+                                  }))
+                                }
+                                className="text-xs text-primary hover:underline self-start"
+                              >
+                                {isExpanded ? 'Ver menos' : 'Ver mas'}
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     </article>
