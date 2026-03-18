@@ -511,6 +511,27 @@ export async function getProfilesBasicByIds(userIds: string[]): Promise<ProfileB
   return (data ?? []) as ProfileBasicRow[]
 }
 
+export async function getUserRolesByIds(userIds: string[]): Promise<Record<string, AppRole[]>> {
+  if (userIds.length === 0) return {}
+
+  const uniqueIds = [...new Set(userIds.filter(Boolean))]
+  if (uniqueIds.length === 0) return {}
+
+  const { data, error } = await withRetry(() =>
+    supabase
+      .from('user_roles')
+      .select('user_id, roles(name)')
+      .in('user_id', uniqueIds),
+  )
+
+  if (error) {
+    console.error('[getUserRolesByIds] Error:', error)
+    throw error
+  }
+
+  return buildRoleMap((data ?? []) as UserRoleRelationRow[])
+}
+
 export async function updateCaseWorkflowStatus(caseId: string, status: CaseWorkflowStatus): Promise<void> {
   const { error } = await withRetry(() =>
     supabase

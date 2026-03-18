@@ -6,10 +6,12 @@ import {
   createCaseComment,
   getAuthorityCases,
   getCaseComments,
+  getProfilesBasicByIds,
   type AuthorityCaseRow,
   type CaseCommentRow,
 } from '../../../lib/supabase/db'
 import { useAuth } from '../../auth/hooks'
+import { reportarComentarioPublico } from '../../user/services/reportes'
 
 type PublicFilter = 'all' | WorkflowStatus
 type SocialNetwork = 'whatsapp' | 'facebook' | 'x'
@@ -130,6 +132,8 @@ export default function PublicCasesPage() {
   const [submittingCommentCaseId, setSubmittingCommentCaseId] = useState<string | null>(null)
   const [notice, setNotice] = useState<NoticeState | null>(null)
   const [highlightCaseId, setHighlightCaseId] = useState<string | null>(null)
+  const [commentAuthorById, setCommentAuthorById] = useState<Record<string, string>>({})
+  const [reportingCommentId, setReportingCommentId] = useState<string | null>(null)
 
   const loadCases = useCallback(async () => {
     setLoading(true)
@@ -156,11 +160,32 @@ export default function PublicCasesPage() {
 
       setRows(publicRows)
       setCommentsByCaseId(commentMap)
+
+      const authorIds = Object.values(commentMap)
+        .flat()
+        .map((comment) => comment.authorId)
+        .filter(Boolean)
+      if (authorIds.length > 0) {
+        try {
+          const profiles = await getProfilesBasicByIds(authorIds)
+          const mapped: Record<string, string> = {}
+          profiles.forEach((profile) => {
+            const fullName = [profile.name, profile.last_name].filter(Boolean).join(' ').trim()
+            mapped[profile.id] = fullName || profile.email || `Usuario ${profile.id.slice(0, 8)}`
+          })
+          setCommentAuthorById(mapped)
+        } catch {
+          setCommentAuthorById({})
+        }
+      } else {
+        setCommentAuthorById({})
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'No se pudieron cargar los casos.'
       setError(message)
       setRows([])
       setCommentsByCaseId({})
+      setCommentAuthorById({})
     } finally {
       setLoading(false)
     }
@@ -297,6 +322,15 @@ export default function PublicCasesPage() {
           ...prev,
           [item.id]: [...(prev[item.id] ?? []), newComment],
         }))
+        if (user?.id) {
+          const displayName = [user.name, user.last_nmae].filter(Boolean).join(' ').trim()
+          if (displayName) {
+            setCommentAuthorById((prev) => ({
+              ...prev,
+              [user.id]: displayName,
+            }))
+          }
+        }
         setCommentDraftByCaseId((prev) => ({ ...prev, [item.id]: '' }))
         setNotice({ type: 'success', message: 'Comentario publicado.' })
       } catch (err) {
@@ -307,6 +341,39 @@ export default function PublicCasesPage() {
       }
     },
     [commentDraftByCaseId, user?.id]
+  )
+
+  const reportPublicComment = useCallback(
+    async (caseId: string, comment: PublicComment) => {
+      setNotice(null)
+      if (!user?.id) {
+        setNotice({ type: 'warning', message: 'Inicia sesion para reportar comentarios.' })
+        return
+      }
+
+      const motivo = window.prompt('Motivo del reporte (ej: acoso, datos personales).')?.trim() ?? ''
+      if (!motivo) return
+
+      const detalle = window.prompt('Detalle adicional (opcional).')?.trim() ?? ''
+
+      setReportingCommentId(comment.id)
+      try {
+        await reportarComentarioPublico({
+          casoId: caseId,
+          comentarioId: comment.id,
+          motivo,
+          descripcion: detalle,
+          comentarioTexto: comment.text,
+        })
+        setNotice({ type: 'success', message: 'Comentario reportado. Gracias por ayudarnos.' })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'No se pudo reportar el comentario.'
+        setNotice({ type: 'error', message })
+      } finally {
+        setReportingCommentId(null)
+      }
+    },
+    [user?.id]
   )
 
   return (
@@ -481,11 +548,21 @@ export default function PublicCasesPage() {
                           <article key={comment.id} className="rounded-md border border-border bg-background px-3 py-2">
                             <div className="flex items-center justify-between gap-2">
                               <p className="text-xs font-semibold text-text-primary">
-                                {getCommentAuthorLabel(comment.authorId, user?.id)}
+                                {commentAuthorById[comment.authorId] ?? getCommentAuthorLabel(comment.authorId, user?.id)}
                               </p>
                               <p className="text-[11px] text-text-secondary">{formatCommentDate(comment.createdAt)}</p>
                             </div>
                             <p className="text-sm text-text-primary mt-1 whitespace-pre-wrap">{comment.text}</p>
+                            <div className="mt-2 flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => void reportPublicComment(item.id, comment)}
+                                className="text-[11px] text-text-secondary hover:text-primary"
+                                disabled={reportingCommentId === comment.id}
+                              >
+                                {reportingCommentId === comment.id ? 'Reportando...' : 'Reportar'}
+                              </button>
+                            </div>
                           </article>
                         ))}
                       </div>

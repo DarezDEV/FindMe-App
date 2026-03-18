@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   AlertTriangle,
   Bell,
@@ -11,7 +11,6 @@ import {
   Menu,
   Plus,
   Search,
-  Settings,
   User,
   UserSearch,
   X,
@@ -175,7 +174,9 @@ export default function UserNavbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
   const ref = useRef<HTMLDivElement>(null)
+  const location = useLocation()
 
   const { data: myCases = [], isLoading: casesLoading } = useMisCasos(user?.id ?? '', 6)
 
@@ -192,6 +193,17 @@ export default function UserNavbar() {
   const closeAll = () => {
     setOpen(null)
     setMobileOpen(false)
+  }
+
+  const handleSearchSubmit = (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault()
+    const trimmed = searchTerm.trim()
+    if (trimmed) {
+      navigate(`/user?q=${encodeURIComponent(trimmed)}`)
+    } else {
+      navigate('/user')
+    }
+    closeAll()
   }
 
   const handleLogout = async () => {
@@ -221,6 +233,12 @@ export default function UserNavbar() {
     return () => window.removeEventListener('scroll', handler)
   }, [])
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const q = params.get('q') ?? ''
+    setSearchTerm(q)
+  }, [location.pathname, location.search])
+
   return (
     <>
       <style>{`
@@ -248,7 +266,7 @@ export default function UserNavbar() {
               </span>
             </Link>
 
-            <div className="flex-1 max-w-md hidden md:block">
+            <form className="flex-1 max-w-md hidden md:block" onSubmit={handleSearchSubmit}>
               <div className="relative">
                 <Search
                   size={15}
@@ -258,9 +276,11 @@ export default function UserNavbar() {
                   type="text"
                   placeholder="Buscar casos por nombre o numero"
                   className="input-field pl-9 py-2 text-sm"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
                 />
               </div>
-            </div>
+            </form>
 
             <div className="flex items-center gap-0.5">
               
@@ -397,7 +417,6 @@ export default function UserNavbar() {
                       {[
                         { icon: <User size={15} />, label: 'Mi perfil', to: '/perfil' },
                         { icon: <CheckCircle size={15} />, label: 'Mis casos', to: '/mis-casos' },
-                        { icon: <Settings size={15} />, label: 'Configuracion', to: '/configuracion' },
                       ].map(item => (
                         <Link
                           key={item.label}
@@ -437,13 +456,19 @@ export default function UserNavbar() {
 
         {mobileOpen && (
           <div className="md:hidden border-t border-border bg-card px-4 py-3 space-y-1">
-            <div className="relative mb-3">
+            <form className="relative mb-3" onSubmit={handleSearchSubmit}>
               <Search
                 size={15}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none"
               />
-              <input type="text" placeholder="Buscar casos" className="input-field pl-9 py-2 text-sm" />
-            </div>
+              <input
+                type="text"
+                placeholder="Buscar casos"
+                className="input-field pl-9 py-2 text-sm"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+              />
+            </form>
             {[
               { icon: <UserSearch size={16} />, label: 'Nuevo reporte', to: '/publicar' },
               { icon: <MapPin size={16} />, label: 'Reportar avistamiento', to: '/avistamiento' },

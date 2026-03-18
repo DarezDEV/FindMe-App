@@ -3,9 +3,16 @@ import { Link, useParams } from 'react-router-dom'
 import { ChevronLeft, Eye, Link2, Mail, MapPin, MessageSquare, MoreVertical, Phone, Share2, UserSearch, Video } from 'lucide-react'
 import UserNavbar from '../components/Usernavbar'
 import { Alert, Spinner } from '../../../shared/components/ui'
-import { createCaseComment, getCaseComments, getProfilesBasicByIds, type CaseCommentRow } from '../../../lib/supabase/db'
+import {
+  createCaseComment,
+  getCaseComments,
+  getProfilesBasicByIds,
+  getUserRolesByIds,
+  type CaseCommentRow,
+} from '../../../lib/supabase/db'
 import { useAuth } from '../../auth/hooks'
 import { useCasoDetalle } from '../hooks/useMisCasos'
+import { reportarComentarioPublico } from '../services/reportes'
 
 function LabelValue({ label, value }: { label: string; value: string | number | null }) {
   return (
@@ -40,6 +47,14 @@ function formatStatusLabel(status: string) {
   if (status === 'encontrado') return 'Reunificada'
   if (status === 'cerrado') return 'Archivada'
   return 'Publicada'
+}
+
+function getPosterTitle(status: string | null, workflowStatus: string | null) {
+  const normalizedStatus = status?.toLowerCase() ?? ''
+  if (normalizedStatus === 'encontrado' || workflowStatus === 'found' || workflowStatus === 'closed') {
+    return 'ENCONTRADO'
+  }
+  return 'DESAPARECIDO'
 }
 
 function buildApproximateLocation(city: string | null, country: string | null) {
@@ -119,6 +134,17 @@ function isPublicCommentEnabled(workflowStatus: string | null) {
   return workflowStatus === 'approved'
 }
 
+function formatPosterDate(value: string | null) {
+  if (!value) return 'Fecha no disponible'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleDateString('es-DO', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
 export default function CasoDetallePage() {
   const { user } = useAuth()
   const [shareNotice, setShareNotice] = useState<{ type: NoticeType; message: string } | null>(null)
@@ -133,6 +159,9 @@ export default function CasoDetallePage() {
   const [publicCommentsError, setPublicCommentsError] = useState<string | null>(null)
   const [publicCommentSubmitting, setPublicCommentSubmitting] = useState(false)
   const [commentAuthorById, setCommentAuthorById] = useState<Record<string, string>>({})
+  const [commentRolesById, setCommentRolesById] = useState<Record<string, string[]>>({})
+  const [reportingCommentId, setReportingCommentId] = useState<string | null>(null)
+  const [pdfLoading, setPdfLoading] = useState(false)
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -164,23 +193,28 @@ export default function CasoDetallePage() {
         if (uniqueAuthors.length > 0) {
           try {
             const profiles = await getProfilesBasicByIds(uniqueAuthors)
+            const roles = await getUserRolesByIds(uniqueAuthors)
             const profileMap: Record<string, string> = {}
             profiles.forEach((profile) => {
               const fullName = [profile.name, profile.last_name].filter(Boolean).join(' ').trim()
               profileMap[profile.id] = fullName || profile.email || `Usuario ${profile.id.slice(0, 8)}`
             })
             setCommentAuthorById(profileMap)
+            setCommentRolesById(roles)
           } catch {
             setCommentAuthorById({})
+            setCommentRolesById({})
           }
         } else {
           setCommentAuthorById({})
+          setCommentRolesById({})
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'No se pudieron cargar los comentarios.'
         setPublicCommentsError(message)
         setPublicComments([])
         setCommentAuthorById({})
+        setCommentRolesById({})
       } finally {
         setPublicCommentsLoading(false)
       }
@@ -250,6 +284,270 @@ export default function CasoDetallePage() {
   const safeLocation = buildApproximateLocation(caso.ciudad, caso.pais)
   const fullName = `${caso.nombres} ${caso.apellidos}`.trim()
   const commentsEnabled = isPublicCommentEnabled(caso.workflow_status)
+  const authorityComments = comentarios.filter((comentario) => {
+    if (!comentario.autor_id) return false
+    if (Object.keys(commentRolesById).length === 0) return true
+    const roles = commentRolesById[comentario.autor_id] ?? []
+    return roles.includes('authority') || roles.includes('admin')
+  })
+  const posterTitle = getPosterTitle(caso.status, caso.workflow_status)
+  const posterDate = formatPosterDate(caso.fecha_desaparicion)
+
+  const posterStyles = `
+    :root {
+      --primary: #3266db;
+      --primary-dark: #2954b8;
+      --text: #0f172a;
+      --muted: #475569;
+      --border: #e2e8f0;
+      --bg: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+    .poster {
+      max-width: 820px;
+      margin: 0 auto;
+      border: 1px solid var(--border);
+    }
+    .banner {
+      background: var(--primary);
+      color: white;
+      text-align: center;
+      padding: 28px 16px;
+      font-size: 44px;
+      letter-spacing: 2px;
+      font-weight: 800;
+    }
+    .body {
+      padding: 20px 24px 28px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 20px;
+      align-items: center;
+    }
+    .photo {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .photo.placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      background: #f8fafc;
+    }
+    .info {
+      border: 2px solid var(--primary);
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .info h3 {
+      margin: 0 0 8px 0;
+      font-size: 18px;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+    .info .date {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--primary-dark);
+      margin: 8px 0 12px;
+    }
+    .info ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .name {
+      margin: 22px 0 0;
+      background: #0f172a;
+      color: white;
+      text-align: center;
+      padding: 14px;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+    }
+    .contact {
+      margin-top: 18px;
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+      text-align: center;
+    }
+    .contact h4 {
+      margin: 0 0 8px;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .contact p {
+      margin: 4px 0;
+      font-weight: 700;
+      font-size: 18px;
+    }
+    .footer-note {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    @media print {
+      body { background: white; }
+      .poster { border: none; }
+    }
+  `
+
+  const buildPosterMarkup = () => {
+    const contactPhone = caso.telefono_contacto?.trim()
+    const contactEmail = caso.email_contacto?.trim()
+    const contactVisible = caso.visibilidad_contacto !== 'privado'
+    const locationLabel = caso.lugar_ultima_vez || caso.lugar_desaparicion || safeLocation
+    const photoHtml = mainPhoto
+      ? `<img src="${mainPhoto}" alt="Foto del caso" class="photo" crossorigin="anonymous" />`
+      : `<div class="photo placeholder">Sin foto disponible</div>`
+
+    return `
+      <div class="poster">
+        <div class="banner">${posterTitle}</div>
+        <div class="body">
+          <div class="row">
+            <div>${photoHtml}</div>
+            <div class="info">
+              <h3>${posterTitle} desde</h3>
+              <div class="date">${posterDate}</div>
+              <ul>
+                <li>Ciudad: ${caso.ciudad ?? 'No disponible'}</li>
+                <li>Lugar: ${locationLabel ?? 'No disponible'}</li>
+                <li>Numero de caso: ${caso.numero_caso}</li>
+              </ul>
+            </div>
+          </div>
+          <div class="name">${fullName || 'Nombre no disponible'}</div>
+          <div class="contact">
+            <h4>Para informacion</h4>
+            ${
+              contactVisible
+                ? `
+              ${contactPhone ? `<p>${contactPhone}</p>` : ''}
+              ${contactEmail ? `<p>${contactEmail}</p>` : ''}
+            `
+                : '<p>Contacto reservado</p>'
+            }
+            <div class="footer-note">FindMe - Afiche generado desde la plataforma</div>
+          </div>
+        </div>
+      </div>
+    `
+  }
+
+  const openPosterPrint = () => {
+    const html = `
+      <!doctype html>
+      <html lang="es">
+        <head>
+          <meta charset="utf-8" />
+          <title>Afiche - ${fullName}</title>
+          <style>
+            ${posterStyles}
+          </style>
+        </head>
+        <body>
+          ${buildPosterMarkup()}
+          <script>
+            window.onload = () => {
+              setTimeout(() => window.print(), 300);
+            };
+          </script>
+        </body>
+      </html>
+    `
+    try {
+      const iframe = document.createElement('iframe')
+      iframe.setAttribute('aria-hidden', 'true')
+      iframe.style.position = 'fixed'
+      iframe.style.right = '0'
+      iframe.style.bottom = '0'
+      iframe.style.width = '0'
+      iframe.style.height = '0'
+      iframe.style.border = '0'
+      iframe.srcdoc = html
+      document.body.appendChild(iframe)
+
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow?.focus()
+          iframe.contentWindow?.print()
+        } finally {
+          setTimeout(() => {
+            iframe.remove()
+          }, 1000)
+        }
+      }
+    } catch {
+      setShareNotice({ type: 'warning', message: 'No se pudo abrir la impresion. Revisa permisos del navegador.' })
+    }
+  }
+
+  const downloadPosterPdf = async () => {
+    if (pdfLoading) return
+    setPdfLoading(true)
+    setShareNotice(null)
+
+    let container: HTMLDivElement | null = null
+    try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ])
+
+      container = document.createElement('div')
+      container.style.position = 'fixed'
+      container.style.left = '-10000px'
+      container.style.top = '0'
+      container.style.width = '820px'
+      container.style.background = '#ffffff'
+      container.innerHTML = `<style>${posterStyles}</style>${buildPosterMarkup()}`
+      document.body.appendChild(container)
+
+      const posterElement = container.querySelector('.poster') as HTMLElement | null
+      if (!posterElement) {
+        throw new Error('No se pudo preparar el afiche.')
+      }
+
+      const canvas = await html2canvas(posterElement, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+      })
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95)
+      const pdf = new jsPDF({
+        orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [canvas.width, canvas.height],
+      })
+
+      pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height)
+      const fileName = `Afiche-${caso.numero_caso}.pdf`
+      pdf.save(fileName)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo descargar el PDF.'
+      setShareNotice({ type: 'error', message })
+    } finally {
+      if (container) container.remove()
+      setPdfLoading(false)
+    }
+  }
 
   const submitPublicComment = async () => {
     setCommentNotice(null)
@@ -284,6 +582,13 @@ export default function CasoDetallePage() {
           createdAt: new Date().toISOString(),
         },
       ])
+      const displayName = [user.name, user.last_nmae].filter(Boolean).join(' ').trim()
+      if (displayName) {
+        setCommentAuthorById((prev) => ({
+          ...prev,
+          [user.id]: displayName,
+        }))
+      }
       setPublicCommentDraft('')
       setCommentNotice({ type: 'success', message: 'Comentario publicado.' })
     } catch (err) {
@@ -291,6 +596,36 @@ export default function CasoDetallePage() {
       setCommentNotice({ type: 'error', message })
     } finally {
       setPublicCommentSubmitting(false)
+    }
+  }
+
+  const reportPublicComment = async (comment: PublicComment) => {
+    setCommentNotice(null)
+    if (!user?.id) {
+      setCommentNotice({ type: 'warning', message: 'Inicia sesion para reportar comentarios.' })
+      return
+    }
+
+    const motivo = window.prompt('Motivo del reporte (ej: acoso, datos personales).')?.trim() ?? ''
+    if (!motivo) return
+
+    const detalle = window.prompt('Detalle adicional (opcional).')?.trim() ?? ''
+
+    setReportingCommentId(comment.id)
+    try {
+      await reportarComentarioPublico({
+        casoId: caso.id,
+        comentarioId: comment.id,
+        motivo,
+        descripcion: detalle,
+        comentarioTexto: comment.text,
+      })
+      setCommentNotice({ type: 'success', message: 'Comentario reportado. Gracias por ayudarnos.' })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo reportar el comentario.'
+      setCommentNotice({ type: 'error', message })
+    } finally {
+      setReportingCommentId(null)
     }
   }
 
@@ -518,6 +853,27 @@ export default function CasoDetallePage() {
                     >
                       Compartir en Facebook
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        openPosterPrint()
+                        setActionsOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40"
+                    >
+                      Imprimir afiche (PDF)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void downloadPosterPdf()
+                        setActionsOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40"
+                      disabled={pdfLoading}
+                    >
+                      {pdfLoading ? 'Descargando PDF...' : 'Descargar PDF'}
+                    </button>
                   </div>
                 )}
               </div>
@@ -532,15 +888,15 @@ export default function CasoDetallePage() {
               Comentarios de autoridad
             </h2>
 
-            {comentarios.length === 0 && (
+            {authorityComments.length === 0 && (
               <p className="text-sm text-text-secondary">
                 Aun no hay comentarios de la autoridad para este caso.
               </p>
             )}
 
-            {comentarios.length > 0 && (
+            {authorityComments.length > 0 && (
               <div className="space-y-3">
-                {comentarios.map(comentario => (
+                {authorityComments.map(comentario => (
                   <article key={comentario.id} className="border border-border rounded-lg p-4 bg-background/60">
                     <div className="flex items-center justify-between gap-3 flex-wrap">
                       <p className="text-sm font-semibold text-text-primary">
@@ -594,6 +950,16 @@ export default function CasoDetallePage() {
                       <p className="text-xs text-text-secondary">{formatPublicCommentDate(comment.createdAt)}</p>
                     </div>
                     <p className="text-sm text-text-primary mt-2 whitespace-pre-wrap">{comment.text}</p>
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => void reportPublicComment(comment)}
+                        className="text-[11px] text-text-secondary hover:text-primary"
+                        disabled={reportingCommentId === comment.id}
+                      >
+                        {reportingCommentId === comment.id ? 'Reportando...' : 'Reportar'}
+                      </button>
+                    </div>
                   </article>
                 ))}
               </div>

@@ -300,7 +300,8 @@ function normalizeCommentRow(row: Record<string, unknown>, index: number): CasoC
   if (
     normalizedContent.startsWith('[PUBLICO]') ||
     normalizedContent.startsWith('[AVISTAMIENTO]') ||
-    normalizedContent.startsWith('[REPORTE_CONTENIDO]')
+    normalizedContent.startsWith('[REPORTE_CONTENIDO]') ||
+    normalizedContent.startsWith('[CIERRE]')
   ) {
     return null
   }

@@ -4,7 +4,7 @@ import { AlertTriangle, Calendar, ChevronLeft, Clock3, Edit3, Eye, MapPin, Trash
 import { useAuth } from '../../auth/hooks'
 import { Alert, Spinner } from '../../../shared/components/ui'
 import { supabase } from '../../../lib/supabase/client'
-import { getProfilesBasicByIds } from '../../../lib/supabase/db'
+import { createCaseComment, getProfilesBasicByIds } from '../../../lib/supabase/db'
 import { uploadFile } from '../../../shared/utils/api'
 import UserNavbar from '../components/Usernavbar'
 import { type CasoReciente, useMisCasos } from '../hooks/useMisCasos'
@@ -55,6 +55,8 @@ interface NoticeState {
 }
 
 const OWNER_COLUMN_CANDIDATES = ['publicado_por', 'user_id', 'autor_id'] as const
+const RESOLUTION_DATE_FIELDS = ['fecha_resolucion', 'fecha_encontrado', 'fecha_cierre', 'fecha_resuelto', 'resuelto_en']
+const RESOLUTION_COMMENT_FIELDS = ['comentario_final', 'comentario_cierre', 'nota_cierre', 'observacion_final']
 
 const CASES_BUCKET = 'casos-media'
 const CONFIGURED_CASES_BUCKET = (import.meta.env.VITE_CASES_BUCKET as string | undefined)?.trim()
@@ -594,6 +596,11 @@ export default function MisCasosPage() {
   const [newVideo, setNewVideo] = useState<File | null>(null)
   const [replaceMedia, setReplaceMedia] = useState(false)
   const [mediaError, setMediaError] = useState<string | null>(null)
+  const [closingCase, setClosingCase] = useState<CasoReciente | null>(null)
+  const [resolutionDate, setResolutionDate] = useState('')
+  const [resolutionComment, setResolutionComment] = useState('')
+  const [resolutionError, setResolutionError] = useState<string | null>(null)
+  const [resolutionLoading, setResolutionLoading] = useState(false)
 
   const {
     data: myCases = [],
@@ -617,6 +624,65 @@ export default function MisCasosPage() {
     () => ({ ...externalCaseReferenceById, ...ownCaseReferenceById }),
     [externalCaseReferenceById, ownCaseReferenceById],
   )
+
+  const openCloseCaseModal = (target: CasoReciente) => {
+    setClosingCase(target)
+    setResolutionDate(new Date().toISOString().slice(0, 10))
+    setResolutionComment('')
+    setResolutionError(null)
+  }
+
+  const closeCloseCaseModal = () => {
+    if (resolutionLoading) return
+    setClosingCase(null)
+    setResolutionError(null)
+  }
+
+  const updateCaseOptionalField = async (
+    caseId: string,
+    userId: string,
+    field: string,
+    value: string,
+  ) => {
+    let lastError: string | null = null
+    for (const column of OWNER_COLUMN_CANDIDATES) {
+      const { data, error } = await supabase
+        .from('cases')
+        .update({ [field]: value })
+        .eq('id', caseId)
+        .eq(column, userId)
+        .select('id')
+        .maybeSingle()
+
+      if (!error && data) return true
+
+      if (error) {
+        const message = error.message.toLowerCase()
+        if (message.includes('column') && message.includes('does not exist')) {
+          return false
+        }
+        if (message.includes('row-level security policy') || message.includes('permission denied')) {
+          throw new Error('No tienes permisos para modificar este caso.')
+        }
+        lastError = error.message
+      }
+    }
+
+    if (lastError) throw new Error(lastError)
+    return false
+  }
+
+  const updateResolutionFields = async (caseId: string, userId: string, dateValue: string, commentValue: string) => {
+    for (const field of RESOLUTION_DATE_FIELDS) {
+      const updated = await updateCaseOptionalField(caseId, userId, field, dateValue)
+      if (updated) break
+    }
+
+    for (const field of RESOLUTION_COMMENT_FIELDS) {
+      const updated = await updateCaseOptionalField(caseId, userId, field, commentValue)
+      if (updated) break
+    }
+  }
 
   const loadCaseComments = useCallback(async () => {
     if (!user?.id) return
@@ -922,6 +988,11 @@ export default function MisCasosPage() {
   const updateCaseState = async (targetCase: CasoReciente, nextState: UserCaseState) => {
     if (!user?.id || stateLoadingId) return
 
+    if (nextState === 'encontrado') {
+      openCloseCaseModal(targetCase)
+      return
+    }
+
     const confirmMessage = `Cambiar estado a "${nextState}" para el caso ${targetCase.numero_caso}?`
     if (!window.confirm(confirmMessage)) return
 
@@ -932,14 +1003,9 @@ export default function MisCasosPage() {
       updated_at: new Date().toISOString(),
     }
 
-    if (nextState === 'encontrado') {
-      basePayload.status = 'encontrado'
-      basePayload.workflow_status = 'found'
-    }
-
-    if (nextState === 'archivado') {
-      basePayload.workflow_status = 'closed'
-    }
+      if (nextState === 'archivado') {
+        basePayload.workflow_status = 'closed'
+      }
 
     if (nextState === 'publicado') {
       basePayload.status = 'activo'
@@ -957,8 +1023,50 @@ export default function MisCasosPage() {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'No se pudo actualizar el estado.'
       setNotice({ type: 'error', message })
+      } finally {
+        setStateLoadingId(null)
+      }
+    }
+
+  const confirmCloseCase = async () => {
+    if (!closingCase || !user?.id || resolutionLoading) return
+
+    if (!resolutionDate) {
+      setResolutionError('Selecciona la fecha de resolucion.')
+      return
+    }
+
+    const trimmedComment = resolutionComment.trim()
+    if (trimmedComment.length < 3) {
+      setResolutionError('Agrega un comentario final (minimo 3 caracteres).')
+      return
+    }
+
+    setResolutionLoading(true)
+    setResolutionError(null)
+
+    try {
+      const basePayload: Record<string, unknown> = {
+        status: 'encontrado',
+        workflow_status: 'found',
+        updated_at: new Date().toISOString(),
+      }
+
+      await updateCaseForUser(closingCase.id, user.id, basePayload)
+      await updateResolutionFields(closingCase.id, user.id, resolutionDate, trimmedComment)
+      await createCaseComment(
+        closingCase.id,
+        user.id,
+        `[CIERRE] ${trimmedComment} (Fecha: ${resolutionDate})`,
+      )
+      await refetchCases()
+      setNotice({ type: 'success', message: 'Caso marcado como encontrado.' })
+      setClosingCase(null)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo cerrar el caso.'
+      setResolutionError(message)
     } finally {
-      setStateLoadingId(null)
+      setResolutionLoading(false)
     }
   }
 
@@ -1111,7 +1219,7 @@ export default function MisCasosPage() {
                         {caseState.value !== 'encontrado' && (
                           <button
                             type="button"
-                            onClick={() => void updateCaseState(item, 'encontrado')}
+                            onClick={() => openCloseCaseModal(item)}
                             className="btn-secondary text-xs !px-3 !py-1.5 inline-flex items-center gap-1"
                             disabled={updatingState}
                           >
@@ -1417,6 +1525,76 @@ export default function MisCasosPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {closingCase && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/35"
+            onClick={closeCloseCaseModal}
+            disabled={resolutionLoading}
+          />
+
+          <div className="relative card p-6 w-full max-w-lg space-y-4">
+            <h3 className="text-lg font-semibold text-text-primary">Cerrar caso</h3>
+            <p className="text-xs text-text-secondary">
+              Marca el caso como encontrado, registra la fecha de resolucion y un comentario final.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs font-semibold text-text-secondary">Caso</p>
+                <p className="text-sm text-text-primary">
+                  {closingCase.numero_caso} - {closingCase.nombres} {closingCase.apellidos}
+                </p>
+              </div>
+
+              <label className="block text-xs font-semibold text-text-secondary">
+                Fecha de resolucion
+                <input
+                  type="date"
+                  className="input-field mt-1"
+                  value={resolutionDate}
+                  onChange={(event) => setResolutionDate(event.target.value)}
+                />
+              </label>
+
+              <label className="block text-xs font-semibold text-text-secondary">
+                Comentario final
+                <textarea
+                  rows={3}
+                  className="input-field resize-none mt-1"
+                  value={resolutionComment}
+                  onChange={(event) => setResolutionComment(event.target.value.slice(0, 300))}
+                  placeholder="Ej: La persona fue reunificada con su familia."
+                />
+                <span className="text-[11px] text-text-secondary">{resolutionComment.length}/300</span>
+              </label>
+
+              {resolutionError && <p className="text-xs text-error">{resolutionError}</p>}
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={closeCloseCaseModal}
+                disabled={resolutionLoading}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => void confirmCloseCase()}
+                disabled={resolutionLoading}
+              >
+                {resolutionLoading ? 'Guardando...' : 'Confirmar cierre'}
+              </button>
+            </div>
           </div>
         </div>
       )}

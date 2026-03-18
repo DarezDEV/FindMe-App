@@ -16,6 +16,14 @@ export interface ReporteContenidoInput {
   evidenciaUrl?: string
 }
 
+export interface ReporteComentarioInput {
+  casoId: string
+  comentarioId: string
+  motivo: string
+  descripcion?: string
+  comentarioTexto?: string
+}
+
 function normalizeText(value: string) {
   const normalized = value.trim()
   return normalized.length > 0 ? normalized : null
@@ -182,6 +190,59 @@ export async function reportarContenido(input: ReporteContenidoInput): Promise<v
         motivo,
         descripcion,
         evidencia_url: evidenciaUrl,
+      })
+      return error?.message ?? null
+    },
+  ])
+}
+
+export async function reportarComentarioPublico(input: ReporteComentarioInput): Promise<void> {
+  const casoId = normalizeText(input.casoId)
+  const comentarioId = normalizeText(input.comentarioId)
+  const motivo = normalizeText(input.motivo)
+  const descripcionBase = normalizeText(input.descripcion ?? '')
+  const comentarioTexto = normalizeText(input.comentarioTexto ?? '')
+
+  if (!casoId || !comentarioId || !motivo) {
+    throw new Error('Completa los campos obligatorios para reportar el comentario.')
+  }
+
+  const userId = await getAuthenticatedUserId()
+  await ensureCaseExists(casoId)
+
+  const descripcion = [
+    `Comentario ID: ${comentarioId}`,
+    comentarioTexto ? `Texto: ${comentarioTexto}` : null,
+    descripcionBase ? `Detalle: ${descripcionBase}` : null,
+  ]
+    .filter(Boolean)
+    .join(' | ')
+
+  await runInsertAttempts([
+    async () => {
+      const { error } = await supabase.from('reportes_contenido').insert({
+        caso_id: casoId,
+        reportado_por: userId,
+        motivo: `Comentario: ${motivo}`,
+        descripcion,
+      })
+      return error?.message ?? null
+    },
+    async () => {
+      const { error } = await supabase.from('contenido_reportes').insert({
+        caso_id: casoId,
+        user_id: userId,
+        razon: `Comentario: ${motivo}`,
+        detalle: descripcion,
+      })
+      return error?.message ?? null
+    },
+    async () => {
+      const { error } = await supabase.from('caso_reportes').insert({
+        caso_id: casoId,
+        autor_id: userId,
+        motivo: `Comentario: ${motivo}`,
+        descripcion,
       })
       return error?.message ?? null
     },

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, MoreVertical, Plus, RefreshCw, UserSearch } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
 import { Spinner } from '../../../shared/components/ui'
@@ -58,6 +58,9 @@ function CasoSkeleton() {
 export default function UserHome() {
   const { user, loading: authLoading } = useAuth()
   const [openMenuCaseId, setOpenMenuCaseId] = useState<string | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const searchQuery = searchParams.get('q') ?? ''
+  const normalizedQuery = searchQuery.trim().toLowerCase()
 
   const {
     data: casosGenerales = [],
@@ -65,6 +68,45 @@ export default function UserHome() {
     isError: casosError,
     refetch: refetchCasos,
   } = useCasosGenerales(24, { hideResolved: false, hideRejected: true, approvedOnly: true })
+
+  const filteredCasos = useMemo(() => {
+    if (!normalizedQuery) return casosGenerales
+    return casosGenerales.filter((caso) => {
+      const fullName = `${caso.nombres} ${caso.apellidos}`.toLowerCase()
+      const city = (caso.ciudad ?? '').toLowerCase()
+      const caseNumber = caso.numero_caso.toLowerCase()
+      return (
+        fullName.includes(normalizedQuery) ||
+        city.includes(normalizedQuery) ||
+        caseNumber.includes(normalizedQuery)
+      )
+    })
+  }, [casosGenerales, normalizedQuery])
+
+  const missingCases = useMemo(
+    () =>
+      filteredCasos.filter(
+        (caso) =>
+          !(caso.workflow_status === 'found' || caso.workflow_status === 'closed' || caso.status === 'encontrado'),
+      ),
+    [filteredCasos],
+  )
+
+  const displayCases = missingCases
+  const [featuredIndex, setFeaturedIndex] = useState(0)
+  const featuredCase = displayCases[featuredIndex]
+
+  useEffect(() => {
+    setFeaturedIndex(0)
+  }, [displayCases.length, normalizedQuery])
+
+  useEffect(() => {
+    if (displayCases.length <= 1) return
+    const timer = window.setInterval(() => {
+      setFeaturedIndex((current) => (current + 1) % displayCases.length)
+    }, 6000)
+    return () => window.clearInterval(timer)
+  }, [displayCases.length])
 
   useEffect(() => {
     const channel = supabase
@@ -110,6 +152,83 @@ export default function UserHome() {
             </div>
           </div>
 
+          {normalizedQuery && (
+            <div className="card p-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+              <div className="text-text-secondary">
+                Resultados para <span className="font-semibold text-text-primary">"{searchQuery.trim()}"</span>:
+                <span className="ml-1 font-semibold text-text-primary">{filteredCasos.length}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSearchParams({})}
+                className="text-xs text-primary hover:underline"
+              >
+                Limpiar busqueda
+              </button>
+            </div>
+          )}
+
+          {!casosLoading && !casosError && featuredCase && (
+            <section className="card overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                <div>
+                  <h2 className="text-sm font-semibold text-text-primary">Pantalla de casos</h2>
+                  <p className="text-xs text-text-secondary">Se actualiza automaticamente.</p>
+                </div>
+                <span className="text-[11px] text-text-secondary">
+                  {featuredIndex + 1} / {displayCases.length}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4 p-4 bg-white">
+                <div className="border border-border rounded-lg overflow-hidden aspect-[3/4] flex items-center justify-center bg-background">
+                  {featuredCase.foto_principal_url ? (
+                    <img
+                      src={featuredCase.foto_principal_url}
+                      alt={`${featuredCase.nombres} ${featuredCase.apellidos}`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <UserSearch size={38} className="text-text-secondary" />
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs text-text-secondary font-mono">{featuredCase.numero_caso}</p>
+                    <h3 className="text-xl font-bold text-text-primary mt-1">
+                      {featuredCase.nombres} {featuredCase.apellidos}
+                    </h3>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm text-text-secondary">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wide text-text-secondary">Estado</p>
+                      <p className="font-semibold text-text-primary">{getCaseStatusLabel(featuredCase)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wide text-text-secondary">Ciudad</p>
+                      <p className="font-semibold text-text-primary">{featuredCase.ciudad ?? 'Sin ciudad'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wide text-text-secondary">Fecha</p>
+                      <p className="font-semibold text-text-primary">{formatPosterDate(featuredCase.fecha_desaparicion)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wide text-text-secondary">Vistas</p>
+                      <p className="font-semibold text-text-primary">{featuredCase.vistas}</p>
+                    </div>
+                  </div>
+                  <Link
+                    to={`/caso/${featuredCase.id}`}
+                    className="btn-primary inline-flex text-sm items-center gap-2 w-fit"
+                  >
+                    Ver detalles
+                  </Link>
+                </div>
+              </div>
+            </section>
+          )}
+
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-text-primary">Listado general</h2>
             <button
@@ -143,22 +262,28 @@ export default function UserHome() {
             </div>
           )}
 
-          {!casosLoading && !casosError && casosGenerales.length === 0 && (
+          {!casosLoading && !casosError && filteredCasos.length === 0 && (
             <div className="card p-8 text-center">
               <UserSearch size={32} className="text-border mx-auto mb-3" />
-              <p className="text-sm font-medium text-text-primary">Aun no hay casos disponibles</p>
-              <p className="text-xs text-text-secondary mt-1">
-                Publica un reporte para que aparezca en el listado general.
+              <p className="text-sm font-medium text-text-primary">
+                {normalizedQuery ? 'No hay resultados para tu busqueda' : 'Aun no hay casos disponibles'}
               </p>
-              <Link to="/publicar" className="btn-primary inline-flex mt-4 text-sm gap-2 items-center">
-                <Plus size={15} /> Publicar ahora
-              </Link>
+              <p className="text-xs text-text-secondary mt-1">
+                {normalizedQuery
+                  ? 'Prueba con otro nombre, ciudad o numero de caso.'
+                  : 'Publica un reporte para que aparezca en el listado general.'}
+              </p>
+              {!normalizedQuery && (
+                <Link to="/publicar" className="btn-primary inline-flex mt-4 text-sm gap-2 items-center">
+                  <Plus size={15} /> Publicar ahora
+                </Link>
+              )}
             </div>
           )}
 
-          {!casosLoading && !casosError && casosGenerales.length > 0 && (
+          {!casosLoading && !casosError && filteredCasos.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {casosGenerales.map(caso => (
+              {filteredCasos.map(caso => (
                 <article
                   key={caso.id}
                   className="card relative h-full overflow-hidden flex flex-col transition-shadow duration-200 hover:shadow-md"
