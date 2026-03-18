@@ -258,11 +258,25 @@ export default function UserNavbar() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16 gap-3">
             <Link to="/user" className="flex items-center gap-2 shrink-0 group" onClick={closeAll}>
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center group-hover:bg-primary-hover transition-colors duration-200">
-                <MapPin size={16} className="text-white" strokeWidth={2.5} />
-              </div>
+              <img
+                src="/findMeLogo.svg"
+                alt="FindMe System"
+                className="w-9 h-9 object-contain"
+                onError={(event) => {
+                  event.currentTarget.style.display = 'none'
+                  event.currentTarget.nextElementSibling?.classList.remove('hidden')
+                }}
+              />
+              <svg className="w-8 h-8 text-primary hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2.5}
+                  d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
+                />
+              </svg>
               <span className="font-bold text-lg text-text-primary tracking-tight hidden sm:block">
-                Find<span className="text-primary">Me</span>
+                FindMe System
               </span>
             </Link>
 
