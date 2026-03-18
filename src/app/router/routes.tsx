@@ -10,6 +10,10 @@ import UserHome from '../../features/user/pages/UserHome'
 import AdminHome from '../../features/admin/pages/AdminHome'
 import AuthorityHome from '../../features/authority/pages/AuthorityHome'
 import AdminUsers from '../../features/admin/pages/AdminUsers'
+import AdminCases from '../../features/admin/pages/AdminCases'
+import AdminSightings from '../../features/admin/pages/AdminSightings'
+import AdminReview from '../../features/admin/pages/AdminReview'
+import AdminSettings from '../../features/admin/pages/AdminSettings'
 import AuthorityCases from '../../features/authority/pages/AuthorityCases'
 import PendingCasesPage from '../../features/authority/pages/PendingCasesPage'
 import AuthoritySightings from '../../features/authority/pages/AuthoritySightings'
@@ -74,6 +78,10 @@ const router = createBrowserRouter([
     children: [
       { path: '/admin/dashboard', element: <AdminHome /> },
       { path: '/admin/users', element: <AdminUsers /> },
+      { path: '/admin/cases', element: <AdminCases /> },
+      { path: '/admin/sightings', element: <AdminSightings /> },
+      { path: '/admin/revision', element: <AdminReview /> },
+      { path: '/admin/settings', element: <AdminSettings /> },
     ],
   },
 
