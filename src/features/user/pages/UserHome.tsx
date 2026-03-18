@@ -14,6 +14,9 @@ const STATUS_CONFIG: Record<CasoReciente['status'], { label: string; className: 
   encontrado: { label: 'Reunificada', className: 'bg-success/10 text-success' },
 }
 
+const SCREEN_ROTATION_MS = 4200
+const SCREEN_FADE_MS = 360
+
 function getCaseStatusLabel(caso: CasoReciente) {
   if (caso.workflow_status === 'rejected') return 'Rechazada'
   if (caso.workflow_status === 'approved') return 'Aprobada'
@@ -58,6 +61,7 @@ function CasoSkeleton() {
 export default function UserHome() {
   const { user, loading: authLoading } = useAuth()
   const [openMenuCaseId, setOpenMenuCaseId] = useState<string | null>(null)
+  const [isTransitioning, setIsTransitioning] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
   const searchQuery = searchParams.get('q') ?? ''
   const normalizedQuery = searchQuery.trim().toLowerCase()
@@ -98,14 +102,23 @@ export default function UserHome() {
 
   useEffect(() => {
     setFeaturedIndex(0)
+    setIsTransitioning(false)
   }, [displayCases.length, normalizedQuery])
 
   useEffect(() => {
     if (displayCases.length <= 1) return
+    let timeoutId: number | undefined
     const timer = window.setInterval(() => {
-      setFeaturedIndex((current) => (current + 1) % displayCases.length)
-    }, 6000)
-    return () => window.clearInterval(timer)
+      setIsTransitioning(true)
+      timeoutId = window.setTimeout(() => {
+        setFeaturedIndex((current) => (current + 1) % displayCases.length)
+        setIsTransitioning(false)
+      }, SCREEN_FADE_MS)
+    }, SCREEN_ROTATION_MS)
+    return () => {
+      window.clearInterval(timer)
+      if (timeoutId) window.clearTimeout(timeoutId)
+    }
   }, [displayCases.length])
 
   useEffect(() => {
@@ -169,19 +182,31 @@ export default function UserHome() {
           )}
 
           {!casosLoading && !casosError && featuredCase && (
-            <section className="card overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                <div>
-                  <h2 className="text-sm font-semibold text-text-primary">Pantalla de casos</h2>
-                  <p className="text-xs text-text-secondary">Se actualiza automaticamente.</p>
+            <section className="card overflow-hidden border border-border/70 bg-gradient-to-br from-white via-white to-primary-soft/40 shadow-[0_20px_45px_-40px_rgba(15,23,42,0.7)]">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border/70 bg-white/80 backdrop-blur">
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 text-primary text-[10px] font-semibold px-2.5 py-1 uppercase tracking-widest">
+                    En vivo
+                  </span>
+                  <div>
+                    <h2 className="text-sm font-semibold text-text-primary">Pantalla de casos</h2>
+                    <p className="text-xs text-text-secondary">Se actualiza automaticamente.</p>
+                  </div>
                 </div>
                 <span className="text-[11px] text-text-secondary">
                   {featuredIndex + 1} / {displayCases.length}
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4 p-4 bg-white">
-                <div className="border border-border rounded-lg overflow-hidden aspect-[3/4] flex items-center justify-center bg-background">
+              <div
+                className={`grid grid-cols-1 md:grid-cols-[280px_1fr] gap-5 p-5 transition-all duration-500 ${
+                  isTransitioning ? 'opacity-0 translate-y-2 scale-[0.985]' : 'opacity-100 translate-y-0 scale-100'
+                }`}
+              >
+                <div className="relative border border-border/70 rounded-2xl overflow-hidden aspect-[3/4] flex items-center justify-center bg-background shadow-sm">
+                  <span className="absolute left-3 top-3 rounded-full bg-primary text-white text-[10px] font-black px-2.5 py-1 tracking-widest shadow">
+                    DESAPARECIDO
+                  </span>
                   {featuredCase.foto_principal_url ? (
                     <img
                       src={featuredCase.foto_principal_url}
@@ -193,30 +218,25 @@ export default function UserHome() {
                   )}
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div>
                     <p className="text-xs text-text-secondary font-mono">{featuredCase.numero_caso}</p>
-                    <h3 className="text-xl font-bold text-text-primary mt-1">
+                    <h3 className="text-2xl font-bold text-text-primary mt-1">
                       {featuredCase.nombres} {featuredCase.apellidos}
                     </h3>
                   </div>
                   <div className="grid grid-cols-2 gap-3 text-sm text-text-secondary">
-                    <div>
-                      <p className="text-[11px] uppercase tracking-wide text-text-secondary">Estado</p>
-                      <p className="font-semibold text-text-primary">{getCaseStatusLabel(featuredCase)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[11px] uppercase tracking-wide text-text-secondary">Ciudad</p>
-                      <p className="font-semibold text-text-primary">{featuredCase.ciudad ?? 'Sin ciudad'}</p>
-                    </div>
-                    <div>
-                      <p className="text-[11px] uppercase tracking-wide text-text-secondary">Fecha</p>
-                      <p className="font-semibold text-text-primary">{formatPosterDate(featuredCase.fecha_desaparicion)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[11px] uppercase tracking-wide text-text-secondary">Vistas</p>
-                      <p className="font-semibold text-text-primary">{featuredCase.vistas}</p>
-                    </div>
+                    {[
+                      { label: 'Estado', value: getCaseStatusLabel(featuredCase) },
+                      { label: 'Ciudad', value: featuredCase.ciudad ?? 'Sin ciudad' },
+                      { label: 'Fecha', value: formatPosterDate(featuredCase.fecha_desaparicion) },
+                      { label: 'Vistas', value: String(featuredCase.vistas) },
+                    ].map((item) => (
+                      <div key={item.label} className="rounded-xl border border-border/60 bg-white/70 px-3 py-2">
+                        <p className="text-[11px] uppercase tracking-wide text-text-secondary">{item.label}</p>
+                        <p className="font-semibold text-text-primary">{item.value}</p>
+                      </div>
+                    ))}
                   </div>
                   <Link
                     to={`/caso/${featuredCase.id}`}
