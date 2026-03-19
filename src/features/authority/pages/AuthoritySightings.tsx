@@ -152,11 +152,11 @@ export default function AuthoritySightings() {
               <p className="text-2xl font-bold text-blue-600 mt-1">{summary.pending}</p>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl p-4">
-              <p className="text-xs text-slate-500">Validados</p>
+              <p className="text-xs text-slate-500">Aceptados</p>
               <p className="text-2xl font-bold text-emerald-300 mt-1">{summary.approved}</p>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl p-4">
-              <p className="text-xs text-slate-500">Descartados</p>
+              <p className="text-xs text-slate-500">Rechazados</p>
               <p className="text-2xl font-bold text-rose-300 mt-1">{summary.rejected}</p>
             </div>
           </div>
@@ -185,7 +185,7 @@ export default function AuthoritySightings() {
                         : 'bg-white text-slate-500 border-slate-200 hover:text-slate-700'
                     }`}
                   >
-                    {status === 'all' ? 'Todos' : status === 'pending' ? 'Pendientes' : status === 'approved' ? 'Validados' : 'Descartados'}
+                    {status === 'all' ? 'Todos' : status === 'pending' ? 'Pendientes' : status === 'approved' ? 'Aceptados' : 'Rechazados'}
                   </button>
                 ))}
               </div>
@@ -217,7 +217,7 @@ export default function AuthoritySightings() {
                     <li key={item.id} className="p-5 space-y-3 hover:bg-white/[0.015] transition-colors">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wider border ${STATUS_STYLES[status]}`}>
-                          {status === 'approved' ? 'Validado' : status === 'rejected' ? 'Descartado' : 'Pendiente'}
+                          {status === 'approved' ? 'Aceptado' : status === 'rejected' ? 'Rechazado' : 'Pendiente'}
                         </span>
                         {item.caseNumber && (
                           <span className="text-[11px] font-mono text-blue-600 bg-blue-500/10 border border-blue-500/20 px-2 py-1 rounded-md">
@@ -250,27 +250,27 @@ export default function AuthoritySightings() {
                       <div className="flex flex-wrap items-center gap-2 pt-1">
                         <button
                           type="button"
-                          disabled={rowLoading}
-                          onClick={() => void applyStatus(item.id, 'pending')}
-                          className="px-3 py-1.5 text-xs rounded-lg border border-blue-500/25 text-blue-600 bg-blue-500/10 hover:bg-blue-500/20 disabled:opacity-40"
-                        >
-                          Marcar pendiente
-                        </button>
-                        <button
-                          type="button"
-                          disabled={rowLoading}
-                          onClick={() => void applyStatus(item.id, 'approved')}
+                          disabled={rowLoading || status === 'approved'}
+                          onClick={() => {
+                            if (status !== 'approved') {
+                              void applyStatus(item.id, 'approved')
+                            }
+                          }}
                           className="px-3 py-1.5 text-xs rounded-lg border border-emerald-400/25 text-emerald-300 bg-emerald-400/10 hover:bg-emerald-400/20 disabled:opacity-40"
                         >
-                          Validar
+                          Aceptar
                         </button>
                         <button
                           type="button"
-                          disabled={rowLoading}
-                          onClick={() => void applyStatus(item.id, 'rejected')}
+                          disabled={rowLoading || status === 'rejected'}
+                          onClick={() => {
+                            if (status !== 'rejected') {
+                              void applyStatus(item.id, 'rejected')
+                            }
+                          }}
                           className="px-3 py-1.5 text-xs rounded-lg border border-rose-400/25 text-rose-300 bg-rose-400/10 hover:bg-rose-400/20 disabled:opacity-40"
                         >
-                          Descartar
+                          Rechazar
                         </button>
                       </div>
                     </li>
