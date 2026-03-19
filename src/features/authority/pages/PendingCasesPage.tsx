@@ -331,18 +331,18 @@ export default function PendingCasesPage() {
 
   const feedbackStyles: Record<string, string> = {
     success: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
-    warning: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
-    error:   'bg-rose-500/10 border-rose-500/20 text-rose-400',
+    warning: 'bg-amber-500/10 border-amber-500/20 text-blue-600',
+    error:   'bg-rose-50 border-rose-200 text-rose-400',
     info:    'bg-sky-500/10 border-sky-500/20 text-sky-400',
   }
 
   return (
-    <div className="flex h-screen bg-[#0a0c10] overflow-hidden font-['Syne',sans-serif]">
+    <div className="flex h-screen bg-[#f6f7fb] overflow-hidden font-['Syne',sans-serif]">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&display=swap');
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #1e2535; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         .fade-in { animation: fadeIn 0.2s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
@@ -355,23 +355,23 @@ export default function PendingCasesPage() {
           {/* Header */}
           <div className="flex items-end justify-between">
             <div>
-              <p className="text-[11px] font-mono text-amber-400/70 tracking-[0.2em] uppercase mb-1">Módulo de Moderación</p>
-              <h1 className="text-3xl font-bold text-slate-100 tracking-tight">Revisión de Publicaciones</h1>
+              <p className="text-[11px] font-mono text-blue-600/70 tracking-[0.2em] uppercase mb-1">Módulo de Moderación</p>
+              <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Revisión de Publicaciones</h1>
               <p className="text-sm text-slate-500 mt-1">
                 Flujo de moderación para casos pendientes antes de su publicación pública.
               </p>
             </div>
             <div className="flex items-center gap-3">
               {!loading && (
-                <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-400/8 border border-amber-400/20">
-                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                  <span className="text-xs font-mono text-amber-400">{pendingCases.length} pendiente{pendingCases.length !== 1 ? 's' : ''}</span>
+                <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                  <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                  <span className="text-xs font-mono text-blue-600">{pendingCases.length} pendiente{pendingCases.length !== 1 ? 's' : ''}</span>
                 </div>
               )}
               <button
                 type="button"
                 onClick={() => void loadPendingCases()}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#12151f] border border-[#1e2535] text-slate-400 hover:text-slate-200 hover:border-slate-600 text-xs font-medium transition-all"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 text-xs font-medium transition-all"
               >
                 Recargar
               </button>
@@ -388,17 +388,17 @@ export default function PendingCasesPage() {
 
           {/* Content */}
           {loading ? (
-            <div className="bg-[#0d1018] border border-[#1a1f2e] rounded-2xl p-16 flex flex-col items-center justify-center gap-3">
-              <div className="w-6 h-6 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
-              <p className="text-xs text-slate-600 font-mono">Cargando casos pendientes...</p>
+            <div className="bg-white border border-slate-200 rounded-2xl p-16 flex flex-col items-center justify-center gap-3">
+              <div className="w-6 h-6 border-2 border-blue-500/30 border-t-blue-600 rounded-full animate-spin" />
+              <p className="text-xs text-slate-500 font-mono">Cargando casos pendientes...</p>
             </div>
           ) : pendingCases.length === 0 ? (
-            <div className="bg-[#0d1018] border border-[#1a1f2e] rounded-2xl p-16 flex flex-col items-center justify-center gap-2">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-400/10 border border-emerald-400/20 flex items-center justify-center mb-2">
+            <div className="bg-white border border-slate-200 rounded-2xl p-16 flex flex-col items-center justify-center gap-2">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center mb-2">
                 <span className="text-2xl">✓</span>
               </div>
-              <p className="text-slate-300 text-sm font-semibold">Sin casos pendientes</p>
-              <p className="text-slate-600 text-xs text-center max-w-xs">
+              <p className="text-slate-700 text-sm font-semibold">Sin casos pendientes</p>
+              <p className="text-slate-500 text-xs text-center max-w-xs">
                 Todos los casos han sido revisados. El sistema está al día.
               </p>
             </div>
@@ -406,11 +406,11 @@ export default function PendingCasesPage() {
             <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-5">
 
               {/* Pending List */}
-              <div className="bg-[#0d1018] border border-[#1a1f2e] rounded-2xl overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 180px)' }}>
-                <div className="px-5 py-4 border-b border-[#1a1f2e] flex items-center justify-between">
+              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 180px)' }}>
+                <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
                   <div>
-                    <h2 className="text-sm font-semibold text-slate-200">Cola de revisión</h2>
-                    <p className="text-xs font-mono text-slate-600 mt-0.5">{pendingCases.length} casos en espera</p>
+                    <h2 className="text-sm font-semibold text-slate-900">Cola de revisión</h2>
+                    <p className="text-xs font-mono text-slate-500 mt-0.5">{pendingCases.length} casos en espera</p>
                   </div>
                 </div>
                 <div className="overflow-y-auto flex-1">
@@ -426,11 +426,11 @@ export default function PendingCasesPage() {
               <div className="space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 180px)' }}>
 
                 {/* Case Detail */}
-                <div className="bg-[#0d1018] border border-[#1a1f2e] rounded-2xl overflow-hidden">
-                  <div className="px-5 py-4 border-b border-[#1a1f2e]">
-                    <h2 className="text-sm font-semibold text-slate-200">Detalle del caso</h2>
+                <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                  <div className="px-5 py-4 border-b border-slate-200">
+                    <h2 className="text-sm font-semibold text-slate-900">Detalle del caso</h2>
                     {selectedCase && (
-                      <p className="text-xs font-mono text-amber-400/70 mt-0.5">{selectedCase.caseNumber}</p>
+                      <p className="text-xs font-mono text-blue-600/70 mt-0.5">{selectedCase.caseNumber}</p>
                     )}
                   </div>
                   <div className="p-5">
@@ -440,21 +440,21 @@ export default function PendingCasesPage() {
 
                 {/* Comments */}
                 {selectedCase && (
-                  <div className="bg-[#0d1018] border border-[#1a1f2e] rounded-2xl overflow-hidden">
-                    <div className="px-5 py-4 border-b border-[#1a1f2e] flex items-center justify-between">
+                  <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                    <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
                       <div>
-                        <h3 className="text-sm font-semibold text-slate-200">Notas de revisión</h3>
-                        <p className="text-xs font-mono text-slate-600 mt-0.5">{selectedCaseComments.length} nota{selectedCaseComments.length !== 1 ? 's' : ''}</p>
+                        <h3 className="text-sm font-semibold text-slate-900">Notas de revisión</h3>
+                        <p className="text-xs font-mono text-slate-500 mt-0.5">{selectedCaseComments.length} nota{selectedCaseComments.length !== 1 ? 's' : ''}</p>
                       </div>
                       {selectedCaseComments.length > 0 && (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono font-medium text-sky-400 bg-sky-400/10 border border-sky-400/20">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono font-medium text-sky-400 bg-sky-50 border border-sky-200">
                           {selectedCaseComments.length}
                         </span>
                       )}
                     </div>
                     <div className="p-5">
                       {selectedCaseComments.length === 0 ? (
-                        <p className="text-xs text-slate-600 font-mono">Aún no hay notas registradas para este caso.</p>
+                        <p className="text-xs text-slate-500 font-mono">Aún no hay notas registradas para este caso.</p>
                       ) : (
                         <div className="space-y-3">
                           {selectedCaseComments.map((comment) => (
@@ -474,10 +474,10 @@ export default function PendingCasesPage() {
                 )}
 
                 {/* Moderation Actions */}
-                <div className="bg-[#0d1018] border border-[#1a1f2e] rounded-2xl overflow-hidden">
-                  <div className="px-5 py-4 border-b border-[#1a1f2e]">
-                    <h3 className="text-sm font-semibold text-slate-200">Acciones de moderación</h3>
-                    <p className="text-xs text-slate-600 mt-0.5">Revisa y decide el estado de este caso.</p>
+                <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                  <div className="px-5 py-4 border-b border-slate-200">
+                    <h3 className="text-sm font-semibold text-slate-900">Acciones de moderación</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Revisa y decide el estado de este caso.</p>
                   </div>
                   <div className="p-5">
                     <ModerationActions
@@ -506,3 +506,6 @@ export default function PendingCasesPage() {
     </div>
   )
 }
+
+
+

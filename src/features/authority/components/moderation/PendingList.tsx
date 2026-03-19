@@ -17,7 +17,7 @@ function getInitials(name: string): string {
 
 // Deterministic soft color per name initial — no random flicker on re-renders
 const AVATAR_PALETTES = [
-  { bg: 'bg-amber-400/12',  border: 'border-amber-400/20',  text: 'text-amber-400'  },
+  { bg: 'bg-blue-500/10',  border: 'border-blue-500/20',  text: 'text-blue-600'  },
   { bg: 'bg-sky-400/12',    border: 'border-sky-400/20',    text: 'text-sky-400'    },
   { bg: 'bg-emerald-400/12',border: 'border-emerald-400/20',text: 'text-emerald-400'},
   { bg: 'bg-violet-400/12', border: 'border-violet-400/20', text: 'text-violet-400' },
@@ -36,7 +36,7 @@ export function PendingList({ cases, selectedCaseId, onSelectCase }: PendingList
         <div className="w-12 h-12 rounded-2xl bg-emerald-400/10 border border-emerald-400/20 flex items-center justify-center">
           <Clock size={18} className="text-emerald-400" />
         </div>
-        <p className="text-sm font-semibold text-slate-400">Cola vacía</p>
+        <p className="text-sm font-semibold text-slate-600">Cola vacía</p>
         <p className="text-xs text-slate-700 text-center leading-relaxed">
           No hay casos pendientes de revisión en este momento.
         </p>
@@ -45,7 +45,7 @@ export function PendingList({ cases, selectedCaseId, onSelectCase }: PendingList
   }
 
   return (
-    <div className="divide-y divide-[#13161e] font-['Syne',sans-serif]">
+    <div className="divide-y divide-slate-200 font-['Syne',sans-serif]">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap');
         .pending-item { transition: background 0.13s ease; }
@@ -69,7 +69,7 @@ export function PendingList({ cases, selectedCaseId, onSelectCase }: PendingList
           >
             {/* Selected indicator line */}
             {isSelected && (
-              <span className="absolute left-0 top-4 bottom-4 w-0.5 rounded-full bg-amber-400" />
+              <span className="absolute left-0 top-4 bottom-4 w-0.5 rounded-full bg-blue-600" />
             )}
 
             <div className="flex items-start gap-3 pl-1">
@@ -84,10 +84,10 @@ export function PendingList({ cases, selectedCaseId, onSelectCase }: PendingList
               <div className="flex-1 min-w-0">
                 {/* Name + case number */}
                 <div className="flex items-start justify-between gap-2 mb-1.5">
-                  <p className={`text-sm font-semibold truncate leading-snug ${isSelected ? 'text-slate-100' : 'text-slate-400'}`}>
+                  <p className={`text-sm font-semibold truncate leading-snug ${isSelected ? 'text-slate-900' : 'text-slate-600'}`}>
                     {item.name}
                   </p>
-                  <span className="shrink-0 text-[10px] font-mono text-amber-400/60 mt-0.5 whitespace-nowrap">
+                  <span className="shrink-0 text-[10px] font-mono text-blue-600/60 mt-0.5 whitespace-nowrap">
                     {item.caseNumber}
                   </span>
                 </div>
