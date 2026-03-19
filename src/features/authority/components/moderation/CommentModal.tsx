@@ -16,29 +16,29 @@ export function CommentModal({ open, caseName, onClose, onSave }: CommentModalPr
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         type="button"
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-slate-900/30 backdrop-blur-sm"
         onClick={() => {
           setValue('')
           onClose()
         }}
         aria-label="Cerrar modal de comentario"
       />
-      <div className="relative w-full max-w-xl rounded-2xl border border-[#1a1f2e] bg-[#0d1018] p-6 shadow-2xl space-y-4">
-        <h2 className="text-base font-bold text-slate-100">Comentario de moderacion</h2>
+      <div className="relative w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl space-y-4">
+        <h2 className="text-base font-bold text-slate-900">Comentario de moderacion</h2>
         <p className="text-sm text-slate-500">
-          Caso seleccionado: <span className="font-medium text-amber-300">{caseName}</span>
+          Caso seleccionado: <span className="font-medium text-blue-600">{caseName}</span>
         </p>
         <textarea
           value={value}
           onChange={(e) => setValue(e.target.value)}
           rows={5}
           placeholder="Escribe una observacion para la revision..."
-          className="w-full resize-none rounded-xl border border-[#1e2535] bg-[#0f1117] px-4 py-3 text-sm leading-relaxed text-slate-200 placeholder:text-slate-600 focus:border-amber-400/40 focus:outline-none"
+          className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-relaxed text-slate-900 placeholder:text-slate-600 focus:border-blue-500/40 focus:outline-none"
         />
         <div className="flex items-center justify-end gap-2">
           <button
             type="button"
-            className="rounded-xl border border-[#1e2535] bg-[#0f1117] px-4 py-2.5 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors"
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
             onClick={() => {
               setValue('')
               onClose()
@@ -48,7 +48,7 @@ export function CommentModal({ open, caseName, onClose, onSave }: CommentModalPr
           </button>
           <button
             type="button"
-            className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-2.5 text-sm font-semibold text-amber-300 hover:bg-amber-400/15 transition-colors disabled:opacity-40"
+            className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-2.5 text-sm font-semibold text-blue-600 hover:bg-blue-500/15 transition-colors disabled:opacity-40"
             onClick={() => {
               onSave(value.trim())
               setValue('')
@@ -62,3 +62,4 @@ export function CommentModal({ open, caseName, onClose, onSave }: CommentModalPr
     </div>
   )
 }
+
