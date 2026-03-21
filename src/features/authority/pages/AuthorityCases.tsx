@@ -375,6 +375,9 @@ export default function AuthorityCases() {
                 <RefreshCw size={12} />
                 Actualizar
               </button>
+              <button type="button" onClick={() => navigate('/authority/cases/new')} className="btn-primary">
+                Registrar caso
+              </button>
             </div>
           </div>
 
@@ -492,10 +495,12 @@ export default function AuthorityCases() {
                                   <XCircle size={11} /> Rechazar
                                 </button>
                               )}
-                              <button type="button" onClick={() => { setCommentTarget(item); setCommentDraft('') }} className="act-btn act-note">
-                                <MessageSquare size={11} />
-                                {commentsCount > 0 ? `Notas (${commentsCount})` : 'Anotar'}
-                              </button>
+                              {availability.canMarkFound && (
+                                <button type="button" onClick={() => { setCommentTarget(item); setCommentDraft('') }} className="act-btn act-note">
+                                  <MessageSquare size={11} />
+                                  {commentsCount > 0 ? `Notas (${commentsCount})` : 'Anotar'}
+                                </button>
+                              )}
                               <button type="button" onClick={() => setDeleteTarget(item)} className="act-btn act-del">
                                 <Trash2 size={12} />
                               </button>

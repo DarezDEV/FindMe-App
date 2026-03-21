@@ -17,6 +17,7 @@ export interface AuthorityCaseRow {
   numero_caso: string
   status: CaseStatus | string
   workflow_status: CaseWorkflowStatus | null
+  person_id?: string | null
   publicado_por?: string | null
   nombres: string
   apellidos: string
@@ -170,6 +171,14 @@ function isColumnMissingError(error: unknown): boolean {
   )
 }
 
+export interface PersonCaseHistoryRow {
+  id: string
+  numero_caso: string
+  status: string | null
+  workflow_status: CaseWorkflowStatus | null
+  created_at: string | null
+}
+
 function isStatusValueError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false
 
@@ -250,7 +259,7 @@ export async function getAuthorityCases(params: GetCasesParams = {}): Promise<Au
   let query = supabase
     .from('cases')
     .select(
-      'id, numero_caso, status, workflow_status, nombres, apellidos, edad, ciudad, estado_provincia, lugar_ultima_vez, fecha_desaparicion, created_at',
+      'id, numero_caso, status, workflow_status, person_id, nombres, apellidos, edad, ciudad, estado_provincia, lugar_ultima_vez, fecha_desaparicion, created_at',
     )
     .eq('eliminado', false)
     .order('created_at', { ascending: false })
@@ -513,6 +522,27 @@ export async function updateAuthoritySightingStatus(
   }
 
   throw new Error('No se pudo actualizar el estado del avistamiento por incompatibilidad de columnas.')
+}
+
+export async function getCasesByPersonId(personId: string, excludeCaseId?: string): Promise<PersonCaseHistoryRow[]> {
+  let query = supabase
+    .from('cases')
+    .select('id, numero_caso, status, workflow_status, created_at')
+    .eq('person_id', personId)
+    .eq('eliminado', false)
+    .order('created_at', { ascending: false })
+
+  if (excludeCaseId) {
+    query = query.neq('id', excludeCaseId)
+  }
+
+  const { data, error } = await withRetry(() => query, { timeoutMs: 20000, retries: 1 })
+  if (error) {
+    console.error('[getCasesByPersonId] Error:', error)
+    throw error
+  }
+
+  return (data ?? []) as PersonCaseHistoryRow[]
 }
 
 export async function softDeleteCase(caseId: string): Promise<void> {

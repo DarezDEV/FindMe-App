@@ -1,11 +1,11 @@
-import { useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ChevronLeft, Eye, Mail, MapPin, MessageSquare, Phone, UserSearch, Video, Calendar, User, Hash, AlertCircle, X } from 'lucide-react'
 import { AuthoritySidebar } from '../components/AuthoritySidebar'
 import { Spinner } from '../../../shared/components/ui'
 import { useCasoDetalle } from '../../user/hooks/useMisCasos'
 import { useAuth } from '../../auth/hooks'
-import { createCaseClosure, updateCaseWorkflowStatus } from '../../../lib/supabase/db'
+import { createCaseClosure, createCaseComment, getCasesByPersonId, updateCaseWorkflowStatus, type PersonCaseHistoryRow } from '../../../lib/supabase/db'
 import { getCaseActionAvailability, deriveWorkflowStatus } from '../utils/case-workflow'
 import { logCaseAction } from '../utils/case-history'
 
@@ -35,6 +35,15 @@ function formatStatusLabel(status: string) {
   if (status === 'encontrado') return 'Reunificada'
   if (status === 'cerrado') return 'Archivada'
   return 'Publicada'
+}
+
+function formatWorkflowStatus(status: string | null | undefined) {
+  if (status === 'pending') return 'Pendiente'
+  if (status === 'approved') return 'Aprobado'
+  if (status === 'rejected') return 'Rechazado'
+  if (status === 'found') return 'Encontrado'
+  if (status === 'closed') return 'Cerrado'
+  return 'Pendiente'
 }
 
 function getStatusColor(status: string) {
@@ -118,6 +127,36 @@ export default function AuthorityCaseDetailPage() {
   const [foundModalOpen, setFoundModalOpen] = useState(false)
   const [foundDetails, setFoundDetails] = useState('')
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null)
+  const [noteModalOpen, setNoteModalOpen] = useState(false)
+  const [noteText, setNoteText] = useState('')
+  const [noteLoading, setNoteLoading] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [personHistory, setPersonHistory] = useState<PersonCaseHistoryRow[]>([])
+
+  const openLightbox = (src: string) => {
+    setLightboxSrc(src)
+    setLightboxOpen(true)
+  }
+
+  const loadPersonHistory = async (personId: string, currentCaseId: string) => {
+    setHistoryLoading(true)
+    try {
+      const rows = await getCasesByPersonId(personId, currentCaseId)
+      setPersonHistory(rows)
+    } catch {
+      setPersonHistory([])
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!data?.caso?.person_id) {
+      setPersonHistory([])
+      return
+    }
+    void loadPersonHistory(data.caso.person_id, data.caso.id)
+  }, [data?.caso?.person_id, data?.caso?.id])
 
   // ─── Loading ───
   if (isLoading) {
@@ -171,10 +210,6 @@ export default function AuthorityCaseDetailPage() {
   const statusMeta = getStatusColor(caso.status)
   const workflowStatus = deriveWorkflowStatus({ workflow_status: caso.workflow_status, status: caso.status })
   const actionAvailability = getCaseActionAvailability(workflowStatus)
-  const openLightbox = (src: string) => {
-    setLightboxSrc(src)
-    setLightboxOpen(true)
-  }
 
   const runWorkflowUpdate = async (
     action: 'approve' | 'reject' | 'reopen' | 'found',
@@ -203,6 +238,7 @@ export default function AuthorityCaseDetailPage() {
       if (action === 'found') {
         await createCaseClosure(caso.id, user.id, detail ?? '')
         // Nota de cierre se guarda solo en cases_closed, no en case_comments.
+        await logCaseAction(caso.id, user.id, 'closed')
       } else {
         const logAction = action === 'approve' ? 'approved'
           : action === 'reject' ? 'rejected'
@@ -216,6 +252,23 @@ export default function AuthorityCaseDetailPage() {
       setFeedback({ type: 'error', message })
     } finally {
       setActionLoading(null)
+    }
+  }
+
+  const saveInternalNote = async () => {
+    if (!user?.id || !noteText.trim()) return
+    setNoteLoading(true)
+    try {
+      await createCaseComment(caso.id, user.id, noteText.trim())
+      await refetch()
+      setNoteText('')
+      setNoteModalOpen(false)
+      setFeedback({ type: 'success', message: 'Nota agregada correctamente.' })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo guardar la nota.'
+      setFeedback({ type: 'error', message })
+    } finally {
+      setNoteLoading(false)
     }
   }
 
@@ -623,8 +676,55 @@ export default function AuthorityCaseDetailPage() {
             </SectionCard>
           </div>
 
-          {/* ─── ACTIONS ─── */}
+          {/* ─── PERSON HISTORY ─── */}
           <SectionCard className="cd-s3">
+            <SectionHeader icon={<User size={14} />} title="Historial de esta persona" />
+            <div style={{ padding: '20px 24px' }}>
+              {historyLoading ? (
+                <p style={{ fontSize: 12, color: '#9CA3AF', fontFamily: "'Geist', sans-serif" }}>Cargando historial...</p>
+              ) : personHistory.length === 0 ? (
+                <p style={{ fontSize: 12, color: '#9CA3AF', fontFamily: "'Geist', sans-serif" }}>
+                  No se encontraron casos anteriores asociados a esta persona.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{
+                    padding: '10px 12px', borderRadius: 8,
+                    background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
+                    color: '#B45309', fontSize: 12, fontFamily: "'Geist', sans-serif", fontWeight: 500,
+                  }}>
+                    Esta persona tiene {personHistory.length} caso{personHistory.length !== 1 ? 's' : ''} anterior{personHistory.length !== 1 ? 'es' : ''}.
+                  </div>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    {personHistory.map((item) => (
+                      <div key={item.id} style={{
+                        display: 'grid', gridTemplateColumns: '1fr 140px 140px', gap: 12,
+                        padding: '12px 14px', borderRadius: 8, border: '1px solid #E4E7EC', background: '#FAFBFC',
+                      }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <span style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#2B5CE6' }}>
+                            {item.numero_caso}
+                          </span>
+                          <span style={{ fontSize: 12, color: '#6B7280' }}>
+                            {item.created_at ? new Date(item.created_at).toLocaleDateString('es-DO') : 'Sin fecha'}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: 12, color: '#374151', fontWeight: 600 }}>
+                          {formatWorkflowStatus(item.workflow_status)}
+                        </span>
+                        <Link to={`/authority/cases/${item.id}`} className="cd-action-secondary" style={{ justifyContent: 'center', padding: '6px 10px', fontSize: 11 }}>
+                          Ver detalle
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </SectionCard>
+
+          {/* ─── ACTIONS ─── */}
+          <SectionCard className="cd-s4">
             <div style={{ padding: '22px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
               <div>
                 <p style={{ fontSize: 14, fontWeight: 600, color: '#111827', margin: '0 0 4px', fontFamily: "'Geist', sans-serif" }}>Acciones del caso</p>
@@ -661,6 +761,16 @@ export default function AuthorityCaseDetailPage() {
                     disabled={actionLoading !== null}
                   >
                     Marcar como encontrado
+                  </button>
+                )}
+                {actionAvailability.canMarkFound && (
+                  <button
+                    type="button"
+                    className="cd-action-secondary"
+                    onClick={() => setNoteModalOpen(true)}
+                    disabled={noteLoading || actionLoading !== null}
+                  >
+                    Añadir nota
                   </button>
                 )}
                 {actionAvailability.canReopen && (
@@ -860,6 +970,43 @@ export default function AuthorityCaseDetailPage() {
                 }}
               >
                 Cerrar caso
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {noteModalOpen && (
+        <div className="cd-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setNoteModalOpen(false) }}>
+          <div className="cd-modal-card">
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#111827', fontFamily: "'Geist', sans-serif" }}>
+              Añadir nota interna
+            </h3>
+            <p style={{ fontSize: 12, color: '#6B7280', marginTop: 6, lineHeight: 1.6 }}>
+              Esta nota es privada para la autoridad y quedará registrada en el caso.
+            </p>
+            <textarea
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              className="cd-modal-input"
+              placeholder="Escribe una nota interna..."
+            />
+            <div className="cd-modal-actions">
+              <button
+                type="button"
+                className="cd-action-secondary"
+                onClick={() => setNoteModalOpen(false)}
+                disabled={noteLoading}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="cd-action-primary"
+                disabled={noteLoading || !noteText.trim()}
+                onClick={() => void saveInternalNote()}
+              >
+                Guardar nota
               </button>
             </div>
           </div>
