@@ -170,6 +170,22 @@ function isColumnMissingError(error: unknown): boolean {
   )
 }
 
+function isStatusValueError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+
+  const candidate = error as { code?: unknown; message?: unknown }
+  const code = typeof candidate.code === 'string' ? candidate.code : ''
+  const message = typeof candidate.message === 'string' ? candidate.message.toLowerCase() : ''
+
+  return (
+    code === '22P02'
+    || code === '23514'
+    || message.includes('invalid input value for enum')
+    || message.includes('enum')
+    || message.includes('check constraint')
+  )
+}
+
 export async function getProfile(userId: string) {
   const { data, error } = await withRetry(() =>
     supabase
@@ -444,6 +460,13 @@ export async function updateAuthoritySightingStatus(
     updated_at: new Date().toISOString(),
   }
 
+  const statusCandidates =
+    status === 'approved'
+      ? ['approved', 'aprobado', 'aceptado', 'validado', 'confirmado']
+      : status === 'rejected'
+        ? ['rejected', 'rechazado', 'descartado']
+        : ['pending', 'pendiente', 'en_revision', 'en revision']
+
   const attempts: Array<{ idColumn: string; statusColumn: string }> = [
     { idColumn: 'id', statusColumn: 'estado' },
     { idColumn: 'id', statusColumn: 'status' },
@@ -454,27 +477,39 @@ export async function updateAuthoritySightingStatus(
   ]
 
   for (const attempt of attempts) {
-    const { data, error } = await withRetry(
-      () =>
-        supabase
-          .from(SIGHTING_TABLE)
-          .update({
-            ...updatePayload,
-            [attempt.statusColumn]: status,
-          })
-          .eq(attempt.idColumn, sightingId)
-          .select(attempt.idColumn)
-          .maybeSingle(),
-      { timeoutMs: 30000, retries: 0 },
-    )
+    let shouldContinue = false
 
-    if (error) {
-      if (isColumnMissingError(error)) continue
-      console.error('[updateAuthoritySightingStatus] Error:', error)
-      throw error
+    for (const candidateStatus of statusCandidates) {
+      const { data, error } = await withRetry(
+        () =>
+          supabase
+            .from(SIGHTING_TABLE)
+            .update({
+              ...updatePayload,
+              [attempt.statusColumn]: candidateStatus,
+            })
+            .eq(attempt.idColumn, sightingId)
+            .select(attempt.idColumn)
+            .maybeSingle(),
+        { timeoutMs: 30000, retries: 0 },
+      )
+
+      if (error) {
+        if (isColumnMissingError(error)) {
+          shouldContinue = true
+          break
+        }
+        if (isStatusValueError(error)) {
+          continue
+        }
+        console.error('[updateAuthoritySightingStatus] Error:', error)
+        throw error
+      }
+
+      if (data) return
     }
 
-    if (data) return
+    if (shouldContinue) continue
   }
 
   throw new Error('No se pudo actualizar el estado del avistamiento por incompatibilidad de columnas.')
@@ -608,6 +643,31 @@ export async function createCaseComment(
   }
 
   return data as { id: string }
+}
+
+export async function createCaseClosure(
+  caseId: string,
+  userId: string,
+  note: string,
+): Promise<void> {
+  const trimmed = note.trim()
+  if (!trimmed) throw new Error('La nota de cierre no puede estar vacia.')
+
+  const { error } = await withRetry(() =>
+    supabase
+      .from('cases_closed')
+      .insert({
+        case_id: caseId,
+        closed_by: userId,
+        closed_note: trimmed,
+        closed_at: new Date().toISOString(),
+      }),
+  )
+
+  if (error) {
+    console.error('[createCaseClosure] Error:', error)
+    throw error
+  }
 }
 
 
