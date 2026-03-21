@@ -20,6 +20,7 @@ import {
   updateCaseComment,
   updateCaseWorkflowStatus,
 } from '../../../lib/supabase/db'
+import { logCaseAction } from '../utils/case-history'
 
 type CaseComment = { id: string; text: string; authorId: string }
 
@@ -153,13 +154,21 @@ export default function PendingCasesPage() {
 
   const approveCase = async () => {
     if (!selectedCase) return; setActionLoading(true)
-    try { await updateCaseWorkflowStatus(selectedCase.id, 'approved'); removeFromPending(selectedCase.id); setFeedbackType('success'); setFeedback(`Caso de ${selectedCase.name} aprobado exitosamente.`) }
+    try {
+      await updateCaseWorkflowStatus(selectedCase.id, 'approved')
+      if (user?.id) await logCaseAction(selectedCase.id, user.id, 'approved')
+      removeFromPending(selectedCase.id); setFeedbackType('success'); setFeedback(`Caso de ${selectedCase.name} aprobado exitosamente.`)
+    }
     catch (err) { setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo aprobar el caso.') }
     finally { setActionLoading(false) }
   }
   const rejectCase = async () => {
     if (!selectedCase) return; setActionLoading(true)
-    try { await updateCaseWorkflowStatus(selectedCase.id, 'rejected'); removeFromPending(selectedCase.id); setFeedbackType('warning'); setFeedback(`Caso de ${selectedCase.name} rechazado.`) }
+    try {
+      await updateCaseWorkflowStatus(selectedCase.id, 'rejected')
+      if (user?.id) await logCaseAction(selectedCase.id, user.id, 'rejected')
+      removeFromPending(selectedCase.id); setFeedbackType('warning'); setFeedback(`Caso de ${selectedCase.name} rechazado.`)
+    }
     catch (err) { setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo rechazar el caso.') }
     finally { setActionLoading(false) }
   }

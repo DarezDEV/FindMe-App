@@ -16,6 +16,8 @@ import {
 import { useAuth } from '../../auth/hooks'
 import { type WorkflowStatus } from '../../../shared/components/ui'
 import { CommentItem } from '../components/moderation/CommentItem'
+import { deriveWorkflowStatus, getCaseActionAvailability } from '../utils/case-workflow'
+import { logCaseAction } from '../utils/case-history'
 
 type StatusFilter = 'all' | WorkflowStatus
 type CaseCommentItem = {
@@ -37,22 +39,7 @@ function getDateLabel(caso: AuthorityCaseRow): string {
 }
 
 function getPersistedStatus(row: AuthorityCaseRow): WorkflowStatus {
-  if (row.workflow_status) return row.workflow_status
-  if (row.status === 'resuelto') return 'found'
-  if (row.status === 'cerrado') return 'closed'
-  return 'pending'
-}
-
-function deriveWorkflowStatus(
-  workflowStatus: string | null | undefined,
-  rawStatus: string | null | undefined,
-): WorkflowStatus | null {
-  if (workflowStatus === 'pending' || workflowStatus === 'approved' || workflowStatus === 'rejected' || workflowStatus === 'found' || workflowStatus === 'closed') {
-    return workflowStatus
-  }
-  if (rawStatus === 'resuelto') return 'found'
-  if (rawStatus === 'cerrado') return 'closed'
-  return null
+  return deriveWorkflowStatus(row)
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
@@ -137,7 +124,10 @@ export default function AuthorityCases() {
         setCommentsByCaseId((prev) => { const next = { ...prev }; delete next[caseId]; return next })
         return
       }
-      const nextStatus = deriveWorkflowStatus(payload.new.workflow_status, payload.new.status)
+      const nextStatus = deriveWorkflowStatus({
+        workflow_status: payload.new.workflow_status ?? null,
+        status: payload.new.status ?? null,
+      })
       if (nextStatus) setStatusByCaseId((prev) => ({ ...prev, [caseId]: nextStatus }))
       setCases((prev) => prev.map((item) => item.id === caseId ? { ...item, status: payload.new.status ?? item.status, workflow_status: payload.new.workflow_status ?? item.workflow_status } : item))
     })
@@ -158,8 +148,16 @@ export default function AuthorityCases() {
   const applyStatus = async (caseId: string, status: WorkflowStatus) => {
     setActionLoadingId(caseId)
     try {
+      const currentStatus = statusByCaseId[caseId] ?? 'pending'
+      const availability = getCaseActionAvailability(currentStatus)
+      if (status === 'approved' && !availability.canApprove) return
+      if (status === 'rejected' && !availability.canReject) return
       await updateCaseWorkflowStatus(caseId, status)
       setStatusByCaseId((prev) => ({ ...prev, [caseId]: status }))
+      if (user?.id) {
+        const action = status === 'approved' ? 'approved' : 'rejected'
+        await logCaseAction(caseId, user.id, action)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo actualizar el estado del caso.')
     } finally { setActionLoadingId(null) }
@@ -445,6 +443,7 @@ export default function AuthorityCases() {
                   <tbody>
                     {filteredCases.map((item, idx) => {
                       const workflowStatus = statusByCaseId[item.id] ?? 'pending'
+                      const availability = getCaseActionAvailability(workflowStatus)
                       const commentsCount = commentsByCaseId[item.id]?.length ?? 0
                       const isActionLoading = actionLoadingId === item.id
                       return (
@@ -483,12 +482,16 @@ export default function AuthorityCases() {
                           </td>
                           <td style={{ padding: '14px 20px', borderBottom: '1px solid #F1F3F5', background: idx % 2 !== 0 ? '#FAFBFC' : '#fff' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                              <button type="button" onClick={() => void applyStatus(item.id, 'approved')} disabled={isActionLoading} className="act-btn act-approve">
-                                <CheckCircle2 size={11} /> Aprobar
-                              </button>
-                              <button type="button" onClick={() => void applyStatus(item.id, 'rejected')} disabled={isActionLoading} className="act-btn act-reject">
-                                <XCircle size={11} /> Rechazar
-                              </button>
+                              {availability.canApprove && (
+                                <button type="button" onClick={() => void applyStatus(item.id, 'approved')} disabled={isActionLoading} className="act-btn act-approve">
+                                  <CheckCircle2 size={11} /> Aprobar
+                                </button>
+                              )}
+                              {availability.canReject && (
+                                <button type="button" onClick={() => void applyStatus(item.id, 'rejected')} disabled={isActionLoading} className="act-btn act-reject">
+                                  <XCircle size={11} /> Rechazar
+                                </button>
+                              )}
                               <button type="button" onClick={() => { setCommentTarget(item); setCommentDraft('') }} className="act-btn act-note">
                                 <MessageSquare size={11} />
                                 {commentsCount > 0 ? `Notas (${commentsCount})` : 'Anotar'}
