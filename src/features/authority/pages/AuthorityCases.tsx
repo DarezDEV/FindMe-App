@@ -455,7 +455,7 @@ export default function AuthorityCases() {
                             <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#2B5CE6', fontWeight: 500 }}>{item.numero_caso}</span>
                           </td>
                           <td style={{ padding: '14px 20px', borderBottom: '1px solid #F1F3F5', background: idx % 2 !== 0 ? '#FAFBFC' : '#fff' }}>
-                            <button type="button" onClick={() => navigate(`/authority/cases/pending?caseId=${item.id}`)} style={{
+                            <button type="button" onClick={() => navigate(`/authority/cases/${item.id}`)} style={{
                               background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left',
                               fontSize: 13, fontFamily: "'Geist', sans-serif", fontWeight: 600, color: '#111827',
                               transition: 'color 0.15s',

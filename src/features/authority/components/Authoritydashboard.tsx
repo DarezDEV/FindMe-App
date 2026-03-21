@@ -238,7 +238,7 @@ export function AuthorityDashboard() {
                       <button
                         key={caso.id}
                         type="button"
-                        onClick={() => navigate('/authority/cases')}
+                        onClick={() => navigate(`/authority/cases/${caso.id}`)}
                         className="recent-row"
                         style={{
                           width: '100%', textAlign: 'left', padding: '14px 22px',
