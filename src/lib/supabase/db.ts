@@ -645,6 +645,31 @@ export async function createCaseComment(
   return data as { id: string }
 }
 
+export async function createCaseClosure(
+  caseId: string,
+  userId: string,
+  note: string,
+): Promise<void> {
+  const trimmed = note.trim()
+  if (!trimmed) throw new Error('La nota de cierre no puede estar vacia.')
+
+  const { error } = await withRetry(() =>
+    supabase
+      .from('cases_closed')
+      .insert({
+        case_id: caseId,
+        closed_by: userId,
+        closed_note: trimmed,
+        closed_at: new Date().toISOString(),
+      }),
+  )
+
+  if (error) {
+    console.error('[createCaseClosure] Error:', error)
+    throw error
+  }
+}
+
 
 export async function updateCaseComment(commentId: string, newText: string): Promise<void> {
   const { data, error } = await withRetry(() =>

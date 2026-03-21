@@ -1,12 +1,13 @@
 import { createCaseComment } from '../../../lib/supabase/db'
 
-export type CaseActionType = 'approved' | 'rejected' | 'found' | 'reopened'
+export type CaseActionType = 'approved' | 'rejected' | 'found' | 'reopened' | 'closed'
 
 const ACTION_LABEL: Record<CaseActionType, string> = {
   approved: 'Aprobado',
   rejected: 'Rechazado',
   found: 'Encontrado',
   reopened: 'Reabierto',
+  closed: 'Cerrado',
 }
 
 export function buildCaseActionComment(action: CaseActionType, detail?: string | null) {

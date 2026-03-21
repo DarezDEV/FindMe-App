@@ -5,7 +5,7 @@ import { AuthoritySidebar } from '../components/AuthoritySidebar'
 import { Spinner } from '../../../shared/components/ui'
 import { useCasoDetalle } from '../../user/hooks/useMisCasos'
 import { useAuth } from '../../auth/hooks'
-import { updateCaseWorkflowStatus } from '../../../lib/supabase/db'
+import { createCaseClosure, updateCaseWorkflowStatus } from '../../../lib/supabase/db'
 import { getCaseActionAvailability, deriveWorkflowStatus } from '../utils/case-workflow'
 import { logCaseAction } from '../utils/case-history'
 
@@ -194,17 +194,21 @@ export default function AuthorityCaseDetailPage() {
       action === 'approve' ? 'approved'
         : action === 'reject' ? 'rejected'
           : action === 'reopen' ? 'pending'
-            : 'found'
+            : 'closed'
 
     setActionLoading(action)
     setFeedback(null)
     try {
       await updateCaseWorkflowStatus(caso.id, nextStatus)
-      const logAction = action === 'approve' ? 'approved'
-        : action === 'reject' ? 'rejected'
-          : action === 'reopen' ? 'reopened'
-            : 'found'
-      await logCaseAction(caso.id, user.id, logAction, detail)
+      if (action === 'found') {
+        await createCaseClosure(caso.id, user.id, detail ?? '')
+        // Nota de cierre se guarda solo en cases_closed, no en case_comments.
+      } else {
+        const logAction = action === 'approve' ? 'approved'
+          : action === 'reject' ? 'rejected'
+            : 'reopened'
+        await logCaseAction(caso.id, user.id, logAction, detail)
+      }
       await refetch()
       setFeedback({ type: 'success', message: 'Acción registrada correctamente.' })
     } catch (err) {
@@ -855,7 +859,7 @@ export default function AuthorityCaseDetailPage() {
                   await runWorkflowUpdate('found', detail)
                 }}
               >
-                Confirmar
+                Cerrar caso
               </button>
             </div>
           </div>
