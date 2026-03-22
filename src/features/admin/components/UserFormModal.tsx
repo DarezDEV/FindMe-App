@@ -214,7 +214,7 @@ export function UserFormModal({ mode, user, onClose, onSuccess }: Props) {
       if (message.startsWith('Timeout:')) {
         const step = message.replace('Timeout:', '')
         if (step === 'auth.getSession') {
-          setError('No se pudo validar tu sesion a tiempo. Intenta recargar la pagina.')
+          setError('No se pudo validar tu sesion a tiempo. Intenta de nuevo.')
         } else {
           setError('La operacion tardo demasiado. Intenta nuevamente.')
         }

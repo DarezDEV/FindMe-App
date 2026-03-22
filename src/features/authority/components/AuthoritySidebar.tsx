@@ -22,7 +22,7 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) 
   return (
     <div style={{
       height: '100%', display: 'flex', flexDirection: 'column',
-      background: '#ffffff', borderRight: '1px solid #E4E7EC',
+      background: '#ffffff', borderRight: '1px solid #e5e7eb',
       fontFamily: "'Geist', 'Inter', system-ui, sans-serif",
     }}>
       <style>{`
@@ -43,9 +43,9 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) 
           width: 100%;
           box-sizing: border-box;
         }
-        .sb-navlink:hover { background: #F8F9FB; color: #111827; }
+        .sb-navlink:hover { background: #f9fafb; color: #111827; }
         .sb-navlink.sb-active {
-          background: linear-gradient(90deg, rgba(43,92,230,0.09) 0%, rgba(43,92,230,0.03) 100%);
+          background: linear-gradient(90deg, rgba(37,99,235,0.09) 0%, rgba(37,99,235,0.03) 100%);
           color: #111827;
         }
 
@@ -54,7 +54,7 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) 
           transform: translateY(-50%);
           width: 3px; height: 0;
           border-radius: 0 2px 2px 0;
-          background: #2B5CE6;
+          background: #2563eb;
           transition: height 0.18s ease-out;
         }
         .sb-active .sb-accent { height: 18px; }
@@ -62,11 +62,11 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) 
         .sb-icon {
           width: 28px; height: 28px; border-radius: 7px;
           display: flex; align-items: center; justify-content: center;
-          flex-shrink: 0; color: #9CA3AF;
+          flex-shrink: 0; color: #6B7280;
           transition: background 0.12s, color 0.12s;
         }
-        .sb-navlink:hover .sb-icon { background: #F1F3F5; color: #6B7280; }
-        .sb-active .sb-icon { background: rgba(43,92,230,0.1); color: #2B5CE6; }
+        .sb-navlink:hover .sb-icon { background: #e5e7eb; color: #6B7280; }
+        .sb-active .sb-icon { background: rgba(37,99,235,0.1); color: #2563eb; }
 
         .sb-navlink .sb-lbl { flex: 1; font-weight: 400; }
         .sb-active .sb-lbl  { font-weight: 600; color: #111827; }
@@ -74,15 +74,15 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) 
 
       {/* ─── BRAND ─── */}
       <div style={{
-        height: 68, borderBottom: '1px solid #F1F3F5',
+        height: 68, borderBottom: '1px solid #e5e7eb',
         padding: '0 18px', display: 'flex', alignItems: 'center',
         gap: 12, flexShrink: 0,
       }}>
         <div style={{
           width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-          background: 'rgba(43,92,230,0.08)', border: '1px solid rgba(43,92,230,0.18)',
+          background: 'rgba(37,99,235,0.08)', border: '1px solid rgba(37,99,235,0.18)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 2px 8px rgba(43,92,230,0.1)',
+          boxShadow: '0 2px 8px rgba(37,99,235,0.1)',
         }}>
           <img
             src="/findMeLogo.svg" alt="FindMe"
@@ -94,7 +94,7 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) 
             }}
           />
           <span style={{ display: 'none', alignItems: 'center', justifyContent: 'center' }}>
-            <ShieldCheck size={16} style={{ color: '#2B5CE6' }} />
+            <ShieldCheck size={16} style={{ color: '#2563eb' }} />
           </span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
@@ -109,8 +109,8 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) 
             display: 'inline-flex', alignItems: 'center', gap: 4,
             fontSize: 9, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500,
             letterSpacing: '0.18em', textTransform: 'uppercase',
-            color: '#2B5CE6', background: 'rgba(43,92,230,0.07)',
-            border: '1px solid rgba(43,92,230,0.18)',
+            color: '#2563eb', background: 'rgba(37,99,235,0.07)',
+            border: '1px solid rgba(37,99,235,0.18)',
             padding: '2px 7px', borderRadius: 4, width: 'fit-content',
           }}>
             <ShieldCheck size={7} /> Authority
@@ -141,13 +141,11 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) 
                 onClick={onNavigate}
                 className={({ isActive }) => `sb-navlink${isActive ? ' sb-active' : ''}`}
               >
-                {({ isActive }) => (
-                  <>
-                    <span className="sb-accent" />
-                    <span className="sb-icon"><Icon size={14} /></span>
-                    <span className="sb-lbl">{label}</span>
-                  </>
-                )}
+                <>
+                  <span className="sb-accent" />
+                  <span className="sb-icon"><Icon size={14} /></span>
+                  <span className="sb-lbl">{label}</span>
+                </>
               </NavLink>
             )
           }
@@ -166,8 +164,8 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) 
               <span style={{
                 fontSize: 9, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500,
                 letterSpacing: '0.15em', textTransform: 'uppercase',
-                color: '#C4C9D4', background: '#F8F9FB',
-                border: '1px solid #E4E7EC', padding: '2px 6px', borderRadius: 4,
+                color: '#C4C9D4', background: '#f9fafb',
+                border: '1px solid #e5e7eb', padding: '2px 6px', borderRadius: 4,
               }}>Pronto</span>
             </div>
           )
@@ -175,7 +173,7 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) 
       </nav>
 
       {/* ─── DIVIDER ─── */}
-      <div style={{ margin: '8px 14px', height: 1, background: '#F1F3F5', flexShrink: 0 }} />
+      <div style={{ margin: '8px 14px', height: 1, background: '#e5e7eb', flexShrink: 0 }} />
 
       {/* ─── LOGOUT ─── */}
       <div style={{ padding: '6px 10px 14px', flexShrink: 0 }}>
@@ -189,8 +187,8 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) 
             display: 'flex', alignItems: 'center', gap: 10,
             padding: '8px 10px', borderRadius: 8, width: '100%',
             fontSize: 13, fontFamily: "'Geist', sans-serif", fontWeight: 400,
-            color: logoutHover ? '#DC2626' : '#9CA3AF',
-            background: logoutHover ? 'rgba(220,38,38,0.05)' : 'transparent',
+            color: logoutHover ? '#ef4444' : '#6B7280',
+            background: logoutHover ? 'rgba(239,68,68,0.05)' : 'transparent',
             border: 'none', cursor: logoutLoading ? 'not-allowed' : 'pointer',
             opacity: logoutLoading ? 0.4 : 1,
             transition: 'background 0.12s, color 0.12s',
@@ -200,8 +198,8 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) 
           <span style={{
             width: 28, height: 28, borderRadius: 7, flexShrink: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: logoutHover ? '#DC2626' : '#9CA3AF',
-            background: logoutHover ? 'rgba(220,38,38,0.08)' : 'transparent',
+            color: logoutHover ? '#ef4444' : '#6B7280',
+            background: logoutHover ? 'rgba(239,68,68,0.08)' : 'transparent',
             transition: 'background 0.12s, color 0.12s',
           }}>
             <LogOut size={14} />
@@ -264,7 +262,7 @@ export function AuthoritySidebar() {
         style={{
           position: 'fixed', top: 16, left: 16, zIndex: 40,
           alignItems: 'center', justifyContent: 'center',
-          background: '#fff', border: '1px solid #E4E7EC',
+          background: '#fff', border: '1px solid #e5e7eb',
           borderRadius: 10, padding: 10, color: '#6B7280',
           cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
         }}
@@ -298,7 +296,7 @@ export function AuthoritySidebar() {
               style={{
                 position: 'absolute', top: 14, right: 14, zIndex: 10,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: '#fff', border: '1px solid #E4E7EC',
+                background: '#fff', border: '1px solid #e5e7eb',
                 borderRadius: 7, padding: 6, color: '#6B7280', cursor: 'pointer',
               }}
             >

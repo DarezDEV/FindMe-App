@@ -52,10 +52,10 @@ function formatWorkflowStatus(status: string | null | undefined) {
 }
 
 const FEEDBACK_META = {
-  success: { color: '#059669', bg: 'rgba(5,150,105,0.06)', border: 'rgba(5,150,105,0.2)', dot: '#059669' },
-  warning: { color: '#D97706', bg: 'rgba(217,119,6,0.06)', border: 'rgba(217,119,6,0.2)', dot: '#D97706' },
-  error:   { color: '#DC2626', bg: 'rgba(220,38,38,0.06)', border: 'rgba(220,38,38,0.2)', dot: '#DC2626' },
-  info:    { color: '#0284C7', bg: 'rgba(2,132,199,0.06)', border: 'rgba(2,132,199,0.2)', dot: '#0284C7' },
+  success: { color: '#10b981', bg: 'rgba(16,185,129,0.06)', border: 'rgba(16,185,129,0.2)', dot: '#10b981' },
+  warning: { color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.25)', dot: '#f59e0b' },
+  error:   { color: '#ef4444', bg: 'rgba(239,68,68,0.06)', border: 'rgba(239,68,68,0.2)', dot: '#ef4444' },
+  info:    { color: '#3b82f6', bg: 'rgba(59,130,246,0.06)', border: 'rgba(59,130,246,0.2)', dot: '#3b82f6' },
 }
 
 export default function PendingCasesPage() {
@@ -203,7 +203,7 @@ export default function PendingCasesPage() {
   const selectedCaseComments = selectedCase ? (commentsByCaseId[selectedCase.id] ?? []) : []
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#F2F4F7', fontFamily: "'Geist', 'Inter', sans-serif" }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#f5f7fb', fontFamily: "'Geist', 'Inter', sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
         @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
@@ -213,7 +213,7 @@ export default function PendingCasesPage() {
         .p-scroll::-webkit-scrollbar { width: 5px; }
         .p-scroll::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.2); border-radius:999px; }
 
-        .p-card { background:#fff; border:1px solid #E4E7EC; border-radius:10px; box-shadow:0 1px 2px rgba(0,0,0,0.04),0 1px 4px rgba(0,0,0,0.03); }
+        .p-card { background:#fff; border:1px solid #e5e7eb; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.05); }
         .p-in { animation: fadeUp 0.4s ease-out both; }
         .p-in-1 { animation-delay:0.06s; }
         .p-in-2 { animation-delay:0.12s; }
@@ -221,8 +221,8 @@ export default function PendingCasesPage() {
         .p-ghost {
           display:inline-flex; align-items:center; gap:7px;
           padding:7px 14px; border-radius:8px;
-          border:1px solid #E4E7EC; background:#fff;
-          color:#64748B; font-size:12px; font-family:'Geist',sans-serif; font-weight:500;
+          border:1px solid #e5e7eb; background:#fff;
+          color:#6B7280; font-size:12px; font-family:'Geist',sans-serif; font-weight:500;
           cursor:pointer; transition:all 0.15s;
         }
         .p-ghost:hover { border-color:#CBD5E1; color:#334155; }
@@ -238,7 +238,7 @@ export default function PendingCasesPage() {
           {/* ─── HEADER ─── */}
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }} className="p-in">
             <div>
-              <p style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, color: '#2B5CE6', letterSpacing: '0.28em', textTransform: 'uppercase', marginBottom: 8 }}>
+              <p style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, color: '#2563eb', letterSpacing: '0.28em', textTransform: 'uppercase', marginBottom: 8 }}>
                 Módulo de Moderación · Publicaciones
               </p>
               <h1 style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 32, color: '#111827', fontWeight: 400, letterSpacing: '-0.03em', marginBottom: 6 }}>
@@ -248,16 +248,16 @@ export default function PendingCasesPage() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               {!loading && pendingCases.length > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', borderRadius: 8, background: 'rgba(43,92,230,0.07)', border: '1px solid rgba(43,92,230,0.2)' }}>
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#2B5CE6', animation: 'dotPulse 2s ease-in-out infinite' }} />
-                  <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: '#2B5CE6' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', borderRadius: 8, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f59e0b', animation: 'dotPulse 2s ease-in-out infinite' }} />
+                  <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: '#b45309' }}>
                     {pendingCases.length} pendiente{pendingCases.length !== 1 ? 's' : ''}
                   </span>
                   <style>{`@keyframes dotPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }`}</style>
                 </div>
               )}
               <button type="button" onClick={() => void loadPendingCases()} className="p-ghost">
-                Recargar
+                Actualizar
               </button>
             </div>
           </div>
@@ -276,12 +276,12 @@ export default function PendingCasesPage() {
           {/* ─── LOADING ─── */}
           {loading ? (
             <div className="p-card" style={{ padding: '64px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 22, height: 22, border: '2px solid rgba(43,92,230,0.2)', borderTopColor: '#2B5CE6', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-              <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>Cargando casos pendientes...</p>
+              <div style={{ width: 22, height: 22, border: '2px solid rgba(37,99,235,0.2)', borderTopColor: '#2563eb', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#6B7280' }}>Cargando casos pendientes...</p>
             </div>
           ) : pendingCases.length === 0 ? (
             <div className="p-card p-in p-in-1" style={{ padding: '64px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 52, height: 52, borderRadius: 14, background: 'rgba(5,150,105,0.07)', border: '1px solid rgba(5,150,105,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+              <div style={{ width: 52, height: 52, borderRadius: 14, background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
                 <span style={{ fontSize: 22 }}>✓</span>
               </div>
               <p style={{ fontSize: 14, color: '#111827', fontWeight: 600 }}>Sin casos pendientes</p>
@@ -292,9 +292,9 @@ export default function PendingCasesPage() {
 
               {/* ─── PENDING LIST ─── */}
               <div className="p-card" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 200px)' }}>
-                <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F3F5' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid #e5e7eb' }}>
                   <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 }}>Cola de revisión</p>
-                  <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>
+                  <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#6B7280' }}>
                     {pendingCases.length} casos en espera
                   </p>
                 </div>
@@ -308,9 +308,9 @@ export default function PendingCasesPage() {
 
                 {/* Case Detail */}
                 <div className="p-card" style={{ overflow: 'hidden' }}>
-                  <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F3F5' }}>
+                  <div style={{ padding: '16px 20px', borderBottom: '1px solid #e5e7eb' }}>
                     <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 }}>Detalle del caso</p>
-                    {selectedCase && <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#2B5CE6' }}>{selectedCase.caseNumber}</p>}
+                    {selectedCase && <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#2563eb' }}>{selectedCase.caseNumber}</p>}
                   </div>
                   <div style={{ padding: 20 }}>
                     <CaseDetailPanel selectedCase={selectedCaseWithPhoto} />
@@ -320,22 +320,22 @@ export default function PendingCasesPage() {
                 {/* Review Notes */}
                 {selectedCase && (
                   <div className="p-card" style={{ overflow: 'hidden' }}>
-                    <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F3F5', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ padding: '16px 20px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div>
                         <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 }}>Notas de revisión</p>
-                        <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>
+                        <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#6B7280' }}>
                           {selectedCaseComments.length} nota{selectedCaseComments.length !== 1 ? 's' : ''}
                         </p>
                       </div>
                       {selectedCaseComments.length > 0 && (
-                        <span style={{ padding: '3px 10px', borderRadius: 6, background: 'rgba(2,132,199,0.08)', border: '1px solid rgba(2,132,199,0.2)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#0284C7', fontWeight: 500 }}>
+                        <span style={{ padding: '3px 10px', borderRadius: 6, background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#3b82f6', fontWeight: 500 }}>
                           {selectedCaseComments.length}
                         </span>
                       )}
                     </div>
                     <div style={{ padding: 20 }}>
                       {selectedCaseComments.length === 0 ? (
-                        <p style={{ fontSize: 12, color: '#9CA3AF', fontFamily: "'JetBrains Mono', monospace" }}>Aún no hay notas registradas para este caso.</p>
+                        <p style={{ fontSize: 12, color: '#6B7280', fontFamily: "'JetBrains Mono', monospace" }}>Aún no hay notas registradas para este caso.</p>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                           {selectedCaseComments.map((comment) => (
@@ -349,9 +349,9 @@ export default function PendingCasesPage() {
 
                 {/* Moderation Actions */}
                 <div className="p-card" style={{ overflow: 'hidden' }}>
-                  <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F3F5' }}>
+                  <div style={{ padding: '16px 20px', borderBottom: '1px solid #e5e7eb' }}>
                     <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 }}>Acciones de moderación</p>
-                    <p style={{ fontSize: 12, color: '#9CA3AF' }}>Revisa y decide el estado de este caso.</p>
+                    <p style={{ fontSize: 12, color: '#6B7280' }}>Revisa y decide el estado de este caso.</p>
                   </div>
                   <div style={{ padding: 20 }}>
                     <ModerationActions

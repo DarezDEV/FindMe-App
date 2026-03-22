@@ -132,7 +132,7 @@ export default function PublicCasesPage() {
             </label>
             <button type="button" onClick={() => void loadCases()} className="btn-secondary inline-flex items-center gap-2">
               <RefreshCw size={14} />
-              Recargar
+              Actualizar
             </button>
           </div>
 

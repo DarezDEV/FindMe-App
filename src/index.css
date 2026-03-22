@@ -1,21 +1,21 @@
 ﻿@import "tailwindcss";
 
 @theme {
-  --color-primary: #3266db;
-  --color-primary-hover: #2954b8;
-  --color-primary-light: #5a85e3;
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-light: #3b82f6;
   --color-primary-soft: #e8f0ff;
 
-  --color-background: #f8fafc;
+  --color-background: #f5f7fb;
   --color-card: #ffffff;
-  --color-border: #e2e8f0;
-  --color-text-primary: #0f172a;
-  --color-text-secondary: #475569;
+  --color-border: #e5e7eb;
+  --color-text-primary: #111827;
+  --color-text-secondary: #6b7280;
 
-  --color-success: #16a34a;
+  --color-success: #10b981;
   --color-warning: #f59e0b;
-  --color-error: #dc2626;
-  --color-info: #0ea5e9;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
 }
 
 @layer base {
@@ -54,7 +54,7 @@
 
   /* Card base */
   .card {
-    @apply bg-card border border-border rounded-2xl shadow-sm;
+    @apply bg-card border border-border rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.05)];
   }
 
   /* Badge de rol */

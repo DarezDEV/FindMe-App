@@ -43,12 +43,12 @@ function getPersistedStatus(row: AuthorityCaseRow): WorkflowStatus {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
-  all:      { label: 'Todos',      color: '#64748B', bg: 'rgba(100,116,139,0.08)', dot: '#94A3B8' },
-  pending:  { label: 'Pendiente',  color: '#2B5CE6', bg: 'rgba(43,92,230,0.08)',  dot: '#2B5CE6' },
-  approved: { label: 'Aprobado',   color: '#059669', bg: 'rgba(5,150,105,0.08)',  dot: '#059669' },
-  rejected: { label: 'Rechazado',  color: '#DC2626', bg: 'rgba(220,38,38,0.08)',  dot: '#DC2626' },
-  found:    { label: 'Encontrado', color: '#0284C7', bg: 'rgba(2,132,199,0.08)',  dot: '#0284C7' },
-  closed:   { label: 'Cerrado',    color: '#6B7280', bg: 'rgba(107,114,128,0.08)', dot: '#9CA3AF' },
+  all:      { label: 'Todos',      color: '#6B7280', bg: 'rgba(107,114,128,0.08)', dot: '#6B7280' },
+  pending:  { label: 'Pendiente',  color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  dot: '#f59e0b' },
+  approved: { label: 'Aprobado',   color: '#10b981', bg: 'rgba(16,185,129,0.08)',  dot: '#10b981' },
+  rejected: { label: 'Rechazado',  color: '#ef4444', bg: 'rgba(239,68,68,0.08)',  dot: '#ef4444' },
+  found:    { label: 'Encontrado', color: '#3b82f6', bg: 'rgba(59,130,246,0.08)',  dot: '#3b82f6' },
+  closed:   { label: 'Cerrado',    color: '#6B7280', bg: 'rgba(107,114,128,0.08)', dot: '#6B7280' },
 }
 
 function InlineStatusBadge({ status }: { status: string }) {
@@ -209,7 +209,7 @@ export default function AuthorityCases() {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#F2F4F7', fontFamily: "'Geist', 'Inter', sans-serif" }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#f5f7fb', fontFamily: "'Geist', 'Inter', sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -247,20 +247,20 @@ export default function AuthorityCases() {
 
         /* ─── TABLE ROWS ─── */
         .case-tr { animation: rowIn 0.35s ease-out both; }
-        .case-tr:hover td { background: rgba(43,92,230,0.04) !important; }
+        .case-tr:hover td { background: #f9fafb !important; }
         .case-tr:hover .row-accent { opacity: 1 !important; }
 
         /* ─── FILTER CHIPS ─── */
         .filter-chip {
           display: inline-flex; align-items: center; gap: 7px;
           padding: 6px 14px; border-radius: 999px;
-          border: 1px solid #E4E7EC;
+          border: 1px solid #e5e7eb;
           font-size: 12px; font-family: 'Geist', sans-serif; font-weight: 500;
-          color: #64748B; background: #fff;
+          color: #6B7280; background: #fff;
           cursor: pointer; transition: all 0.15s ease-out;
         }
         .filter-chip:hover { border-color: #CBD5E1; color: #334155; }
-        .filter-chip.active { border-color: rgba(43,92,230,0.35); background: rgba(43,92,230,0.06); color: #2B5CE6; }
+        .filter-chip.active { border-color: rgba(37,99,235,0.35); background: rgba(37,99,235,0.06); color: #2563eb; }
 
         /* ─── ACTION BUTTONS ─── */
         .act-btn {
@@ -271,39 +271,39 @@ export default function AuthorityCases() {
         }
         .act-btn:hover { transform: translateY(-1px); }
         .act-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-        .act-approve { color: #059669; background: rgba(5,150,105,0.08); border-color: rgba(5,150,105,0.2); }
-        .act-approve:hover { background: rgba(5,150,105,0.14); }
-        .act-reject  { color: #DC2626; background: transparent; border-color: rgba(220,38,38,0.3); }
-        .act-reject:hover  { background: rgba(220,38,38,0.06); }
-        .act-note    { color: #0284C7; background: rgba(2,132,199,0.07); border-color: rgba(2,132,199,0.2); }
+        .act-approve { color: #10b981; background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.2); }
+        .act-approve:hover { background: rgba(16,185,129,0.14); }
+        .act-reject  { color: #ef4444; background: transparent; border-color: rgba(220,38,38,0.3); }
+        .act-reject:hover  { background: rgba(239,68,68,0.06); }
+        .act-note    { color: #3b82f6; background: rgba(2,132,199,0.07); border-color: rgba(59,130,246,0.2); }
         .act-note:hover    { background: rgba(2,132,199,0.12); }
-        .act-del     { color: #9CA3AF; background: transparent; border-color: transparent; padding: 5px 7px; }
-        .act-del:hover     { color: #DC2626; background: rgba(220,38,38,0.07); }
+        .act-del     { color: #6B7280; background: transparent; border-color: transparent; padding: 5px 7px; }
+        .act-del:hover     { color: #ef4444; background: rgba(220,38,38,0.07); }
 
         /* ─── INPUT FIELDS ─── */
         .auth-input {
-          background: #fff; border: 1px solid #E4E7EC; color: #111827;
+          background: #fff; border: 1px solid #e5e7eb; color: #111827;
           border-radius: 8px; padding: 9px 14px; width: 100%; outline: none;
           font-size: 13px; font-family: 'Geist', sans-serif;
           transition: border-color 0.15s, box-shadow 0.15s;
         }
-        .auth-input:focus { border-color: #2B5CE6; box-shadow: 0 0 0 3px rgba(43,92,230,0.1); }
-        .auth-input::placeholder { color: #9CA3AF; }
+        .auth-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+        .auth-input::placeholder { color: #6B7280; }
 
         .auth-textarea {
-          background: #F8F9FB; border: 1px solid #E4E7EC; color: #111827;
+          background: #f9fafb; border: 1px solid #e5e7eb; color: #111827;
           border-radius: 8px; padding: 11px 14px; width: 100%; outline: none;
           font-size: 13px; font-family: 'Geist', sans-serif; resize: none;
           transition: border-color 0.15s, box-shadow 0.15s;
         }
-        .auth-textarea:focus { border-color: #2B5CE6; box-shadow: 0 0 0 3px rgba(43,92,230,0.1); background: #fff; }
+        .auth-textarea:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); background: #fff; }
 
         /* ─── BUTTONS ─── */
         .btn-ghost {
           display: inline-flex; align-items: center; gap: 7px;
           padding: 8px 16px; border-radius: 8px;
-          border: 1px solid #E4E7EC; background: #fff;
-          color: #64748B; font-size: 12px; font-family: 'Geist', sans-serif; font-weight: 500;
+          border: 1px solid #e5e7eb; background: #fff;
+          color: #6B7280; font-size: 12px; font-family: 'Geist', sans-serif; font-weight: 500;
           cursor: pointer; transition: all 0.15s ease-out;
         }
         .btn-ghost:hover { border-color: #CBD5E1; color: #334155; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
@@ -311,28 +311,28 @@ export default function AuthorityCases() {
         .btn-primary {
           display: inline-flex; align-items: center; justify-content: center; gap: 7px;
           padding: 9px 18px; border-radius: 8px;
-          border: none; background: #2B5CE6; color: #fff;
+          border: none; background: #2563eb; color: #fff;
           font-size: 13px; font-family: 'Geist', sans-serif; font-weight: 500;
           cursor: pointer; transition: all 0.15s ease-out;
         }
-        .btn-primary:hover { background: #2450CC; box-shadow: 0 4px 12px rgba(43,92,230,0.25); }
+        .btn-primary:hover { background: #2450CC; box-shadow: 0 4px 12px rgba(37,99,235,0.25); }
         .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
 
         .btn-danger {
           display: inline-flex; align-items: center; justify-content: center; gap: 7px;
           padding: 9px 18px; border-radius: 8px;
-          border: none; background: #DC2626; color: #fff;
+          border: none; background: #ef4444; color: #fff;
           font-size: 13px; font-family: 'Geist', sans-serif; font-weight: 500;
           cursor: pointer; transition: all 0.15s ease-out;
         }
-        .btn-danger:hover { background: #B91C1C; box-shadow: 0 4px 12px rgba(220,38,38,0.25); }
+        .btn-danger:hover { background: #B91C1C; box-shadow: 0 4px 12px rgba(239,68,68,0.25); }
         .btn-danger:disabled { opacity: 0.45; cursor: not-allowed; }
 
         /* ─── CARD ─── */
         .auth-card {
-          background: #fff; border: 1px solid #E4E7EC;
-          border-radius: 10px;
-          box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 1px 4px rgba(0,0,0,0.04);
+          background: #fff; border: 1px solid #e5e7eb;
+          border-radius: 12px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
 
         /* ─── MODAL ─── */
@@ -344,7 +344,7 @@ export default function AuthorityCases() {
         }
         .modal-card {
           position: relative; width: 100%;
-          background: #fff; border: 1px solid #E4E7EC;
+          background: #fff; border: 1px solid #e5e7eb;
           border-radius: 12px;
           box-shadow: 0 20px 60px rgba(0,0,0,0.18);
           animation: slideUp 0.25s ease-out;
@@ -358,10 +358,10 @@ export default function AuthorityCases() {
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '40px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
           {/* ─── PAGE HEADER ─── */}
-          <div className="auth-card section-in" style={{ padding: '28px 32px', background: 'linear-gradient(135deg, #fff 0%, #F8F9FF 100%)' }}>
+          <div className="auth-card section-in" style={{ padding: '28px 32px', background: 'linear-gradient(135deg, #fff 0%, #f9fafb 100%)' }}>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
               <div>
-                <p style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, color: '#2B5CE6', letterSpacing: '0.28em', textTransform: 'uppercase', marginBottom: 8 }}>
+                <p style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, color: '#2563eb', letterSpacing: '0.28em', textTransform: 'uppercase', marginBottom: 8 }}>
                   Sistema de Gestión · Casos
                 </p>
                 <h1 style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 32, color: '#111827', fontWeight: 400, letterSpacing: '-0.03em', marginBottom: 6 }}>
@@ -385,10 +385,10 @@ export default function AuthorityCases() {
           <div className="auth-card section-in section-in-1" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <div style={{ position: 'relative', flex: 1, minWidth: 220, maxWidth: 340 }}>
-                <Search size={13} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', pointerEvents: 'none' }} />
+                <Search size={13} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#6B7280', pointerEvents: 'none' }} />
                 <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nombre..." className="auth-input" style={{ paddingLeft: 36 }} />
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#9CA3AF' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#6B7280' }}>
                 <Filter size={12} />
                 <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.2em', textTransform: 'uppercase' }}>Estado</span>
               </div>
@@ -405,8 +405,8 @@ export default function AuthorityCases() {
 
           {/* ─── ERROR ─── */}
           {error && (
-            <div className="auth-card section-in" style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(220,38,38,0.04)', borderColor: 'rgba(220,38,38,0.2)' }}>
-              <XCircle size={14} style={{ color: '#DC2626', flexShrink: 0 }} />
+            <div className="auth-card section-in" style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(239,68,68,0.04)', borderColor: 'rgba(239,68,68,0.2)' }}>
+              <XCircle size={14} style={{ color: '#ef4444', flexShrink: 0 }} />
               <span style={{ fontSize: 13, color: '#B91C1C' }}>{error}</span>
             </div>
           )}
@@ -415,28 +415,28 @@ export default function AuthorityCases() {
           <div className="auth-card section-in section-in-2" style={{ overflow: 'hidden' }}>
             {loading ? (
               <div style={{ padding: '64px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 22, height: 22, border: '2px solid rgba(43,92,230,0.2)', borderTopColor: '#2B5CE6', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                <div style={{ width: 22, height: 22, border: '2px solid rgba(37,99,235,0.2)', borderTopColor: '#2563eb', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
                 <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-                <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>Cargando casos...</p>
+                <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#6B7280' }}>Cargando casos...</p>
               </div>
             ) : filteredCases.length === 0 ? (
               <div style={{ padding: '64px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                 <p style={{ fontSize: 14, color: '#6B7280', fontWeight: 500 }}>No se encontraron casos.</p>
-                <p style={{ fontSize: 12, color: '#9CA3AF' }}>Intenta cambiar los filtros de búsqueda.</p>
+                <p style={{ fontSize: 12, color: '#6B7280' }}>Intenta cambiar los filtros de búsqueda.</p>
               </div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', minWidth: 960, borderCollapse: 'collapse' }}>
                   {/* ─── TABLE HEAD ─── */}
                   <thead>
-                    <tr style={{ background: 'linear-gradient(180deg, #F8F9FB 0%, rgba(248,249,251,0) 100%)' }}>
+                    <tr style={{ background: 'linear-gradient(180deg, #f9fafb 0%, rgba(248,249,251,0) 100%)' }}>
                       {['No. Caso', 'Persona', 'Zona', 'Fecha', 'Estado', 'Acciones'].map((h) => (
                         <th key={h} style={{
                           padding: '13px 20px', textAlign: 'left',
                           fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
-                          fontWeight: 500, color: '#9CA3AF',
+                          fontWeight: 500, color: '#6B7280',
                           letterSpacing: '0.2em', textTransform: 'uppercase',
-                          borderBottom: '1px solid #F1F3F5',
+                          borderBottom: '1px solid #e5e7eb',
                         }}>{h}</th>
                       ))}
                     </tr>
@@ -452,38 +452,38 @@ export default function AuthorityCases() {
                       return (
                         <tr key={item.id} className="case-tr" style={{ animationDelay: `${idx * 18}ms`, position: 'relative' }}>
                           {/* Row accent line */}
-                          <td style={{ padding: '14px 20px', borderBottom: '1px solid #F1F3F5', background: idx % 2 !== 0 ? '#FAFBFC' : '#fff', position: 'relative' }}>
-                            <span className="row-accent" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, borderRadius: '0 2px 2px 0', background: '#2B5CE6', opacity: 0, transition: 'opacity 0.15s' }} />
-                            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#2B5CE6', fontWeight: 500 }}>{item.numero_caso}</span>
+                          <td style={{ padding: '14px 20px', borderBottom: '1px solid #e5e7eb', background: idx % 2 !== 0 ? '#f9fafb' : '#fff', position: 'relative' }}>
+                            <span className="row-accent" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, borderRadius: '0 2px 2px 0', background: '#2563eb', opacity: 0, transition: 'opacity 0.15s' }} />
+                            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#2563eb', fontWeight: 500 }}>{item.numero_caso}</span>
                           </td>
-                          <td style={{ padding: '14px 20px', borderBottom: '1px solid #F1F3F5', background: idx % 2 !== 0 ? '#FAFBFC' : '#fff' }}>
+                          <td style={{ padding: '14px 20px', borderBottom: '1px solid #e5e7eb', background: idx % 2 !== 0 ? '#f9fafb' : '#fff' }}>
                             <button type="button" onClick={() => navigate(`/authority/cases/${item.id}`)} style={{
                               background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left',
                               fontSize: 13, fontFamily: "'Geist', sans-serif", fontWeight: 600, color: '#111827',
                               transition: 'color 0.15s',
                             }}
-                              onMouseEnter={(e) => { e.currentTarget.style.color = '#2B5CE6' }}
+                              onMouseEnter={(e) => { e.currentTarget.style.color = '#2563eb' }}
                               onMouseLeave={(e) => { e.currentTarget.style.color = '#111827' }}
                             >
                               {item.nombres} {item.apellidos}
                             </button>
                           </td>
-                          <td style={{ padding: '14px 20px', borderBottom: '1px solid #F1F3F5', background: idx % 2 !== 0 ? '#FAFBFC' : '#fff' }}>
+                          <td style={{ padding: '14px 20px', borderBottom: '1px solid #e5e7eb', background: idx % 2 !== 0 ? '#f9fafb' : '#fff' }}>
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#6B7280' }}>
-                              <MapPin size={11} style={{ color: '#9CA3AF', flexShrink: 0 }} />
+                              <MapPin size={11} style={{ color: '#6B7280', flexShrink: 0 }} />
                               {getLocation(item)}
                             </span>
                           </td>
-                          <td style={{ padding: '14px 20px', borderBottom: '1px solid #F1F3F5', background: idx % 2 !== 0 ? '#FAFBFC' : '#fff' }}>
+                          <td style={{ padding: '14px 20px', borderBottom: '1px solid #e5e7eb', background: idx % 2 !== 0 ? '#f9fafb' : '#fff' }}>
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#6B7280' }}>
-                              <Calendar size={11} style={{ color: '#9CA3AF', flexShrink: 0 }} />
+                              <Calendar size={11} style={{ color: '#6B7280', flexShrink: 0 }} />
                               {getDateLabel(item)}
                             </span>
                           </td>
-                          <td style={{ padding: '14px 20px', borderBottom: '1px solid #F1F3F5', background: idx % 2 !== 0 ? '#FAFBFC' : '#fff' }}>
+                          <td style={{ padding: '14px 20px', borderBottom: '1px solid #e5e7eb', background: idx % 2 !== 0 ? '#f9fafb' : '#fff' }}>
                             <InlineStatusBadge status={workflowStatus} />
                           </td>
-                          <td style={{ padding: '14px 20px', borderBottom: '1px solid #F1F3F5', background: idx % 2 !== 0 ? '#FAFBFC' : '#fff' }}>
+                          <td style={{ padding: '14px 20px', borderBottom: '1px solid #e5e7eb', background: idx % 2 !== 0 ? '#f9fafb' : '#fff' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                               {availability.canApprove && (
                                 <button type="button" onClick={() => void applyStatus(item.id, 'approved')} disabled={isActionLoading} className="act-btn act-approve">
@@ -513,11 +513,11 @@ export default function AuthorityCases() {
                 </table>
 
                 {/* ─── TABLE FOOTER ─── */}
-                <div style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #F1F3F5' }}>
-                  <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>
+                <div style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #e5e7eb' }}>
+                  <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#6B7280' }}>
                     {filteredCases.length} caso{filteredCases.length !== 1 ? 's' : ''} mostrado{filteredCases.length !== 1 ? 's' : ''}
                   </p>
-                  <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>
+                  <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#6B7280' }}>
                     {cases.length} en total
                   </p>
                 </div>
@@ -530,15 +530,15 @@ export default function AuthorityCases() {
       {/* ─── DELETE MODAL ─── */}
       {deleteTarget && (
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setDeleteTarget(null) }}>
-          <div className="modal-card" style={{ maxWidth: 420, borderLeft: '3px solid #DC2626' }}>
+          <div className="modal-card" style={{ maxWidth: 420, borderLeft: '3px solid #ef4444' }}>
             <div style={{ padding: '28px 28px 24px' }}>
-              <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 18 }}>
-                <Trash2 size={18} style={{ color: '#DC2626' }} />
+              <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 18 }}>
+                <Trash2 size={18} style={{ color: '#ef4444' }} />
               </div>
               <h2 style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 22, color: '#111827', fontWeight: 400, marginBottom: 8 }}>Confirmar eliminación</h2>
               <p style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.6, marginBottom: 24 }}>
                 Estás por eliminar el caso{' '}
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#2B5CE6', fontWeight: 500 }}>{deleteTarget.numero_caso}</span>.
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#2563eb', fontWeight: 500 }}>{deleteTarget.numero_caso}</span>.
                 {' '}Esta acción no se puede deshacer.
               </p>
               <div style={{ display: 'flex', gap: 10 }}>
@@ -555,28 +555,28 @@ export default function AuthorityCases() {
       {/* ─── COMMENT MODAL ─── */}
       {commentTarget && (
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setCommentTarget(null) }}>
-          <div className="modal-card" style={{ maxWidth: 580, borderLeft: '3px solid #0284C7' }}>
+          <div className="modal-card" style={{ maxWidth: 580, borderLeft: '3px solid #3b82f6' }}>
             <div style={{ padding: '28px 28px 24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(2,132,199,0.08)', border: '1px solid rgba(2,132,199,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <MessageSquare size={16} style={{ color: '#0284C7' }} />
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <MessageSquare size={16} style={{ color: '#3b82f6' }} />
                 </div>
                 <div>
                   <h2 style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 20, color: '#111827', fontWeight: 400 }}>Notas del caso</h2>
-                  <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#2B5CE6', marginTop: 2 }}>{commentTarget.numero_caso}</p>
+                  <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#2563eb', marginTop: 2 }}>{commentTarget.numero_caso}</p>
                 </div>
               </div>
 
               {/* Comments list */}
-              <div style={{ background: '#F8F9FB', border: '1px solid #E4E7EC', borderRadius: 8, padding: '12px 14px', maxHeight: 200, overflowY: 'auto', marginBottom: 14 }} className="auth-scroll">
+              <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 14px', maxHeight: 200, overflowY: 'auto', marginBottom: 14 }} className="auth-scroll">
                 {(commentsByCaseId[commentTarget.id] ?? []).length === 0 ? (
-                  <p style={{ fontSize: 12, color: '#9CA3AF', fontFamily: "'JetBrains Mono', monospace", padding: '8px 0' }}>Sin notas registradas para este caso.</p>
+                  <p style={{ fontSize: 12, color: '#6B7280', fontFamily: "'JetBrains Mono', monospace", padding: '8px 0' }}>Sin notas registradas para este caso.</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {(commentsByCaseId[commentTarget.id] ?? []).map((comment) => (
                       <div key={comment.id}>
                         <CommentItem comment={comment} currentUserId={user?.id ?? ''} onDelete={() => void handleDeleteComment(commentTarget.id, comment.id)} onEdit={(newText) => void handleEditComment(commentTarget.id, comment.id, newText)} disabled={commentLoading} />
-                        <p style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF', marginTop: 4, paddingLeft: 2 }}>
+                        <p style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: '#6B7280', marginTop: 4, paddingLeft: 2 }}>
                           {new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(comment.createdAt))}
                         </p>
                       </div>
