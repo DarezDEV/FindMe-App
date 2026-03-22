@@ -20,6 +20,7 @@ export interface CasoReciente {
 }
 
 export interface CasoDetalle extends CasoReciente {
+  person_id?: string | null
   edad: number | null
   genero: string | null
   lugar_desaparicion: string | null
@@ -92,6 +93,7 @@ interface CasoViewRow {
 }
 
 interface CasoDetalleFallbackRow {
+  person_id?: string | null
   id: string
   numero_caso: string
   nombres: string
@@ -151,6 +153,7 @@ const CASOS_FALLBACK_SELECT = `
 
 const CASO_DETALLE_SELECT = `
   id,
+  person_id,
   numero_caso,
   nombres,
   apellidos,
@@ -183,6 +186,7 @@ const CASO_DETALLE_SELECT = `
 
 const CASO_DETALLE_FALLBACK_SELECT = `
   id,
+  person_id,
   numero_caso,
   nombres,
   apellidos,
@@ -551,6 +555,7 @@ export function useCasoDetalle(caseId: string) {
 
         const caso: CasoDetalle = {
           id: fallbackCase.id,
+          person_id: fallbackCase.person_id ?? null,
           numero_caso: fallbackCase.numero_caso,
           nombres: fallbackCase.nombres,
           apellidos: fallbackCase.apellidos,

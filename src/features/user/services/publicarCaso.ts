@@ -5,6 +5,7 @@ import { type FormData } from '../types'
 interface CasoInsertRow {
   numero_caso: string
   publicado_por: string
+  person_id?: string
   nombres: string
   apellidos: string
   edad: number | null
@@ -53,6 +54,9 @@ interface CreatedCaseRow {
   numero_caso: string
 }
 
+interface PersonRow {
+  id: string
+}
 interface PublishCaseResult {
   caseId: string
   caseNumber: string
@@ -109,6 +113,64 @@ function normalizeEnumValue(value: string) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/\s+/g, '_')
+}
+
+function isTableMissingError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const candidate = error as { code?: unknown; message?: unknown }
+  const code = typeof candidate.code === 'string' ? candidate.code : ''
+  const message = typeof candidate.message === 'string' ? candidate.message.toLowerCase() : ''
+  return (
+    code === '42P01'
+    || message.includes('does not exist')
+    || message.includes('relation')
+  )
+}
+
+async function getOrCreatePersonId(
+  nombres: string,
+  apellidos: string,
+  genero: string | null,
+  edad: number | null,
+): Promise<string | null> {
+  let query = supabase
+    .from('persons')
+    .select('id')
+    .eq('nombres', nombres)
+    .eq('apellidos', apellidos)
+    .limit(1)
+
+  if (genero) query = query.eq('genero', genero)
+  else query = query.is('genero', null)
+
+  if (typeof edad === 'number') query = query.eq('edad', edad)
+  else query = query.is('edad', null)
+
+  const { data, error } = await query.maybeSingle()
+  if (error) {
+    if (isTableMissingError(error)) return null
+    throw error
+  }
+
+  if (data?.id) return (data as PersonRow).id
+
+  const { data: created, error: createError } = await supabase
+    .from('persons')
+    .insert({
+      nombres,
+      apellidos,
+      genero,
+      edad,
+    })
+    .select('id')
+    .single()
+
+  if (createError) {
+    if (isTableMissingError(createError)) return null
+    throw createError
+  }
+
+  return (created as PersonRow).id
 }
 
 function nullableNumber(value: string) {
@@ -510,14 +572,27 @@ export async function publicarCaso(formData: FormData): Promise<PublishCaseResul
 
   const caseNumber = buildCaseNumber()
   const { ciudad, pais } = parseCityAndCountry(formData.lugarDesaparicion)
+  const genero = normalizeGenero(formData.genero)
+  const edad = nullableNumber(formData.edad)
+  let personId: string | null = null
+  try {
+    personId = await getOrCreatePersonId(
+      formData.nombres.trim(),
+      formData.apellidos.trim(),
+      genero,
+      edad,
+    )
+  } catch (error) {
+    console.warn('[publicarCaso] No se pudo asociar persona:', error)
+  }
 
   const payload: CasoInsertRow = {
     numero_caso: caseNumber,
     publicado_por: user.id,
     nombres: formData.nombres.trim(),
     apellidos: formData.apellidos.trim(),
-    edad: nullableNumber(formData.edad),
-    genero: normalizeGenero(formData.genero),
+    edad,
+    genero,
     estatura_cm: normalizeHeightCm(formData.estatura),
     peso_kg: normalizeWeightKg(formData.peso),
     color_piel: normalizeColorPiel(formData.colorPiel),
@@ -539,6 +614,7 @@ export async function publicarCaso(formData: FormData): Promise<PublishCaseResul
     telefono_contacto: nullableText(formData.telefonoContacto),
     email_contacto: nullableText(formData.emailContacto),
     status: 'activo',
+    person_id: personId ?? undefined,
   }
 
   const { data: createdCase, error: caseError } = await withTimeout(
