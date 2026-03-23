@@ -27,6 +27,7 @@ interface UserSighting {
   descripcion: string
   status: SightingStatus
   createdAt: string | null
+  reporterId?: string | null
 }
 
 interface CaseComment {
@@ -466,6 +467,38 @@ async function fetchSightingsByUser(
   return { rows: [] as Record<string, unknown>[], errors }
 }
 
+async function fetchSightingsByCaseIds(caseIds: string[]) {
+  const errors: string[] = []
+  if (caseIds.length === 0) return { rows: [] as Record<string, unknown>[], errors }
+
+  for (const column of ['caso_id', 'case_id']) {
+    const { data, error } = await supabase
+      .from('case_sightings')
+      .select('*')
+      .in(column, caseIds)
+      .order('created_at', { ascending: false })
+
+    if (!error) {
+      return { rows: (data ?? []) as Record<string, unknown>[], errors: [] }
+    }
+
+    const message = error.message.toLowerCase()
+    if (message.includes('column') && message.includes('does not exist')) {
+      errors.push(error.message)
+      continue
+    }
+
+    if (isRecoverableSightingsError(error.message)) {
+      errors.push(error.message)
+      continue
+    }
+
+    throw error
+  }
+
+  return { rows: [] as Record<string, unknown>[], errors }
+}
+
 function parseSightingRow(row: Record<string, unknown>, source: string, index: number): UserSighting | null {
   const idValue = row.id
   const id =
@@ -477,6 +510,7 @@ function parseSightingRow(row: Record<string, unknown>, source: string, index: n
 
   const casoId = pickText(row, ['caso_id', 'case_id'])
   if (!casoId) return null
+  const reporterId = pickText(row, ['reportado_por', 'user_id', 'autor_id', 'creado_por', 'created_by'])
 
   const fecha = pickText(row, ['fecha_avistamiento', 'fecha', 'date'])
   const hora = pickText(row, ['hora_avistamiento', 'hora', 'time'])
@@ -503,6 +537,7 @@ function parseSightingRow(row: Record<string, unknown>, source: string, index: n
     descripcion,
     status: normalizeSightingStatus(rawStatus),
     createdAt,
+    reporterId,
   }
 }
 
@@ -580,6 +615,10 @@ export default function MisCasosPage() {
   const [sightings, setSightings] = useState<UserSighting[]>([])
   const [sightingsLoading, setSightingsLoading] = useState(false)
   const [sightingsError, setSightingsError] = useState<string | null>(null)
+  const [caseSightings, setCaseSightings] = useState<UserSighting[]>([])
+  const [caseSightingsLoading, setCaseSightingsLoading] = useState(false)
+  const [caseSightingsError, setCaseSightingsError] = useState<string | null>(null)
+  const [caseSightingsAuthorById, setCaseSightingsAuthorById] = useState<Record<string, string>>({})
   const [commentsByCaseId, setCommentsByCaseId] = useState<Record<string, CaseComment[]>>({})
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [commentsError, setCommentsError] = useState<string | null>(null)
@@ -806,9 +845,84 @@ export default function MisCasosPage() {
     }
   }, [user?.id])
 
+  const loadCaseSightings = useCallback(async () => {
+    if (!user?.id) return
+
+    const caseIds = myCases.map((item) => item.id)
+    if (caseIds.length === 0) {
+      setCaseSightings([])
+      setCaseSightingsAuthorById({})
+      setCaseSightingsError(null)
+      return
+    }
+
+    setCaseSightingsLoading(true)
+    setCaseSightingsError(null)
+
+    try {
+      const { rows, errors } = await fetchSightingsByCaseIds(caseIds)
+
+      if (rows.length === 0 && errors.length > 0) {
+        throw new Error(errors[errors.length - 1] ?? 'No se pudieron cargar los avistamientos de tus casos.')
+      }
+
+      const parsed = rows
+        .map((row, index) => parseSightingRow(row as Record<string, unknown>, 'case_sightings', index))
+        .filter((item): item is UserSighting => item !== null)
+
+      const filtered = parsed.filter((item) => !item.reporterId || item.reporterId !== user.id)
+
+      const uniqueByKey = new Map<string, UserSighting>()
+      filtered.forEach((item) => {
+        const key = `${item.id}:${item.casoId}:${item.fecha ?? ''}:${item.hora ?? ''}:${item.reporterId ?? ''}`
+        if (!uniqueByKey.has(key)) {
+          uniqueByKey.set(key, item)
+        }
+      })
+
+      const normalized = Array.from(uniqueByKey.values()).sort((a, b) => {
+        const aTime = new Date(a.createdAt ?? a.fecha ?? 0).getTime()
+        const bTime = new Date(b.createdAt ?? b.fecha ?? 0).getTime()
+        return bTime - aTime
+      })
+
+      setCaseSightings(normalized)
+
+      const reporterIds = Array.from(
+        new Set(normalized.map((item) => item.reporterId).filter((value): value is string => Boolean(value))),
+      )
+      if (reporterIds.length === 0) {
+        setCaseSightingsAuthorById({})
+      } else {
+        const profiles = await getProfilesBasicByIds(reporterIds)
+        const mapped: Record<string, string> = {}
+        profiles.forEach((profile) => {
+          const fullName = [profile.name, profile.last_name].filter(Boolean).join(' ').trim()
+          mapped[profile.id] = fullName || profile.email || `Usuario ${profile.id.slice(0, 8)}`
+        })
+        setCaseSightingsAuthorById(mapped)
+      }
+    } catch (err) {
+      let message = err instanceof Error ? err.message : 'No se pudieron cargar los avistamientos de tus casos.'
+      const lowered = message.toLowerCase()
+      if (lowered.includes('row-level security policy') || lowered.includes('permission denied')) {
+        message = 'No tienes permisos para ver los avistamientos de tus casos. Revisa las politicas RLS en Supabase.'
+      }
+      setCaseSightingsError(message)
+      setCaseSightings([])
+      setCaseSightingsAuthorById({})
+    } finally {
+      setCaseSightingsLoading(false)
+    }
+  }, [myCases, user?.id])
+
   useEffect(() => {
     void loadMySightings()
   }, [loadMySightings])
+
+  useEffect(() => {
+    void loadCaseSightings()
+  }, [loadCaseSightings])
 
   useEffect(() => {
     void loadCaseComments()
@@ -1309,6 +1423,107 @@ export default function MisCasosPage() {
                             )}
                           </div>
                         )}
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+
+          <section className="card p-6 sm:p-7 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="inline-flex items-center gap-2">
+                <span className="h-9 w-1.5 rounded-full bg-primary/70" />
+                <div>
+                  <h2 className="text-lg font-semibold text-text-primary">Avistamientos en mis casos</h2>
+                  <p className="text-xs text-text-secondary">Reportes enviados por otras personas.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center rounded-full border border-border bg-background px-2.5 py-1 text-xs text-text-secondary">
+                  Total: <span className="ml-1 font-semibold text-text-primary">{caseSightings.length}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void loadCaseSightings()}
+                  className="btn-secondary text-xs !px-3 !py-1.5"
+                >
+                  Actualizar
+                </button>
+              </div>
+            </div>
+
+            {caseSightingsLoading && (
+              <div className="flex items-center gap-2 text-sm text-text-secondary">
+                <Spinner size="sm" />
+                Cargando avistamientos de tus casos...
+              </div>
+            )}
+
+            {caseSightingsError && (
+              <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 flex items-center justify-between gap-3">
+                <p className="text-xs text-text-secondary inline-flex items-center gap-1.5">
+                  <AlertTriangle size={14} className="text-warning" />
+                  {caseSightingsError}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void loadCaseSightings()}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Reintentar
+                </button>
+              </div>
+            )}
+
+            {!caseSightingsLoading && !caseSightingsError && caseSightings.length === 0 && (
+              <div className="rounded-xl border border-border bg-background p-4 text-sm text-text-secondary">
+                Aun no hay avistamientos registrados en tus casos.
+              </div>
+            )}
+
+            {!caseSightingsLoading && !caseSightingsError && caseSightings.length > 0 && (
+              <div className="space-y-3">
+                {caseSightings.map((item) => {
+                  const statusMeta = getSightingStatusMeta(item.status)
+                  const caseReference = ownCaseReferenceById[item.casoId]
+                  const caseLabel = caseReference
+                    ? `${caseReference.caseNumber} - ${caseReference.fullName}`
+                    : `Caso ${item.casoId.slice(0, 8)}`
+                  const reporterLabel = item.reporterId
+                    ? caseSightingsAuthorById[item.reporterId] ?? `Usuario ${item.reporterId.slice(0, 8)}`
+                    : 'Usuario'
+
+                  return (
+                    <article key={item.id} className="card p-4 space-y-2 transition-shadow duration-200 hover:shadow-md">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold text-text-primary">{caseLabel}</p>
+                          <p className="text-[11px] text-text-secondary">Reportado por: {reporterLabel}</p>
+                        </div>
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${statusMeta.className}`}>
+                          {statusMeta.label}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-text-secondary">
+                        <span className="inline-flex items-center gap-1">
+                          <Clock3 size={12} />
+                          {formatSightingDate(item.fecha, item.hora)}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin size={12} />
+                          {item.lugar}
+                        </span>
+                      </div>
+
+                      <p className="text-sm text-text-primary">{item.descripcion}</p>
+                      <div className="flex items-center justify-between text-[11px] text-text-secondary">
+                        <span>Registrado: {formatRelativeDate(item.createdAt)}</span>
+                        <Link to={`/caso/${item.casoId}`} className="text-xs text-primary hover:underline">
+                          Ver caso
+                        </Link>
                       </div>
                     </article>
                   )

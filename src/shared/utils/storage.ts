@@ -1,7 +1,7 @@
 ﻿import { supabase } from '../../lib/supabase/client'
 
 const CASES_BUCKET   = import.meta.env.VITE_CASES_BUCKET ?? 'casos-media'
-const AVATARS_BUCKET = 'avatars'
+const AVATARS_BUCKET = import.meta.env.VITE_AVATARS_BUCKET ?? 'avatars'
 
 /** Sube un avatar de usuario y retorna la URL pública */
 export async function uploadAvatar(userId: string, file: File): Promise<string> {
@@ -12,7 +12,20 @@ export async function uploadAvatar(userId: string, file: File): Promise<string> 
     .from(AVATARS_BUCKET)
     .upload(path, file, { upsert: true, cacheControl: '3600' })
 
-  if (error) throw error
+  if (error) {
+    const lower = error.message.toLowerCase()
+    if (lower.includes('bucket') && lower.includes('not found')) {
+      throw new Error(
+        `No existe el bucket "${AVATARS_BUCKET}". Crea ese bucket en Supabase Storage o define VITE_AVATARS_BUCKET.`,
+      )
+    }
+    if (lower.includes('row-level security policy') || lower.includes('permission denied')) {
+      throw new Error(
+        `No tienes permisos para subir fotos en el bucket "${AVATARS_BUCKET}". Revisa las policies de storage.objects.`,
+      )
+    }
+    throw error
+  }
 
   const { data } = supabase.storage.from(AVATARS_BUCKET).getPublicUrl(path)
   return data.publicUrl

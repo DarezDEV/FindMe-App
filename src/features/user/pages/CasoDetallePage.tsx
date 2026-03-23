@@ -14,11 +14,21 @@ import { useAuth } from '../../auth/hooks'
 import { useCasoDetalle } from '../hooks/useMisCasos'
 import { reportarComentarioPublico } from '../services/reportes'
 
-function LabelValue({ label, value }: { label: string; value: string | number | null }) {
+function LabelValue({
+  label,
+  value,
+  className = '',
+  valueClassName = '',
+}: {
+  label: string
+  value: string | number | null
+  className?: string
+  valueClassName?: string
+}) {
   return (
-    <div>
+    <div className={`rounded-xl border border-border/70 bg-background px-3 py-2 ${className}`}>
       <p className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">{label}</p>
-      <p className="text-sm text-text-primary mt-1">{value ?? 'No disponible'}</p>
+      <p className={`text-sm font-semibold text-text-primary mt-1 ${valueClassName}`}>{value ?? 'No disponible'}</p>
     </div>
   )
 }
@@ -678,8 +688,11 @@ export default function CasoDetallePage() {
     <>
       <UserNavbar />
 
-      <main className="bg-background min-h-screen py-8 px-4">
-        <div className="max-w-5xl mx-auto space-y-6">
+      <main className="relative bg-background min-h-screen py-8 px-4 overflow-hidden">
+        <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
+        <div className="pointer-events-none absolute top-56 -left-24 h-64 w-64 rounded-full bg-info/10 blur-3xl" />
+
+        <div className="max-w-5xl mx-auto space-y-6 relative">
           <Link
             to="/user"
             className="inline-flex items-center gap-1.5 text-xs text-text-secondary hover:text-primary transition-colors"
@@ -687,42 +700,49 @@ export default function CasoDetallePage() {
             <ChevronLeft size={14} /> Volver al listado
           </Link>
 
-          <article className="card overflow-hidden">
-            <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr]">
-              <div className="bg-primary-soft/40 min-h-[260px] lg:min-h-full">
+          <article className="relative overflow-hidden rounded-3xl border border-border/70 bg-white shadow-[0_28px_70px_-55px_rgba(15,23,42,0.7)]">
+            <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr]">
+              <div className="relative min-h-[280px] bg-primary-soft/40">
+                <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
+                <span className="absolute left-4 top-4 rounded-full bg-primary text-white text-[10px] font-black px-3 py-1 tracking-widest shadow">
+                  {posterTitle}
+                </span>
                 {mainPhoto ? (
-                  <img src={mainPhoto} alt={`${caso.nombres} ${caso.apellidos}`} className="w-full h-full object-cover" />
+                  <img src={mainPhoto} alt={fullName} className="w-full h-full object-cover" />
                 ) : (
                   <div className="h-full flex items-center justify-center text-text-secondary">
                     <UserSearch size={42} />
                   </div>
                 )}
+                <div className="absolute bottom-4 left-4 right-4 text-white">
+                  <p className="text-[11px] uppercase tracking-[0.3em]">Desaparecido desde</p>
+                  <p className="text-lg font-bold">{posterDate}</p>
+                  <p className="text-xs text-white/80 mt-1">{safeLocation}</p>
+                </div>
               </div>
 
-              <div className="p-6 space-y-4">
+              <div className="p-6 lg:p-8 space-y-5">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div>
-                    <p className="text-xs text-text-secondary font-mono">{caso.numero_caso}</p>
-                    <h1 className="text-2xl font-bold text-text-primary mt-1">
-                      {caso.nombres} {caso.apellidos}
-                    </h1>
+                    <p className="text-[11px] uppercase tracking-[0.2em] text-text-secondary">Caso {caso.numero_caso}</p>
+                    <h1 className="text-2xl font-bold text-text-primary mt-1">{fullName}</h1>
                   </div>
-                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-primary-soft text-primary">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-primary-soft text-primary">
                     {formatStatusLabel(caso.status)}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <LabelValue label="Edad" value={caso.edad} />
                   <LabelValue label="Genero" value={caso.genero} />
                   <LabelValue label="Color ojos" value={caso.color_ojos} />
                   <LabelValue label="Color cabello" value={caso.color_cabello} />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <LabelValue label="Ciudad" value={caso.ciudad} />
                   <LabelValue label="Pais" value={caso.pais} />
-                  <LabelValue label="Fecha desaparicion" value={caso.fecha_desaparicion} />
+                  <LabelValue label="Fecha desaparicion" value={formatPosterDate(caso.fecha_desaparicion)} />
                   <LabelValue label="Hora aproximada" value={caso.hora_desaparicion} />
                 </div>
 
@@ -740,18 +760,27 @@ export default function CasoDetallePage() {
 
           <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="card p-5 space-y-4">
-              <h2 className="text-lg font-semibold text-text-primary">Descripcion y circunstancias</h2>
-              <LabelValue label="Descripcion general" value={caso.descripcion_general} />
-              <LabelValue label="Senas particulares" value={caso.senas_particulares} />
-              <LabelValue label="Circunstancias" value={caso.circunstancias} />
-              <LabelValue label="Ropa" value={caso.ropa_descripcion} />
-              <LabelValue label="Zona aproximada de ultimo avistamiento" value={safeLocation} />
+              <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                <span className="h-5 w-1 rounded-full bg-primary" />
+                Descripcion y circunstancias
+              </h2>
+              <div className="space-y-3">
+                <LabelValue label="Descripcion general" value={caso.descripcion_general} className="bg-white" />
+                <LabelValue label="Senas particulares" value={caso.senas_particulares} className="bg-white" />
+                <LabelValue label="Circunstancias" value={caso.circunstancias} className="bg-white" />
+                <LabelValue label="Ropa" value={caso.ropa_descripcion} className="bg-white" />
+                <LabelValue label="Zona aproximada de ultimo avistamiento" value={safeLocation} className="bg-white" />
+              </div>
             </div>
 
             <div className="card p-5 space-y-4">
-              <h2 className="text-lg font-semibold text-text-primary">Contacto</h2>
+              <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                <span className="h-5 w-1 rounded-full bg-primary" />
+                Contacto
+              </h2>
               <p className="text-xs text-text-secondary">
-                Visibilidad: <span className="font-semibold text-text-primary">{caso.visibilidad_contacto ?? 'publico'}</span>
+                Visibilidad:{' '}
+                <span className="font-semibold text-text-primary">{caso.visibilidad_contacto ?? 'publico'}</span>
               </p>
               <div className="space-y-3">
                 <p className="text-sm text-text-primary inline-flex items-center gap-2">

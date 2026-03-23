@@ -95,7 +95,6 @@ export default function UserHome() {
       ),
     [filteredCasos],
   )
-
   const displayCases = missingCases
   const [featuredIndex, setFeaturedIndex] = useState(0)
   const featuredCase = displayCases[featuredIndex]
@@ -154,16 +153,11 @@ export default function UserHome() {
     <>
       <UserNavbar />
 
-      <main className="bg-background min-h-screen py-8 px-4">
-        <div className="max-w-5xl mx-auto space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-text-primary">Casos generales</h1>
-              <p className="text-sm text-text-secondary mt-1">
-                Consulta todos los casos recientes publicados en la plataforma.
-              </p>
-            </div>
-          </div>
+      <main className="relative bg-background min-h-screen py-10 px-4 overflow-hidden">
+        <div className="pointer-events-none absolute -top-24 -right-20 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
+        <div className="pointer-events-none absolute top-48 -left-24 h-72 w-72 rounded-full bg-info/10 blur-3xl" />
+
+        <div className="max-w-6xl mx-auto space-y-8 relative">
 
           {normalizedQuery && (
             <div className="card p-3 flex flex-wrap items-center justify-between gap-2 text-sm">
@@ -182,14 +176,14 @@ export default function UserHome() {
           )}
 
           {!casosLoading && !casosError && featuredCase && (
-            <section className="card overflow-hidden border border-border/70 bg-gradient-to-br from-white via-white to-primary-soft/40 shadow-[0_20px_45px_-40px_rgba(15,23,42,0.7)]">
+            <section className="relative overflow-hidden rounded-3xl border border-border/60 bg-white shadow-[0_25px_70px_-50px_rgba(15,23,42,0.6)]">
               <div className="flex items-center justify-between px-4 py-3 border-b border-border/70 bg-white/80 backdrop-blur">
                 <div className="flex items-center gap-3">
                   <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 text-primary text-[10px] font-semibold px-2.5 py-1 uppercase tracking-widest">
-                    En vivo
+                    Slider
                   </span>
                   <div>
-                    <h2 className="text-sm font-semibold text-text-primary">Pantalla de casos</h2>
+                    <h2 className="text-sm font-semibold text-text-primary">Casos recientes</h2>
                     <p className="text-xs text-text-secondary">Se actualiza automaticamente.</p>
                   </div>
                 </div>
@@ -198,59 +192,79 @@ export default function UserHome() {
                 </span>
               </div>
 
-              <div
-                className={`grid grid-cols-1 md:grid-cols-[280px_1fr] gap-5 p-5 transition-all duration-500 ${
-                  isTransitioning ? 'opacity-0 translate-y-2 scale-[0.985]' : 'opacity-100 translate-y-0 scale-100'
-                }`}
-              >
-                <div className="relative border border-border/70 rounded-2xl overflow-hidden aspect-[3/4] flex items-center justify-center bg-background shadow-sm">
-                  <span className="absolute left-3 top-3 rounded-full bg-primary text-white text-[10px] font-black px-2.5 py-1 tracking-widest shadow">
-                    DESAPARECIDO
-                  </span>
-                  {featuredCase.foto_principal_url ? (
-                    <img
-                      src={featuredCase.foto_principal_url}
-                      alt={`${featuredCase.nombres} ${featuredCase.apellidos}`}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <UserSearch size={38} className="text-text-secondary" />
-                  )}
-                </div>
+              <div className="relative">
+                <div
+                  key={featuredCase.id}
+                  className={`grid grid-cols-1 md:grid-cols-[320px_1fr] gap-6 p-6 transition-all duration-500 ${
+                    isTransitioning ? 'opacity-0 translate-x-6' : 'opacity-100 translate-x-0'
+                  }`}
+                >
+                  <div className="relative rounded-2xl overflow-hidden border border-border/70 bg-background shadow-sm">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
+                    <span className="absolute left-4 top-4 rounded-full bg-primary text-white text-[10px] font-black px-3 py-1 tracking-widest shadow">
+                      DESAPARECIDO
+                    </span>
+                    <div className="aspect-[3/4] flex items-center justify-center">
+                      {featuredCase.foto_principal_url ? (
+                        <img
+                          src={featuredCase.foto_principal_url}
+                          alt={`${featuredCase.nombres} ${featuredCase.apellidos}`}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <UserSearch size={38} className="text-text-secondary" />
+                      )}
+                    </div>
+                    <div className="absolute bottom-4 left-4 right-4 text-white">
+                      <p className="text-xs uppercase tracking-[0.3em]">DESDE</p>
+                      <p className="text-lg font-bold">{formatPosterDate(featuredCase.fecha_desaparicion)}</p>
+                    </div>
+                  </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-xs text-text-secondary font-mono">{featuredCase.numero_caso}</p>
-                    <h3 className="text-2xl font-bold text-text-primary mt-1">
-                      {featuredCase.nombres} {featuredCase.apellidos}
-                    </h3>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-xs text-text-secondary font-mono">{featuredCase.numero_caso}</p>
+                      <h3 className="text-2xl font-bold text-text-primary mt-1">
+                        {featuredCase.nombres} {featuredCase.apellidos}
+                      </h3>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-sm text-text-secondary">
+                      {[
+                        { label: 'Estado', value: getCaseStatusLabel(featuredCase) },
+                        { label: 'Ciudad', value: featuredCase.ciudad ?? 'Sin ciudad' },
+                        { label: 'Fecha', value: formatPosterDate(featuredCase.fecha_desaparicion) },
+                        { label: 'Vistas', value: String(featuredCase.vistas) },
+                      ].map((item) => (
+                        <div key={item.label} className="rounded-xl border border-border/60 bg-white/70 px-3 py-2">
+                          <p className="text-[11px] uppercase tracking-wide text-text-secondary">{item.label}</p>
+                          <p className="font-semibold text-text-primary">{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <Link to={`/caso/${featuredCase.id}`} className="btn-primary inline-flex text-sm items-center gap-2 w-fit">
+                      Ver detalles
+                    </Link>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 text-sm text-text-secondary">
-                    {[
-                      { label: 'Estado', value: getCaseStatusLabel(featuredCase) },
-                      { label: 'Ciudad', value: featuredCase.ciudad ?? 'Sin ciudad' },
-                      { label: 'Fecha', value: formatPosterDate(featuredCase.fecha_desaparicion) },
-                      { label: 'Vistas', value: String(featuredCase.vistas) },
-                    ].map((item) => (
-                      <div key={item.label} className="rounded-xl border border-border/60 bg-white/70 px-3 py-2">
-                        <p className="text-[11px] uppercase tracking-wide text-text-secondary">{item.label}</p>
-                        <p className="font-semibold text-text-primary">{item.value}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <Link
-                    to={`/caso/${featuredCase.id}`}
-                    className="btn-primary inline-flex text-sm items-center gap-2 w-fit"
-                  >
-                    Ver detalles
-                  </Link>
+                </div>
+                <div className="absolute bottom-4 right-6 flex gap-1.5">
+                  {displayCases.slice(0, 6).map((_, index) => (
+                    <span
+                      key={`dot-${index}`}
+                      className={`h-2 w-2 rounded-full transition-colors ${
+                        index === featuredIndex ? 'bg-primary' : 'bg-border'
+                      }`}
+                    />
+                  ))}
                 </div>
               </div>
             </section>
           )}
 
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-text-primary">Listado general</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-text-primary">Listado general</h2>
+              <p className="text-xs text-text-secondary">Solo casos aprobados para visualizacion publica.</p>
+            </div>
             <button
               onClick={() => refetchCasos()}
               className="text-text-secondary hover:text-primary transition-colors inline-flex items-center gap-1.5 text-xs"
