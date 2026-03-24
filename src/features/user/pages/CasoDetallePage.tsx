@@ -1,6 +1,22 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ChevronLeft, Eye, Link2, Mail, MapPin, MessageSquare, MoreVertical, Phone, Share2, UserSearch, Video } from 'lucide-react'
+import {
+  Calendar,
+  ChevronLeft,
+  Clock,
+  Eye,
+  FileText,
+  Link2,
+  Mail,
+  MapPin,
+  MessageSquare,
+  MoreVertical,
+  Phone,
+  PhoneCall,
+  Share2,
+  UserSearch,
+  Video,
+} from 'lucide-react'
 import UserNavbar from '../components/Usernavbar'
 import { Alert, Spinner } from '../../../shared/components/ui'
 import {
@@ -14,7 +30,16 @@ import { useAuth } from '../../auth/hooks'
 import { useCasoDetalle } from '../hooks/useMisCasos'
 import { reportarComentarioPublico } from '../services/reportes'
 
-function LabelValue({
+function CaseChip({ icon, label }: { icon?: ReactNode; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background px-3 py-1 text-xs text-text-secondary">
+      {icon && <span className="text-primary">{icon}</span>}
+      {label}
+    </span>
+  )
+}
+
+function DetailItem({
   label,
   value,
   className = '',
@@ -26,9 +51,34 @@ function LabelValue({
   valueClassName?: string
 }) {
   return (
-    <div className={`rounded-xl border border-border/70 bg-background px-3 py-2 ${className}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-text-secondary">{label}</p>
+    <div className={className}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-text-secondary">{label}</p>
       <p className={`text-sm font-semibold text-text-primary mt-1 ${valueClassName}`}>{value ?? 'No disponible'}</p>
+    </div>
+  )
+}
+
+function InfoTile({ icon, label, value }: { icon: ReactNode; label: string; value: string | null }) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-background px-4 py-3">
+      <div className="h-9 w-9 rounded-lg bg-primary-soft text-primary flex items-center justify-center">
+        {icon}
+      </div>
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-text-secondary">{label}</p>
+        <p className="text-sm font-semibold text-text-primary mt-1">{value ?? 'No disponible'}</p>
+      </div>
+    </div>
+  )
+}
+
+function SectionTitle({ icon, title }: { icon: ReactNode; title: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="h-9 w-9 rounded-xl bg-primary-soft text-primary flex items-center justify-center">
+        {icon}
+      </span>
+      <h2 className="text-base font-semibold text-text-primary">{title}</h2>
     </div>
   )
 }
@@ -48,6 +98,13 @@ function formatDateTime(value: string | null) {
   })
 }
 
+function formatShortDate(value: string | null) {
+  if (!value) return 'No disponible'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleDateString('sv-SE')
+}
+
 function formatEstado(value: string | null) {
   if (!value) return null
   return value.replace(/_/g, ' ')
@@ -57,6 +114,20 @@ function formatStatusLabel(status: string) {
   if (status === 'encontrado') return 'Reunificada'
   if (status === 'cerrado') return 'Archivada'
   return 'Publicada'
+}
+
+function formatVisibilityLabel(value: string | null) {
+  if (!value) return 'PUBLICO'
+  if (value === 'publico') return 'PUBLICO'
+  if (value === 'autoridades') return 'AUTORIDADES'
+  if (value === 'privado') return 'PRIVADO'
+  return value.toUpperCase()
+}
+
+function getVisibilityBadgeClasses(value: string | null) {
+  if (value === 'privado') return 'bg-error/10 text-error border-error/30'
+  if (value === 'autoridades') return 'bg-warning/10 text-warning border-warning/30'
+  return 'bg-success/10 text-success border-success/30'
 }
 
 function getPosterTitle(status: string | null, workflowStatus: string | null) {
@@ -93,7 +164,8 @@ function buildCaseShareUrl(caseId: string) {
 }
 
 function buildShareText(caseNumber: string, fullName: string) {
-  return `Ayuda a difundir el caso ${caseNumber}: ${fullName}.`
+  const safeName = fullName.trim() || 'persona sin identificar'
+  return `Ayuda a difundir el caso ${caseNumber}: ${safeName}.`
 }
 
 function buildSocialShareUrl(network: ShareNetwork, url: string, text: string) {
@@ -293,6 +365,17 @@ export default function CasoDetallePage() {
   const mainPhoto = photos.find(item => item.es_principal)?.url ?? caso.foto_principal_url ?? photos[0]?.url ?? null
   const safeLocation = buildApproximateLocation(caso.ciudad, caso.pais)
   const fullName = `${caso.nombres} ${caso.apellidos}`.trim()
+  const displayName = fullName || 'Persona no identificada'
+  const detailDate = formatShortDate(caso.fecha_desaparicion)
+  const visibilityLabel = formatVisibilityLabel(caso.visibilidad_contacto)
+  const visibilityClasses = getVisibilityBadgeClasses(caso.visibilidad_contacto)
+  const lastSeenLocation = caso.lugar_ultima_vez || caso.lugar_desaparicion || safeLocation
+  const ageLabel = typeof caso.edad === 'number' ? `${caso.edad} anos` : 'Edad no disponible'
+  const generoValue = caso.genero?.trim()
+  const genderLabel = generoValue
+    ? `${generoValue.charAt(0).toUpperCase()}${generoValue.slice(1)}`
+    : 'Genero no disponible'
+  const locationLabel = caso.ciudad || safeLocation
   const commentsEnabled = isPublicCommentEnabled(caso.workflow_status)
   const authorityComments = comentarios.filter((comentario) => {
     if (!comentario.autor_id) return false
@@ -302,6 +385,7 @@ export default function CasoDetallePage() {
   })
   const posterTitle = getPosterTitle(caso.status, caso.workflow_status)
   const posterDate = formatPosterDate(caso.fecha_desaparicion)
+  const statusLabel = formatStatusLabel(caso.status)
 
   const posterStyles = `
     :root {
@@ -442,7 +526,7 @@ export default function CasoDetallePage() {
               </ul>
             </div>
           </div>
-          <div class="name">${fullName || 'Nombre no disponible'}</div>
+          <div class="name">${displayName}</div>
           <div class="contact">
             <h4>Para informacion</h4>
             ${
@@ -466,7 +550,7 @@ export default function CasoDetallePage() {
       <html lang="es">
         <head>
           <meta charset="utf-8" />
-          <title>Afiche - ${fullName}</title>
+          <title>Afiche - ${displayName}</title>
           <style>
             ${posterStyles}
           </style>
@@ -657,7 +741,7 @@ export default function CasoDetallePage() {
 
   const shareCase = async () => {
     const shareUrl = buildCaseShareUrl(caso.id)
-    const text = buildShareText(caso.numero_caso, fullName)
+    const text = buildShareText(caso.numero_caso, displayName)
 
     if (typeof navigator.share === 'function') {
       try {
@@ -679,7 +763,7 @@ export default function CasoDetallePage() {
 
   const shareOnSocial = (network: ShareNetwork) => {
     const shareUrl = buildCaseShareUrl(caso.id)
-    const text = buildShareText(caso.numero_caso, fullName)
+    const text = buildShareText(caso.numero_caso, displayName)
     const socialUrl = buildSocialShareUrl(network, shareUrl, text)
     window.open(socialUrl, '_blank', 'noopener,noreferrer')
   }
@@ -700,97 +784,101 @@ export default function CasoDetallePage() {
             <ChevronLeft size={14} /> Volver al listado
           </Link>
 
-          <article className="relative overflow-hidden rounded-3xl border border-border/70 bg-white shadow-[0_28px_70px_-55px_rgba(15,23,42,0.7)]">
-            <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr]">
-              <div className="relative min-h-[280px] bg-primary-soft/40">
-                <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
-                <span className="absolute left-4 top-4 rounded-full bg-primary text-white text-[10px] font-black px-3 py-1 tracking-widest shadow">
-                  {posterTitle}
-                </span>
+          <article className="card overflow-hidden shadow-[0_20px_60px_-45px_rgba(15,23,42,0.45)]">
+            <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr]">
+              <div className="relative min-h-[260px] bg-background">
                 {mainPhoto ? (
-                  <img src={mainPhoto} alt={fullName} className="w-full h-full object-cover" />
+                  <img src={mainPhoto} alt={`Foto de ${displayName}`} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="h-full flex items-center justify-center text-text-secondary">
+                  <div className="h-full flex flex-col items-center justify-center text-text-secondary gap-2">
                     <UserSearch size={42} />
+                    <span className="text-xs">Sin foto disponible</span>
                   </div>
                 )}
-                <div className="absolute bottom-4 left-4 right-4 text-white">
-                  <p className="text-[11px] uppercase tracking-[0.3em]">Desaparecido desde</p>
-                  <p className="text-lg font-bold">{posterDate}</p>
-                  <p className="text-xs text-white/80 mt-1">{safeLocation}</p>
-                </div>
               </div>
 
               <div className="p-6 lg:p-8 space-y-5">
-                <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
                   <div>
-                    <p className="text-[11px] uppercase tracking-[0.2em] text-text-secondary">Caso {caso.numero_caso}</p>
-                    <h1 className="text-2xl font-bold text-text-primary mt-1">{fullName}</h1>
+                    <p className="text-[11px] uppercase tracking-[0.32em] text-text-secondary">
+                      Caso {caso.numero_caso}
+                    </p>
+                    <h1 className="text-2xl font-bold text-text-primary mt-1">{displayName}</h1>
                   </div>
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-primary-soft text-primary">
-                    {formatStatusLabel(caso.status)}
+                  <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary-soft px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">
+                    {statusLabel}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <LabelValue label="Edad" value={caso.edad} />
-                  <LabelValue label="Genero" value={caso.genero} />
-                  <LabelValue label="Color ojos" value={caso.color_ojos} />
-                  <LabelValue label="Color cabello" value={caso.color_cabello} />
+                <div className="flex flex-wrap gap-2">
+                  <CaseChip label={ageLabel} />
+                  <CaseChip label={genderLabel} />
+                  <CaseChip icon={<Eye size={12} />} label={`${caso.vistas} vistas`} />
+                  <CaseChip icon={<MapPin size={12} />} label={locationLabel} />
+                </div>
+
+                <div className="h-px bg-border/70" />
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <DetailItem label="Ojos" value={caso.color_ojos} />
+                  <DetailItem label="Cabello" value={caso.color_cabello} />
+                  <DetailItem label="Ciudad" value={caso.ciudad} />
+                  <DetailItem label="Pais" value={caso.pais} />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <LabelValue label="Ciudad" value={caso.ciudad} />
-                  <LabelValue label="Pais" value={caso.pais} />
-                  <LabelValue label="Fecha desaparicion" value={formatPosterDate(caso.fecha_desaparicion)} />
-                  <LabelValue label="Hora aproximada" value={caso.hora_desaparicion} />
-                </div>
-
-                <div className="flex items-center gap-4 text-xs text-text-secondary flex-wrap">
-                  <span className="inline-flex items-center gap-1">
-                    <Eye size={13} /> {caso.vistas} vistas
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <MapPin size={13} /> Zona aproximada: {safeLocation}
-                  </span>
+                  <InfoTile icon={<Calendar size={16} />} label="Fecha desaparicion" value={detailDate} />
+                  <InfoTile icon={<Clock size={16} />} label="Hora aproximada" value={caso.hora_desaparicion} />
                 </div>
               </div>
             </div>
           </article>
 
-          <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="card p-5 space-y-4">
-              <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
-                <span className="h-5 w-1 rounded-full bg-primary" />
-                Descripcion y circunstancias
-              </h2>
-              <div className="space-y-3">
-                <LabelValue label="Descripcion general" value={caso.descripcion_general} className="bg-white" />
-                <LabelValue label="Senas particulares" value={caso.senas_particulares} className="bg-white" />
-                <LabelValue label="Circunstancias" value={caso.circunstancias} className="bg-white" />
-                <LabelValue label="Ropa" value={caso.ropa_descripcion} className="bg-white" />
-                <LabelValue label="Zona aproximada de ultimo avistamiento" value={safeLocation} className="bg-white" />
+          <section className="grid grid-cols-1 lg:grid-cols-[1.4fr_0.9fr] gap-6">
+            <div className="card p-6 space-y-5">
+              <SectionTitle icon={<FileText size={16} />} title="Descripcion y circunstancias" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <DetailItem
+                  label="Descripcion general"
+                  value={caso.descripcion_general}
+                  valueClassName="font-medium text-text-primary/90"
+                />
+                <DetailItem
+                  label="Senas particulares"
+                  value={caso.senas_particulares}
+                  valueClassName="font-medium text-text-primary/90"
+                />
+                <DetailItem
+                  label="Ropa al momento"
+                  value={caso.ropa_descripcion}
+                  valueClassName="font-medium text-text-primary/90"
+                />
+                <DetailItem
+                  label="Circunstancias"
+                  value={caso.circunstancias}
+                  valueClassName="font-medium text-text-primary/90"
+                />
+                <DetailItem
+                  label="Ultimo lugar visto"
+                  value={lastSeenLocation}
+                  valueClassName="font-medium text-text-primary/90"
+                />
               </div>
             </div>
 
-            <div className="card p-5 space-y-4">
-              <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
-                <span className="h-5 w-1 rounded-full bg-primary" />
-                Contacto
-              </h2>
-              <p className="text-xs text-text-secondary">
-                Visibilidad:{' '}
-                <span className="font-semibold text-text-primary">{caso.visibilidad_contacto ?? 'publico'}</span>
-              </p>
+            <div className="card p-6 space-y-4">
+              <SectionTitle icon={<PhoneCall size={16} />} title="Contacto" />
+              <div className="flex items-center gap-2 text-xs text-text-secondary">
+                <span>Visibilidad:</span>
+                <span
+                  className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-semibold tracking-[0.2em] ${visibilityClasses}`}
+                >
+                  {visibilityLabel}
+                </span>
+              </div>
               <div className="space-y-3">
-                <p className="text-sm text-text-primary inline-flex items-center gap-2">
-                  <Phone size={14} className="text-primary" />
-                  {caso.telefono_contacto ?? 'No disponible'}
-                </p>
-                <p className="text-sm text-text-primary inline-flex items-center gap-2">
-                  <Mail size={14} className="text-primary" />
-                  {caso.email_contacto ?? 'No disponible'}
-                </p>
+                <InfoTile icon={<Phone size={16} />} label="Telefono" value={caso.telefono_contacto} />
+                <InfoTile icon={<Mail size={16} />} label="Email" value={caso.email_contacto} />
               </div>
             </div>
           </section>

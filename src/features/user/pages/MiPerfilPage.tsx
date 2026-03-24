@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronLeft, Mail, Save, ShieldCheck, UserCircle2 } from 'lucide-react'
+import { AtSign, ChevronLeft, Globe, Save, ShieldCheck, UserCircle2 } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
 import { Alert, Spinner } from '../../../shared/components/ui'
 import { supabase } from '../../../lib/supabase/client'
@@ -143,6 +143,8 @@ export default function MiPerfilPage() {
   const roles = useMemo(() => user?.roles ?? [], [user?.roles])
   const currentAvatar = removeAvatar ? '' : avatarPreview ?? form.avatarUrl
   const avatarInputId = 'perfil-avatar-input'
+  const username = user.email ? user.email.split('@')[0] : 'usuario'
+  const emailValue = user.email ?? ''
 
   const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null
@@ -222,8 +224,8 @@ export default function MiPerfilPage() {
     <>
       <UserNavbar />
 
-      <main className="min-h-screen bg-background py-8 px-4">
-        <div className="max-w-5xl mx-auto space-y-6">
+      <main className="min-h-screen bg-background py-10 px-4">
+        <div className="max-w-6xl mx-auto space-y-6">
           <Link
             to="/user"
             className="inline-flex items-center gap-1.5 text-xs text-text-secondary hover:text-primary transition-colors"
@@ -232,102 +234,86 @@ export default function MiPerfilPage() {
             Volver al inicio
           </Link>
 
-          <section className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6">
-            <aside className="card p-5 space-y-5 bg-primary text-white border-primary/30">
+          <section className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
+            <aside className="card p-5 space-y-5">
               <div className="flex flex-col items-center text-center gap-3">
-                <div className="h-20 w-20 rounded-2xl border border-white/30 bg-white/10 overflow-hidden flex items-center justify-center text-white">
+                <div className="h-24 w-24 rounded-full border border-border bg-background overflow-hidden flex items-center justify-center">
                   {currentAvatar ? (
                     <img src={currentAvatar} alt="Avatar" className="h-full w-full object-cover" />
                   ) : (
-                    <UserCircle2 size={34} />
+                    <UserCircle2 size={36} className="text-text-secondary" />
                   )}
                 </div>
                 <div>
-                  <p className="text-base font-semibold text-white">{user.name ?? 'Usuario'}</p>
-                  <p className="text-xs text-white/70">Miembro desde {formatDate(user.created_at)}</p>
+                  <p className="text-base font-semibold text-text-primary">{user.name ?? 'Usuario'}</p>
+                  <p className="text-xs text-text-secondary">@{username}</p>
                 </div>
+                <label htmlFor={avatarInputId} className="btn-primary !px-4 !py-2 text-xs">
+                  Subir nueva foto
+                </label>
+                <input
+                  id={avatarInputId}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarChange}
+                  className="hidden"
+                />
+                {currentAvatar && (
+                  <button
+                    type="button"
+                    onClick={() => setAvatarModalOpen(true)}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Ver foto
+                  </button>
+                )}
+                <p className="text-[11px] text-text-secondary max-w-[220px]">
+                  La imagen se recortara automaticamente. Tamano maximo 5 MB.
+                </p>
+                {avatarError && <p className="text-xs text-error">{avatarError}</p>}
               </div>
 
-              <div className="space-y-2 text-sm">
-                <Link to="/mis-casos" className="block px-3 py-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10">
-                  Mis casos
-                </Link>
-                <Link to="/reportar" className="block px-3 py-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10">
-                  Reportar contenido
-                </Link>
+              <div className="rounded-xl border border-border bg-background/60 p-3">
+                <p className="text-xs text-text-secondary">Miembro desde: {formatDate(user.created_at)}</p>
               </div>
 
-              <div className="rounded-xl border border-white/20 bg-white/10 p-3 space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Roles activos</p>
-                <div className="flex flex-wrap gap-2">
-                  {roles.map((role) => (
-                    <span
-                      key={role}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-white/15 text-white"
-                    >
-                      <ShieldCheck size={12} />
-                      {role}
-                    </span>
-                  ))}
+              {roles.length > 0 && (
+                <div className="rounded-xl border border-border bg-background/60 p-3 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-secondary">Roles activos</p>
+                  <div className="flex flex-wrap gap-2">
+                    {roles.map((role) => (
+                      <span
+                        key={role}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-primary-soft text-primary"
+                      >
+                        <ShieldCheck size={12} />
+                        {role}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </aside>
 
-            <div className="card overflow-hidden border border-border/70">
-              <div className="bg-primary text-white px-6 py-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-white/80">Perfil</p>
-                    <h1 className="text-xl font-semibold mt-1">{user.name ?? 'Mi perfil'}</h1>
-                  </div>
-                  <Link to="/forgot-password" className="text-xs text-white/80 hover:text-white underline underline-offset-4">
-                    Cambiar la contraseña
-                  </Link>
+            <div className="card overflow-hidden">
+              <div className="border-b border-border bg-card px-6 pt-6">
+                <h1 className="text-xl font-semibold text-text-primary">Editar perfil</h1>
+                <div className="mt-4 flex flex-wrap gap-6 text-sm">
+                  <button type="button" className="border-b-2 border-primary pb-2 text-primary font-semibold">
+                    Info de usuario
+                  </button>
+                  <span className="pb-2 text-text-secondary">Preferencias</span>
                 </div>
               </div>
 
-              <div className="px-6 pb-6 pt-0">
-                <div className="-mt-10 flex items-center gap-4">
-                  <div className="relative h-20 w-20 rounded-full border-4 border-white bg-background overflow-hidden shadow-md flex items-center justify-center">
-                    {currentAvatar ? (
-                      <img src={currentAvatar} alt="Avatar" className="h-full w-full object-cover" />
-                    ) : (
-                      <UserCircle2 size={34} className="text-text-secondary" />
-                    )}
-                    <label
-                      htmlFor={avatarInputId}
-                      className="absolute -right-1 -bottom-1 h-8 w-8 rounded-full bg-primary-hover text-white text-[10px] font-semibold flex items-center justify-center shadow cursor-pointer"
-                    >
-                      Edit
-                    </label>
-                    <input
-                      id={avatarInputId}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAvatarChange}
-                      className="hidden"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-text-primary">{user.name ?? 'Usuario'}</p>
-                    <p className="text-xs text-text-secondary">{user.email}</p>
-                    {currentAvatar && (
-                      <button
-                        type="button"
-                        onClick={() => setAvatarModalOpen(true)}
-                        className="text-xs text-primary hover:underline"
-                      >
-                        Ver foto
-                      </button>
-                    )}
-                  </div>
-                </div>
+              <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                {notice && <Alert type={notice.type} message={notice.message} />}
 
-                {notice && <div className="mt-4"><Alert type={notice.type} message={notice.message} /></div>}
-                {avatarError && <p className="mt-3 text-xs text-error">{avatarError}</p>}
-
-                <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-secondary">
+                    Informacion basica
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
                         Nombre
@@ -339,7 +325,6 @@ export default function MiPerfilPage() {
                         placeholder="Nombre"
                       />
                     </div>
-
                     <div>
                       <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
                         Apellido
@@ -351,30 +336,88 @@ export default function MiPerfilPage() {
                         placeholder="Apellido"
                       />
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="rounded-xl border border-border bg-background p-4 space-y-2">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Correo</p>
-                      <p className="text-sm text-text-primary inline-flex items-center gap-2">
-                        <Mail size={14} className="text-primary" />
-                        {user.email}
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-border bg-background p-4 space-y-2">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Estado de cuenta</p>
-                      <p className="text-sm text-text-primary">Activa</p>
+                    <div>
+                      <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                        Usuario
+                      </label>
+                      <input className="input-field bg-background/60" value={username} readOnly />
                     </div>
                   </div>
+                </div>
 
-                  <div className="flex items-center justify-end">
-                    <button type="submit" className="btn-primary inline-flex items-center gap-2 text-sm" disabled={saving}>
-                      <Save size={14} />
-                      {saving ? 'Guardando...' : 'Guardar cambios'}
-                    </button>
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-secondary">Seguridad</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                        Contrasena
+                      </label>
+                      <input className="input-field bg-background/60" type="password" value="********" readOnly />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                        Confirmar contrasena
+                      </label>
+                      <input className="input-field bg-background/60" type="password" value="********" readOnly />
+                    </div>
                   </div>
-                </form>
-              </div>
+                  <Link to="/forgot-password" className="text-xs text-primary hover:underline">
+                    Cambiar contrasena
+                  </Link>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-secondary">Correo</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                        Correo electronico
+                      </label>
+                      <input className="input-field bg-background/60" value={emailValue} readOnly />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                        Confirmar correo
+                      </label>
+                      <input className="input-field bg-background/60" value={emailValue} readOnly />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-text-secondary">Perfil social</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">
+                        <Globe size={16} />
+                      </span>
+                      <input
+                        className="input-field pl-10 bg-background/60"
+                        placeholder="Facebook username"
+                        disabled
+                      />
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary">
+                        <AtSign size={16} />
+                      </span>
+                      <input
+                        className="input-field pl-10 bg-background/60"
+                        placeholder="Twitter username"
+                        disabled
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-text-secondary">Estos campos estaran disponibles pronto.</p>
+                </div>
+
+                <div className="flex items-center justify-end">
+                  <button type="submit" className="btn-primary inline-flex items-center gap-2 text-sm" disabled={saving}>
+                    <Save size={14} />
+                    {saving ? 'Guardando...' : 'Actualizar info'}
+                  </button>
+                </div>
+              </form>
             </div>
           </section>
         </div>
@@ -424,3 +467,4 @@ export default function MiPerfilPage() {
     </>
   )
 }
+
