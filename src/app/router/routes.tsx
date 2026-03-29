@@ -15,6 +15,8 @@ import AdminSightings from '../../features/admin/pages/AdminSightings'
 import AdminReview from '../../features/admin/pages/AdminReview'
 import AdminSettings from '../../features/admin/pages/AdminSettings'
 import AuthorityCases from '../../features/authority/pages/AuthorityCases'
+import AuthorityCaseDetailPage from '../../features/authority/pages/AuthorityCaseDetailPage'
+import AuthorityCreateCasePage from '../../features/authority/pages/AuthorityCreateCasePage'
 import PendingCasesPage from '../../features/authority/pages/PendingCasesPage'
 import AuthoritySightings from '../../features/authority/pages/AuthoritySightings'
 import LandingPage from '../../features/public/pages/LandingPage'
@@ -91,6 +93,8 @@ const router = createBrowserRouter([
     children: [
       { path: '/authority', element: <AuthorityHome /> },
       { path: '/authority/cases', element: <AuthorityCases /> },
+      { path: '/authority/cases/new', element: <AuthorityCreateCasePage /> },
+      { path: '/authority/cases/:id', element: <AuthorityCaseDetailPage /> },
       { path: '/authority/sightings', element: <AuthoritySightings /> },
       { path: '/authority/cases/pending', element: <PendingCasesPage /> },
     ],

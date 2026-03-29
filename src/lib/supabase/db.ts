@@ -17,6 +17,7 @@ export interface AuthorityCaseRow {
   numero_caso: string
   status: CaseStatus | string
   workflow_status: CaseWorkflowStatus | null
+  person_id?: string | null
   publicado_por?: string | null
   nombres: string
   apellidos: string
@@ -170,6 +171,30 @@ function isColumnMissingError(error: unknown): boolean {
   )
 }
 
+export interface PersonCaseHistoryRow {
+  id: string
+  numero_caso: string
+  status: string | null
+  workflow_status: CaseWorkflowStatus | null
+  created_at: string | null
+}
+
+function isStatusValueError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+
+  const candidate = error as { code?: unknown; message?: unknown }
+  const code = typeof candidate.code === 'string' ? candidate.code : ''
+  const message = typeof candidate.message === 'string' ? candidate.message.toLowerCase() : ''
+
+  return (
+    code === '22P02'
+    || code === '23514'
+    || message.includes('invalid input value for enum')
+    || message.includes('enum')
+    || message.includes('check constraint')
+  )
+}
+
 export async function getProfile(userId: string) {
   const { data, error } = await withRetry(() =>
     supabase
@@ -234,7 +259,7 @@ export async function getAuthorityCases(params: GetCasesParams = {}): Promise<Au
   let query = supabase
     .from('cases')
     .select(
-      'id, numero_caso, status, workflow_status, nombres, apellidos, edad, ciudad, estado_provincia, lugar_ultima_vez, fecha_desaparicion, created_at',
+      'id, numero_caso, status, workflow_status, person_id, nombres, apellidos, edad, ciudad, estado_provincia, lugar_ultima_vez, fecha_desaparicion, created_at',
     )
     .eq('eliminado', false)
     .order('created_at', { ascending: false })
@@ -444,6 +469,13 @@ export async function updateAuthoritySightingStatus(
     updated_at: new Date().toISOString(),
   }
 
+  const statusCandidates =
+    status === 'approved'
+      ? ['approved', 'aprobado', 'aceptado', 'validado', 'confirmado']
+      : status === 'rejected'
+        ? ['rejected', 'rechazado', 'descartado']
+        : ['pending', 'pendiente', 'en_revision', 'en revision']
+
   const attempts: Array<{ idColumn: string; statusColumn: string }> = [
     { idColumn: 'id', statusColumn: 'estado' },
     { idColumn: 'id', statusColumn: 'status' },
@@ -454,30 +486,63 @@ export async function updateAuthoritySightingStatus(
   ]
 
   for (const attempt of attempts) {
-    const { data, error } = await withRetry(
-      () =>
-        supabase
-          .from(SIGHTING_TABLE)
-          .update({
-            ...updatePayload,
-            [attempt.statusColumn]: status,
-          })
-          .eq(attempt.idColumn, sightingId)
-          .select(attempt.idColumn)
-          .maybeSingle(),
-      { timeoutMs: 30000, retries: 0 },
-    )
+    let shouldContinue = false
 
-    if (error) {
-      if (isColumnMissingError(error)) continue
-      console.error('[updateAuthoritySightingStatus] Error:', error)
-      throw error
+    for (const candidateStatus of statusCandidates) {
+      const { data, error } = await withRetry(
+        () =>
+          supabase
+            .from(SIGHTING_TABLE)
+            .update({
+              ...updatePayload,
+              [attempt.statusColumn]: candidateStatus,
+            })
+            .eq(attempt.idColumn, sightingId)
+            .select(attempt.idColumn)
+            .maybeSingle(),
+        { timeoutMs: 30000, retries: 0 },
+      )
+
+      if (error) {
+        if (isColumnMissingError(error)) {
+          shouldContinue = true
+          break
+        }
+        if (isStatusValueError(error)) {
+          continue
+        }
+        console.error('[updateAuthoritySightingStatus] Error:', error)
+        throw error
+      }
+
+      if (data) return
     }
 
-    if (data) return
+    if (shouldContinue) continue
   }
 
   throw new Error('No se pudo actualizar el estado del avistamiento por incompatibilidad de columnas.')
+}
+
+export async function getCasesByPersonId(personId: string, excludeCaseId?: string): Promise<PersonCaseHistoryRow[]> {
+  let query = supabase
+    .from('cases')
+    .select('id, numero_caso, status, workflow_status, created_at')
+    .eq('person_id', personId)
+    .eq('eliminado', false)
+    .order('created_at', { ascending: false })
+
+  if (excludeCaseId) {
+    query = query.neq('id', excludeCaseId)
+  }
+
+  const { data, error } = await withRetry(() => query, { timeoutMs: 20000, retries: 1 })
+  if (error) {
+    console.error('[getCasesByPersonId] Error:', error)
+    throw error
+  }
+
+  return (data ?? []) as PersonCaseHistoryRow[]
 }
 
 export async function softDeleteCase(caseId: string): Promise<void> {
@@ -608,6 +673,31 @@ export async function createCaseComment(
   }
 
   return data as { id: string }
+}
+
+export async function createCaseClosure(
+  caseId: string,
+  userId: string,
+  note: string,
+): Promise<void> {
+  const trimmed = note.trim()
+  if (!trimmed) throw new Error('La nota de cierre no puede estar vacia.')
+
+  const { error } = await withRetry(() =>
+    supabase
+      .from('cases_closed')
+      .insert({
+        case_id: caseId,
+        closed_by: userId,
+        closed_note: trimmed,
+        closed_at: new Date().toISOString(),
+      }),
+  )
+
+  if (error) {
+    console.error('[createCaseClosure] Error:', error)
+    throw error
+  }
 }
 
 
