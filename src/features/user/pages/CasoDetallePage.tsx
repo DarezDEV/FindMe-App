@@ -1,8 +1,18 @@
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ChevronLeft, Eye, Flag, Mail, MapPin, MessageSquare, Phone, UserSearch, Video } from 'lucide-react'
+import { ChevronLeft, Eye, Link2, Mail, MapPin, MessageSquare, MoreVertical, Phone, Share2, UserSearch, Video } from 'lucide-react'
 import UserNavbar from '../components/Usernavbar'
-import { Spinner } from '../../../shared/components/ui'
+import { Alert, Spinner } from '../../../shared/components/ui'
+import {
+  createCaseComment,
+  getCaseComments,
+  getProfilesBasicByIds,
+  getUserRolesByIds,
+  type CaseCommentRow,
+} from '../../../lib/supabase/db'
+import { useAuth } from '../../auth/hooks'
 import { useCasoDetalle } from '../hooks/useMisCasos'
+import { reportarComentarioPublico } from '../services/reportes'
 
 function LabelValue({ label, value }: { label: string; value: string | number | null }) {
   return (
@@ -39,14 +49,200 @@ function formatStatusLabel(status: string) {
   return 'Publicada'
 }
 
+function getPosterTitle(status: string | null, workflowStatus: string | null) {
+  const normalizedStatus = status?.toLowerCase() ?? ''
+  if (normalizedStatus === 'encontrado' || workflowStatus === 'found' || workflowStatus === 'closed') {
+    return 'ENCONTRADO'
+  }
+  return 'DESAPARECIDO'
+}
+
 function buildApproximateLocation(city: string | null, country: string | null) {
   const parts = [city, country].filter((part): part is string => Boolean(part?.trim()))
   return parts.length > 0 ? parts.join(', ') : 'Ubicacion reservada'
 }
 
+type ShareNetwork = 'whatsapp' | 'facebook' | 'x'
+type NoticeType = 'error' | 'success' | 'warning' | 'info'
+
+interface PublicComment {
+  id: string
+  caseId: string
+  authorId: string
+  text: string
+  createdAt: string
+}
+
+const PUBLIC_COMMENT_PREFIX = '[PUBLICO]'
+
+function buildCaseShareUrl(caseId: string) {
+  if (typeof window === 'undefined') return `/cases?caseId=${caseId}`
+  const url = new URL('/cases', window.location.origin)
+  url.searchParams.set('caseId', caseId)
+  return url.toString()
+}
+
+function buildShareText(caseNumber: string, fullName: string) {
+  return `Ayuda a difundir el caso ${caseNumber}: ${fullName}.`
+}
+
+function buildSocialShareUrl(network: ShareNetwork, url: string, text: string) {
+  if (network === 'whatsapp') {
+    return `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`
+  }
+  if (network === 'facebook') {
+    return `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`
+  }
+  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`
+}
+
+function toPublicComment(row: CaseCommentRow): PublicComment | null {
+  const rawText = row.comentario.trim()
+  if (!rawText.toUpperCase().startsWith(PUBLIC_COMMENT_PREFIX)) {
+    return null
+  }
+
+  const text = rawText.slice(PUBLIC_COMMENT_PREFIX.length).trim()
+  if (!text) return null
+
+  return {
+    id: row.id,
+    caseId: row.caso_id,
+    authorId: row.autor_id,
+    text,
+    createdAt: row.created_at,
+  }
+}
+
+function formatPublicCommentDate(value: string) {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return 'Reciente'
+  return new Intl.DateTimeFormat('es-DO', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(parsed)
+}
+
+function getPublicCommentAuthorLabel(authorId: string, currentUserId: string | undefined) {
+  if (currentUserId && authorId === currentUserId) return 'Tu'
+  return `Usuario ${authorId.slice(0, 8)}`
+}
+
+function isPublicCommentEnabled(workflowStatus: string | null) {
+  return workflowStatus === 'approved'
+}
+
+function formatPosterDate(value: string | null) {
+  if (!value) return 'Fecha no disponible'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return parsed.toLocaleDateString('es-DO', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
 export default function CasoDetallePage() {
+  const { user } = useAuth()
+  const [shareNotice, setShareNotice] = useState<{ type: NoticeType; message: string } | null>(null)
+  const [commentNotice, setCommentNotice] = useState<{ type: NoticeType; message: string } | null>(null)
+  const [actionsOpen, setActionsOpen] = useState(false)
+  const actionsMenuRef = useRef<HTMLDivElement | null>(null)
   const { id = '' } = useParams<{ id: string }>()
   const { data, isLoading, isError, error, refetch } = useCasoDetalle(id)
+  const [publicComments, setPublicComments] = useState<PublicComment[]>([])
+  const [publicCommentDraft, setPublicCommentDraft] = useState('')
+  const [publicCommentsLoading, setPublicCommentsLoading] = useState(false)
+  const [publicCommentsError, setPublicCommentsError] = useState<string | null>(null)
+  const [publicCommentSubmitting, setPublicCommentSubmitting] = useState(false)
+  const [commentAuthorById, setCommentAuthorById] = useState<Record<string, string>>({})
+  const [commentRolesById, setCommentRolesById] = useState<Record<string, string[]>>({})
+  const [reportingCommentId, setReportingCommentId] = useState<string | null>(null)
+  const [pdfLoading, setPdfLoading] = useState(false)
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node | null
+      if (actionsMenuRef.current?.contains(target ?? null)) return
+      setActionsOpen(false)
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [])
+
+  useEffect(() => {
+    if (!data?.caso?.id) return
+
+    const loadPublicComments = async () => {
+      setPublicCommentsLoading(true)
+      setPublicCommentsError(null)
+      try {
+        const rows = await getCaseComments([data.caso.id])
+        const mapped = rows.map(toPublicComment).filter((entry): entry is PublicComment => entry !== null)
+        setPublicComments(mapped)
+
+        const authorityAuthorIds = data.comentarios
+          .map((entry) => entry.autor_id)
+          .filter((value): value is string => Boolean(value))
+        const publicAuthorIds = mapped.map((entry) => entry.authorId)
+        const uniqueAuthors = Array.from(new Set([...authorityAuthorIds, ...publicAuthorIds]))
+        if (uniqueAuthors.length > 0) {
+          try {
+            const profiles = await getProfilesBasicByIds(uniqueAuthors)
+            const roles = await getUserRolesByIds(uniqueAuthors)
+            const profileMap: Record<string, string> = {}
+            profiles.forEach((profile) => {
+              const fullName = [profile.name, profile.last_name].filter(Boolean).join(' ').trim()
+              profileMap[profile.id] = fullName || profile.email || `Usuario ${profile.id.slice(0, 8)}`
+            })
+            setCommentAuthorById(profileMap)
+            setCommentRolesById(roles)
+          } catch {
+            setCommentAuthorById({})
+            setCommentRolesById({})
+          }
+        } else {
+          setCommentAuthorById({})
+          setCommentRolesById({})
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'No se pudieron cargar los comentarios.'
+        setPublicCommentsError(message)
+        setPublicComments([])
+        setCommentAuthorById({})
+        setCommentRolesById({})
+      } finally {
+        setPublicCommentsLoading(false)
+      }
+    }
+
+    void loadPublicComments()
+  }, [data?.caso?.id, data?.comentarios])
+
+  useEffect(() => {
+    if (!data?.comentarios?.length) return
+    const authorityAuthorIds = data.comentarios
+      .map((entry) => entry.autor_id)
+      .filter((value): value is string => Boolean(value))
+    const uniqueAuthors = Array.from(new Set(authorityAuthorIds))
+    if (uniqueAuthors.length === 0) return
+    void getProfilesBasicByIds(uniqueAuthors)
+      .then((profiles) => {
+        const profileMap: Record<string, string> = {}
+        profiles.forEach((profile) => {
+          const fullName = [profile.name, profile.last_name].filter(Boolean).join(' ').trim()
+          profileMap[profile.id] = fullName || profile.email || `Usuario ${profile.id.slice(0, 8)}`
+        })
+        setCommentAuthorById((prev) => ({ ...prev, ...profileMap }))
+      })
+      .catch(() => {
+        return
+      })
+  }, [data?.comentarios])
 
   if (isLoading) {
     return (
@@ -86,6 +282,397 @@ export default function CasoDetallePage() {
   const video = media.find(item => item.tipo === 'video')
   const mainPhoto = photos.find(item => item.es_principal)?.url ?? caso.foto_principal_url ?? photos[0]?.url ?? null
   const safeLocation = buildApproximateLocation(caso.ciudad, caso.pais)
+  const fullName = `${caso.nombres} ${caso.apellidos}`.trim()
+  const commentsEnabled = isPublicCommentEnabled(caso.workflow_status)
+  const authorityComments = comentarios.filter((comentario) => {
+    if (!comentario.autor_id) return false
+    if (Object.keys(commentRolesById).length === 0) return true
+    const roles = commentRolesById[comentario.autor_id] ?? []
+    return roles.includes('authority') || roles.includes('admin')
+  })
+  const posterTitle = getPosterTitle(caso.status, caso.workflow_status)
+  const posterDate = formatPosterDate(caso.fecha_desaparicion)
+
+  const posterStyles = `
+    :root {
+      --primary: #3266db;
+      --primary-dark: #2954b8;
+      --text: #0f172a;
+      --muted: #475569;
+      --border: #e2e8f0;
+      --bg: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+    .poster {
+      max-width: 820px;
+      margin: 0 auto;
+      border: 1px solid var(--border);
+    }
+    .banner {
+      background: var(--primary);
+      color: white;
+      text-align: center;
+      padding: 28px 16px;
+      font-size: 44px;
+      letter-spacing: 2px;
+      font-weight: 800;
+    }
+    .body {
+      padding: 20px 24px 28px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 20px;
+      align-items: center;
+    }
+    .photo {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      object-fit: cover;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .photo.placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      background: #f8fafc;
+    }
+    .info {
+      border: 2px solid var(--primary);
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .info h3 {
+      margin: 0 0 8px 0;
+      font-size: 18px;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+    .info .date {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--primary-dark);
+      margin: 8px 0 12px;
+    }
+    .info ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .name {
+      margin: 22px 0 0;
+      background: #0f172a;
+      color: white;
+      text-align: center;
+      padding: 14px;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+    }
+    .contact {
+      margin-top: 18px;
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+      text-align: center;
+    }
+    .contact h4 {
+      margin: 0 0 8px;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .contact p {
+      margin: 4px 0;
+      font-weight: 700;
+      font-size: 18px;
+    }
+    .footer-note {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    @media print {
+      body { background: white; }
+      .poster { border: none; }
+    }
+  `
+
+  const buildPosterMarkup = () => {
+    const contactPhone = caso.telefono_contacto?.trim()
+    const contactEmail = caso.email_contacto?.trim()
+    const contactVisible = caso.visibilidad_contacto !== 'privado'
+    const locationLabel = caso.lugar_ultima_vez || caso.lugar_desaparicion || safeLocation
+    const photoHtml = mainPhoto
+      ? `<img src="${mainPhoto}" alt="Foto del caso" class="photo" crossorigin="anonymous" />`
+      : `<div class="photo placeholder">Sin foto disponible</div>`
+
+    return `
+      <div class="poster">
+        <div class="banner">${posterTitle}</div>
+        <div class="body">
+          <div class="row">
+            <div>${photoHtml}</div>
+            <div class="info">
+              <h3>${posterTitle} desde</h3>
+              <div class="date">${posterDate}</div>
+              <ul>
+                <li>Ciudad: ${caso.ciudad ?? 'No disponible'}</li>
+                <li>Lugar: ${locationLabel ?? 'No disponible'}</li>
+                <li>Numero de caso: ${caso.numero_caso}</li>
+              </ul>
+            </div>
+          </div>
+          <div class="name">${fullName || 'Nombre no disponible'}</div>
+          <div class="contact">
+            <h4>Para informacion</h4>
+            ${
+              contactVisible
+                ? `
+              ${contactPhone ? `<p>${contactPhone}</p>` : ''}
+              ${contactEmail ? `<p>${contactEmail}</p>` : ''}
+            `
+                : '<p>Contacto reservado</p>'
+            }
+            <div class="footer-note">FindMe - Afiche generado desde la plataforma</div>
+          </div>
+        </div>
+      </div>
+    `
+  }
+
+  const openPosterPrint = () => {
+    const html = `
+      <!doctype html>
+      <html lang="es">
+        <head>
+          <meta charset="utf-8" />
+          <title>Afiche - ${fullName}</title>
+          <style>
+            ${posterStyles}
+          </style>
+        </head>
+        <body>
+          ${buildPosterMarkup()}
+          <script>
+            window.onload = () => {
+              setTimeout(() => window.print(), 300);
+            };
+          </script>
+        </body>
+      </html>
+    `
+    try {
+      const iframe = document.createElement('iframe')
+      iframe.setAttribute('aria-hidden', 'true')
+      iframe.style.position = 'fixed'
+      iframe.style.right = '0'
+      iframe.style.bottom = '0'
+      iframe.style.width = '0'
+      iframe.style.height = '0'
+      iframe.style.border = '0'
+      iframe.srcdoc = html
+      document.body.appendChild(iframe)
+
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow?.focus()
+          iframe.contentWindow?.print()
+        } finally {
+          setTimeout(() => {
+            iframe.remove()
+          }, 1000)
+        }
+      }
+    } catch {
+      setShareNotice({ type: 'warning', message: 'No se pudo abrir la impresion. Revisa permisos del navegador.' })
+    }
+  }
+
+  const downloadPosterPdf = async () => {
+    if (pdfLoading) return
+    setPdfLoading(true)
+    setShareNotice(null)
+
+    let container: HTMLDivElement | null = null
+    try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ])
+
+      container = document.createElement('div')
+      container.style.position = 'fixed'
+      container.style.left = '-10000px'
+      container.style.top = '0'
+      container.style.width = '820px'
+      container.style.background = '#ffffff'
+      container.innerHTML = `<style>${posterStyles}</style>${buildPosterMarkup()}`
+      document.body.appendChild(container)
+
+      const posterElement = container.querySelector('.poster') as HTMLElement | null
+      if (!posterElement) {
+        throw new Error('No se pudo preparar el afiche.')
+      }
+
+      const canvas = await html2canvas(posterElement, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+      })
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95)
+      const pdf = new jsPDF({
+        orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [canvas.width, canvas.height],
+      })
+
+      pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height)
+      const fileName = `Afiche-${caso.numero_caso}.pdf`
+      pdf.save(fileName)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo descargar el PDF.'
+      setShareNotice({ type: 'error', message })
+    } finally {
+      if (container) container.remove()
+      setPdfLoading(false)
+    }
+  }
+
+  const submitPublicComment = async () => {
+    setCommentNotice(null)
+
+    if (!commentsEnabled) {
+      setCommentNotice({ type: 'warning', message: 'Los comentarios solo estan habilitados en publicaciones activas.' })
+      return
+    }
+
+    if (!user?.id) {
+      setCommentNotice({ type: 'warning', message: 'Inicia sesion para comentar en publicaciones activas.' })
+      return
+    }
+
+    const trimmed = publicCommentDraft.trim()
+    if (trimmed.length < 3) {
+      setCommentNotice({ type: 'warning', message: 'Escribe un comentario de al menos 3 caracteres.' })
+      return
+    }
+
+    setPublicCommentSubmitting(true)
+    try {
+      const payload = `${PUBLIC_COMMENT_PREFIX} ${trimmed}`
+      const created = await createCaseComment(caso.id, user.id, payload)
+      setPublicComments((prev) => [
+        ...prev,
+        {
+          id: created.id,
+          caseId: caso.id,
+          authorId: user.id,
+          text: trimmed,
+          createdAt: new Date().toISOString(),
+        },
+      ])
+      const displayName = [user.name, user.last_nmae].filter(Boolean).join(' ').trim()
+      if (displayName) {
+        setCommentAuthorById((prev) => ({
+          ...prev,
+          [user.id]: displayName,
+        }))
+      }
+      setPublicCommentDraft('')
+      setCommentNotice({ type: 'success', message: 'Comentario publicado.' })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo publicar el comentario.'
+      setCommentNotice({ type: 'error', message })
+    } finally {
+      setPublicCommentSubmitting(false)
+    }
+  }
+
+  const reportPublicComment = async (comment: PublicComment) => {
+    setCommentNotice(null)
+    if (!user?.id) {
+      setCommentNotice({ type: 'warning', message: 'Inicia sesion para reportar comentarios.' })
+      return
+    }
+
+    const motivo = window.prompt('Motivo del reporte (ej: acoso, datos personales).')?.trim() ?? ''
+    if (!motivo) return
+
+    const detalle = window.prompt('Detalle adicional (opcional).')?.trim() ?? ''
+
+    setReportingCommentId(comment.id)
+    try {
+      await reportarComentarioPublico({
+        casoId: caso.id,
+        comentarioId: comment.id,
+        motivo,
+        descripcion: detalle,
+        comentarioTexto: comment.text,
+      })
+      setCommentNotice({ type: 'success', message: 'Comentario reportado. Gracias por ayudarnos.' })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo reportar el comentario.'
+      setCommentNotice({ type: 'error', message })
+    } finally {
+      setReportingCommentId(null)
+    }
+  }
+
+  const copyShareLink = async () => {
+    const shareUrl = buildCaseShareUrl(caso.id)
+
+    if (!navigator.clipboard?.writeText) {
+      setShareNotice({ type: 'info', message: `Enlace para compartir: ${shareUrl}` })
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setShareNotice({ type: 'success', message: 'Enlace copiado al portapapeles.' })
+    } catch {
+      setShareNotice({ type: 'warning', message: 'No se pudo copiar automaticamente. Intenta de nuevo.' })
+    }
+  }
+
+  const shareCase = async () => {
+    const shareUrl = buildCaseShareUrl(caso.id)
+    const text = buildShareText(caso.numero_caso, fullName)
+
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({
+          title: `FindMe - ${caso.numero_caso}`,
+          text,
+          url: shareUrl,
+        })
+        return
+      } catch (shareError) {
+        if (shareError instanceof DOMException && shareError.name === 'AbortError') {
+          return
+        }
+      }
+    }
+
+    await copyShareLink()
+  }
+
+  const shareOnSocial = (network: ShareNetwork) => {
+    const shareUrl = buildCaseShareUrl(caso.id)
+    const text = buildShareText(caso.numero_caso, fullName)
+    const socialUrl = buildSocialShareUrl(network, shareUrl, text)
+    window.open(socialUrl, '_blank', 'noopener,noreferrer')
+  }
 
   return (
     <>
@@ -180,20 +767,119 @@ export default function CasoDetallePage() {
           </section>
 
           <section className="card p-5 space-y-3">
-            <h2 className="text-lg font-semibold text-text-primary">Acciones del caso</h2>
-            <p className="text-sm text-text-secondary">
-              Puedes aportar informacion de avistamiento o denunciar contenido relacionado con este caso.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Link to={`/caso/${caso.id}/avistamiento`} className="btn-primary text-sm inline-flex items-center gap-1.5">
-                <MapPin size={14} />
-                Reportar avistamiento
-              </Link>
-              <Link to={`/caso/${caso.id}/reportar`} className="btn-secondary text-sm inline-flex items-center gap-1.5">
-                <Flag size={14} />
-                Reportar contenido
-              </Link>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-text-primary">Acciones del caso</h2>
+                <p className="text-sm text-text-secondary mt-1">
+                  Usa el menu de tres puntos para reportar avistamiento, reportar contenido o compartir.
+                </p>
+              </div>
+
+              <div className="relative shrink-0" ref={actionsMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setActionsOpen((current) => !current)}
+                  className="w-9 h-9 rounded-full border border-border bg-card text-text-primary shadow-sm hover:bg-primary-soft/40 transition-colors flex items-center justify-center"
+                  aria-label="Mas acciones del caso"
+                >
+                  <MoreVertical size={19} strokeWidth={2.7} />
+                </button>
+
+                {actionsOpen && (
+                  <div className="absolute right-0 mt-2 w-56 bg-card border border-border rounded-lg shadow-lg p-1.5 z-20">
+                    <Link
+                      to={`/caso/${caso.id}/avistamiento`}
+                      onClick={() => setActionsOpen(false)}
+                      className="block px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40"
+                    >
+                      Reportar avistamiento
+                    </Link>
+                    <Link
+                      to={`/caso/${caso.id}/reportar`}
+                      onClick={() => setActionsOpen(false)}
+                      className="block px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40"
+                    >
+                      Reportar contenido
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void copyShareLink()
+                        setActionsOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40 inline-flex items-center gap-1.5"
+                    >
+                      <Link2 size={13} />
+                      Copiar enlace
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void shareCase()
+                        setActionsOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40 inline-flex items-center gap-1.5"
+                    >
+                      <Share2 size={13} />
+                      Compartir
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        shareOnSocial('whatsapp')
+                        setActionsOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40"
+                    >
+                      Compartir por WhatsApp
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        shareOnSocial('x')
+                        setActionsOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40"
+                    >
+                      Compartir en X
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        shareOnSocial('facebook')
+                        setActionsOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40"
+                    >
+                      Compartir en Facebook
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        openPosterPrint()
+                        setActionsOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40"
+                    >
+                      Imprimir afiche (PDF)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void downloadPosterPdf()
+                        setActionsOpen(false)
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-md text-sm text-text-primary hover:bg-primary-soft/40"
+                      disabled={pdfLoading}
+                    >
+                      {pdfLoading ? 'Descargando PDF...' : 'Descargar PDF'}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
+
+            {shareNotice && <Alert type={shareNotice.type} message={shareNotice.message} />}
           </section>
 
           <section className="card p-5 space-y-4">
@@ -202,18 +888,22 @@ export default function CasoDetallePage() {
               Comentarios de autoridad
             </h2>
 
-            {comentarios.length === 0 && (
+            {authorityComments.length === 0 && (
               <p className="text-sm text-text-secondary">
                 Aun no hay comentarios de la autoridad para este caso.
               </p>
             )}
 
-            {comentarios.length > 0 && (
+            {authorityComments.length > 0 && (
               <div className="space-y-3">
-                {comentarios.map(comentario => (
+                {authorityComments.map(comentario => (
                   <article key={comentario.id} className="border border-border rounded-lg p-4 bg-background/60">
                     <div className="flex items-center justify-between gap-3 flex-wrap">
-                      <p className="text-sm font-semibold text-text-primary">{comentario.autor}</p>
+                      <p className="text-sm font-semibold text-text-primary">
+                        {comentario.autor_id
+                          ? commentAuthorById[comentario.autor_id] ?? comentario.autor
+                          : comentario.autor}
+                      </p>
                       <p className="text-xs text-text-secondary">{formatDateTime(comentario.created_at)}</p>
                     </div>
 
@@ -227,6 +917,80 @@ export default function CasoDetallePage() {
                   </article>
                 ))}
               </div>
+            )}
+          </section>
+
+          <section className="card p-5 space-y-4">
+            <h2 className="text-lg font-semibold text-text-primary">Comentarios publicos</h2>
+            {commentNotice && <Alert type={commentNotice.type} message={commentNotice.message} />}
+
+            {publicCommentsLoading && (
+              <div className="text-sm text-text-secondary">Cargando comentarios...</div>
+            )}
+
+            {publicCommentsError && (
+              <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
+                <p className="text-xs text-text-secondary">{publicCommentsError}</p>
+              </div>
+            )}
+
+            {!publicCommentsLoading && !publicCommentsError && publicComments.length === 0 && (
+              <p className="text-sm text-text-secondary">Aun no hay comentarios publicos para este caso.</p>
+            )}
+
+            {publicComments.length > 0 && (
+              <div className="space-y-3">
+                {publicComments.map((comment) => (
+                  <article key={comment.id} className="border border-border rounded-lg p-4 bg-background/60">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <p className="text-sm font-semibold text-text-primary">
+                        {commentAuthorById[comment.authorId] ??
+                          getPublicCommentAuthorLabel(comment.authorId, user?.id)}
+                      </p>
+                      <p className="text-xs text-text-secondary">{formatPublicCommentDate(comment.createdAt)}</p>
+                    </div>
+                    <p className="text-sm text-text-primary mt-2 whitespace-pre-wrap">{comment.text}</p>
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => void reportPublicComment(comment)}
+                        className="text-[11px] text-text-secondary hover:text-primary"
+                        disabled={reportingCommentId === comment.id}
+                      >
+                        {reportingCommentId === comment.id ? 'Reportando...' : 'Reportar'}
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+
+            {commentsEnabled ? (
+              <div className="space-y-2">
+                <textarea
+                  rows={3}
+                  value={publicCommentDraft}
+                  onChange={(event) => setPublicCommentDraft(event.target.value.slice(0, 300))}
+                  placeholder={user ? 'Escribe un comentario de apoyo o informacion util...' : 'Inicia sesion para comentar'}
+                  className="input-field resize-none"
+                  disabled={!user || publicCommentSubmitting}
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] text-text-secondary">{publicCommentDraft.length}/300</p>
+                  <button
+                    type="button"
+                    onClick={() => void submitPublicComment()}
+                    className="btn-primary !px-4 !py-2 text-xs"
+                    disabled={!user || !publicCommentDraft.trim() || publicCommentSubmitting}
+                  >
+                    {publicCommentSubmitting ? 'Publicando...' : 'Comentar'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-text-secondary">
+                Comentarios cerrados: solo se permite comentar en publicaciones activas.
+              </p>
             )}
           </section>
 

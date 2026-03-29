@@ -17,7 +17,6 @@ export interface AuthorityCaseRow {
   numero_caso: string
   status: CaseStatus | string
   workflow_status: CaseWorkflowStatus | null
-  person_id?: string | null
   publicado_por?: string | null
   nombres: string
   apellidos: string
@@ -171,30 +170,6 @@ function isColumnMissingError(error: unknown): boolean {
   )
 }
 
-export interface PersonCaseHistoryRow {
-  id: string
-  numero_caso: string
-  status: string | null
-  workflow_status: CaseWorkflowStatus | null
-  created_at: string | null
-}
-
-function isStatusValueError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false
-
-  const candidate = error as { code?: unknown; message?: unknown }
-  const code = typeof candidate.code === 'string' ? candidate.code : ''
-  const message = typeof candidate.message === 'string' ? candidate.message.toLowerCase() : ''
-
-  return (
-    code === '22P02'
-    || code === '23514'
-    || message.includes('invalid input value for enum')
-    || message.includes('enum')
-    || message.includes('check constraint')
-  )
-}
-
 export async function getProfile(userId: string) {
   const { data, error } = await withRetry(() =>
     supabase
@@ -259,7 +234,7 @@ export async function getAuthorityCases(params: GetCasesParams = {}): Promise<Au
   let query = supabase
     .from('cases')
     .select(
-      'id, numero_caso, status, workflow_status, person_id, nombres, apellidos, edad, ciudad, estado_provincia, lugar_ultima_vez, fecha_desaparicion, created_at',
+      'id, numero_caso, status, workflow_status, nombres, apellidos, edad, ciudad, estado_provincia, lugar_ultima_vez, fecha_desaparicion, created_at',
     )
     .eq('eliminado', false)
     .order('created_at', { ascending: false })
@@ -377,7 +352,7 @@ export async function getAuthoritySightings(limit = 200): Promise<AuthoritySight
   const caseIds = [
     ...new Set(
       rows
-        .map((row) => pickString(row, ['caso_id', 'case_id', 'missing_case_id']))
+        .map((row) => pickString(row, ['caso_id', 'missing_caso_id']))
         .filter((value): value is string => Boolean(value)),
     ),
   ]
@@ -431,7 +406,7 @@ export async function getAuthoritySightings(limit = 200): Promise<AuthoritySight
 
   return rows.map((row) => {
     const id = pickString(row, ['id', 'avistamiento_id']) ?? crypto.randomUUID()
-    const caseId = pickString(row, ['caso_id', 'case_id', 'missing_case_id'])
+    const caseId = pickString(row, ['caso_id', 'missing_caso_id'])
     const caseFromLookup = caseId ? caseMap.get(caseId) : null
     const reporterId = pickString(row, ['reportado_por', 'reporter_id', 'autor_id', 'user_id', 'created_by'])
     const reporterName = reporterId ? (profileMap.get(reporterId) ?? null) : null
@@ -469,13 +444,6 @@ export async function updateAuthoritySightingStatus(
     updated_at: new Date().toISOString(),
   }
 
-  const statusCandidates =
-    status === 'approved'
-      ? ['approved', 'aprobado', 'aceptado', 'validado', 'confirmado']
-      : status === 'rejected'
-        ? ['rejected', 'rechazado', 'descartado']
-        : ['pending', 'pendiente', 'en_revision', 'en revision']
-
   const attempts: Array<{ idColumn: string; statusColumn: string }> = [
     { idColumn: 'id', statusColumn: 'estado' },
     { idColumn: 'id', statusColumn: 'status' },
@@ -486,63 +454,30 @@ export async function updateAuthoritySightingStatus(
   ]
 
   for (const attempt of attempts) {
-    let shouldContinue = false
+    const { data, error } = await withRetry(
+      () =>
+        supabase
+          .from(SIGHTING_TABLE)
+          .update({
+            ...updatePayload,
+            [attempt.statusColumn]: status,
+          })
+          .eq(attempt.idColumn, sightingId)
+          .select(attempt.idColumn)
+          .maybeSingle(),
+      { timeoutMs: 30000, retries: 0 },
+    )
 
-    for (const candidateStatus of statusCandidates) {
-      const { data, error } = await withRetry(
-        () =>
-          supabase
-            .from(SIGHTING_TABLE)
-            .update({
-              ...updatePayload,
-              [attempt.statusColumn]: candidateStatus,
-            })
-            .eq(attempt.idColumn, sightingId)
-            .select(attempt.idColumn)
-            .maybeSingle(),
-        { timeoutMs: 30000, retries: 0 },
-      )
-
-      if (error) {
-        if (isColumnMissingError(error)) {
-          shouldContinue = true
-          break
-        }
-        if (isStatusValueError(error)) {
-          continue
-        }
-        console.error('[updateAuthoritySightingStatus] Error:', error)
-        throw error
-      }
-
-      if (data) return
+    if (error) {
+      if (isColumnMissingError(error)) continue
+      console.error('[updateAuthoritySightingStatus] Error:', error)
+      throw error
     }
 
-    if (shouldContinue) continue
+    if (data) return
   }
 
   throw new Error('No se pudo actualizar el estado del avistamiento por incompatibilidad de columnas.')
-}
-
-export async function getCasesByPersonId(personId: string, excludeCaseId?: string): Promise<PersonCaseHistoryRow[]> {
-  let query = supabase
-    .from('cases')
-    .select('id, numero_caso, status, workflow_status, created_at')
-    .eq('person_id', personId)
-    .eq('eliminado', false)
-    .order('created_at', { ascending: false })
-
-  if (excludeCaseId) {
-    query = query.neq('id', excludeCaseId)
-  }
-
-  const { data, error } = await withRetry(() => query, { timeoutMs: 20000, retries: 1 })
-  if (error) {
-    console.error('[getCasesByPersonId] Error:', error)
-    throw error
-  }
-
-  return (data ?? []) as PersonCaseHistoryRow[]
 }
 
 export async function softDeleteCase(caseId: string): Promise<void> {
@@ -631,6 +566,20 @@ export interface CaseCommentRow {
   created_at: string
 }
 
+function normalizeCaseCommentRow(row: Record<string, unknown>): CaseCommentRow {
+  return {
+    id: pickString(row, ['id']) ?? String(row.id ?? ''),
+    caso_id: pickString(row, ['caso_id', 'case_id']) ?? String(row.caso_id ?? row.case_id ?? ''),
+    autor_id: pickString(row, ['autor_id', 'author_id', 'user_id']) ?? String(row.autor_id ?? row.author_id ?? row.user_id ?? ''),
+    comentario:
+      pickString(row, ['comentario', 'comment', 'texto', 'text'])
+      ?? String(row.comentario ?? row.comment ?? row.texto ?? row.text ?? ''),
+    created_at:
+      pickString(row, ['created_at', 'fecha', 'updated_at'])
+      ?? String(row.created_at ?? row.fecha ?? row.updated_at ?? ''),
+  }
+}
+
 export async function getCaseComments(caseIds: string[]): Promise<CaseCommentRow[]> {
   if (caseIds.length === 0) return []
 
@@ -647,7 +596,8 @@ export async function getCaseComments(caseIds: string[]): Promise<CaseCommentRow
     throw error
   }
 
-  return (data ?? []) as CaseCommentRow[]
+  const rows = (data ?? []) as Array<Record<string, unknown>>
+  return rows.map(normalizeCaseCommentRow)
 }
 
 export async function createCaseComment(
@@ -672,32 +622,12 @@ export async function createCaseComment(
     throw error
   }
 
-  return data as { id: string }
-}
-
-export async function createCaseClosure(
-  caseId: string,
-  userId: string,
-  note: string,
-): Promise<void> {
-  const trimmed = note.trim()
-  if (!trimmed) throw new Error('La nota de cierre no puede estar vacia.')
-
-  const { error } = await withRetry(() =>
-    supabase
-      .from('cases_closed')
-      .insert({
-        case_id: caseId,
-        closed_by: userId,
-        closed_note: trimmed,
-        closed_at: new Date().toISOString(),
-      }),
-  )
-
-  if (error) {
-    console.error('[createCaseClosure] Error:', error)
-    throw error
+  const id = pickString((data ?? {}) as Record<string, unknown>, ['id']) ?? String((data as { id?: unknown } | null)?.id ?? '')
+  if (!id) {
+    throw new Error('No se pudo crear el comentario en la base de datos.')
   }
+
+  return { id }
 }
 
 
