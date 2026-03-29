@@ -18,7 +18,8 @@ import {
   X,
 } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
-import { supabase } from '../../../lib/supabase/client'
+import { logoutUser } from '../../auth/services'
+import { appToast } from '../../../shared/components/ui'
 import { type CasoReciente, useMisCasos } from '../hooks/useMisCasos'
 
 type DropdownKey = 'notifications' | 'messages' | 'user' | 'publish' | null
@@ -241,9 +242,13 @@ export default function UserNavbar() {
     if (loggingOut) return
     setLoggingOut(true)
     try {
-      await supabase.auth.signOut()
+      await logoutUser()
+      appToast.success('Sesion cerrada correctamente.')
       closeAll()
       navigate('/login', { replace: true })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo cerrar la sesion.'
+      appToast.error(message)
     } finally {
       setLoggingOut(false)
     }

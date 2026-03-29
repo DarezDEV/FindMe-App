@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { publicarCaso } from '../services/publicarCaso'
+import { appToast } from '../../../shared/components/ui'
 import { INITIAL_FORM, type FormData } from '../types'
 import { STEPS } from '../types/constants'
 
@@ -62,6 +63,7 @@ export function usePublicarForm() {
       const result = await publicarCaso(data)
       setCaseNumber(result.caseNumber)
       setSubmitted(true)
+      appToast.success(`Caso ${result.caseNumber} enviado correctamente para revision.`)
     } catch (submitError) {
       const message = submitError instanceof Error ? submitError.message : 'Error inesperado al publicar el caso.'
       setError(message)

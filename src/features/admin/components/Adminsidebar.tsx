@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../auth/hooks";
 import { logoutUser } from "../../auth/services";
+import { appToast } from "../../../shared/components/ui";
 
 const navItems = [
   {
@@ -32,15 +33,15 @@ const navItems = [
   {
     section: "Casos",
     items: [
-      { label: "Casos", icon: FileSearch, href: "/authority/cases", badge: { count: 12, type: "primary" } },
-      { label: "Avistamientos", icon: Eye, href: "/authority/sightings", badge: { count: 3, type: "warning" } },
-      { label: "Moderacion", icon: AlertTriangle, href: "/authority/cases/pending", badge: { count: 2, type: "error" } },
+      { label: "Casos", icon: FileSearch, href: "/admin/cases", badge: { count: 12, type: "primary" } },
+      { label: "Avistamientos", icon: Eye, href: "/admin/sightings", badge: { count: 3, type: "warning" } },
+      { label: "Revisión", icon: AlertTriangle, href: "/admin/revision", badge: { count: 2, type: "error" } },
     ],
   },
   {
     section: "Sistema",
     items: [
-      { label: "Configuracion", icon: Settings, href: "/admin/users", badge: null },
+      { label: "Configuracion", icon: Settings, href: "/admin/settings", badge: null },
     ],
   },
 ];
@@ -68,9 +69,12 @@ export default function AdminSidebar({ children }: AdminSidebarProps) {
   const handleLogout = async () => {
     try {
       await logoutUser();
+      appToast.success("Sesion cerrada correctamente.");
       navigate("/login");
     } catch (err) {
       console.error("Error al cerrar sesión:", err);
+      const message = err instanceof Error ? err.message : "No se pudo cerrar la sesion.";
+      appToast.error(message);
     }
   };
 
@@ -189,8 +193,8 @@ export default function AdminSidebar({ children }: AdminSidebarProps) {
         {/* Footer */}
         <div className="px-3 py-4 border-t border-border space-y-1">
           <a
-            href="/authority/cases/pending"
-            onClick={(e) => { e.preventDefault(); navigate("/authority/cases/pending"); }}
+            href="/admin/revision"
+            onClick={(e) => { e.preventDefault(); navigate("/admin/revision"); }}
             className="flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm
                        text-text-secondary hover:bg-background hover:text-text-primary
                        transition-all group"

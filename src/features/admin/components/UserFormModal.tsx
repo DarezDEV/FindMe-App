@@ -1,8 +1,14 @@
 // src/features/admin/components/users/UserFormModal.tsx
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js'
 import { X, Check, UserCheck, UserX } from 'lucide-react'
 import { supabase } from '../../../lib/supabase/client'
+import { appToast } from '../../../shared/components/ui'
+import {
+  ADMIN_DASHBOARD_SUMMARY_QUERY_KEY,
+  ADMIN_USERS_QUERY_KEY,
+} from '../hooks/queryKeys'
 import { ROLE_OPTIONS, roleLabel, type Role } from './roles'
 import type { UserRow } from './UserTableRow'
 
@@ -79,6 +85,7 @@ const parseFunctionError = async (error: FunctionsHttpError) => {
 }
 
 export function UserFormModal({ mode, user, onClose, onSuccess }: Props) {
+  const queryClient = useQueryClient()
   const [form, setForm] = useState({
     name: user?.name ?? '',
     last_name: user?.last_name ?? '',
@@ -208,6 +215,16 @@ export function UserFormModal({ mode, user, onClose, onSuccess }: Props) {
         }
       }
 
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ADMIN_USERS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: ADMIN_DASHBOARD_SUMMARY_QUERY_KEY }),
+      ])
+
+      appToast.success(
+        mode === 'create'
+          ? 'Usuario creado y correo de acceso enviado correctamente.'
+          : 'Usuario actualizado correctamente.',
+      )
       onSuccess()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error inesperado.'
@@ -215,11 +232,14 @@ export function UserFormModal({ mode, user, onClose, onSuccess }: Props) {
         const step = message.replace('Timeout:', '')
         if (step === 'auth.getSession') {
           setError('No se pudo validar tu sesion a tiempo. Intenta recargar la pagina.')
+          appToast.error('No se pudo validar tu sesion a tiempo. Intenta recargar la pagina.')
         } else {
           setError('La operacion tardo demasiado. Intenta nuevamente.')
+          appToast.error('La operacion tardo demasiado. Intenta nuevamente.')
         }
       } else {
         setError(message)
+        appToast.error(message)
       }
     } finally {
       setLoading(false)

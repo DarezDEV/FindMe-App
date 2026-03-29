@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase/client'
+import { appToast } from '../components/ui'
 import {
   ADMIN_DASHBOARD_SUMMARY_QUERY_KEY,
   ADMIN_QUERY_GC_TIME,
@@ -145,8 +146,21 @@ export function useUsers() {
   }
 
   const toggleActivo = async (user: UserRow) => {
-    await supabase.from('profiles').update({ activo: !user.activo }).eq('id', user.id)
-    await syncAdminQueries()
+    try {
+      const nextState = !user.activo
+      const { error } = await supabase.from('profiles').update({ activo: nextState }).eq('id', user.id)
+      if (error) throw error
+
+      await syncAdminQueries()
+      appToast.success(
+        nextState
+          ? `Usuario ${user.name} ${user.last_name} activado correctamente.`
+          : `Usuario ${user.name} ${user.last_name} desactivado correctamente.`,
+      )
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo actualizar el estado del usuario.'
+      appToast.error(message)
+    }
   }
 
   const deleteUser = async (userId: string) => {

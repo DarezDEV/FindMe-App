@@ -14,7 +14,7 @@ import {
   type AuthorityCaseRow,
 } from '../../../lib/supabase/db'
 import { useAuth } from '../../auth/hooks'
-import { type WorkflowStatus } from '../../../shared/components/ui'
+import { appToast, type WorkflowStatus } from '../../../shared/components/ui'
 import { CommentItem } from '../components/moderation/CommentItem'
 import { deriveWorkflowStatus, getCaseActionAvailability } from '../utils/case-workflow'
 import { logCaseAction } from '../utils/case-history'
@@ -40,6 +40,14 @@ function getDateLabel(caso: AuthorityCaseRow): string {
 
 function getPersistedStatus(row: AuthorityCaseRow): WorkflowStatus {
   return deriveWorkflowStatus(row)
+}
+
+function getStatusSuccessMessage(status: WorkflowStatus) {
+  if (status === 'approved') return 'Caso publicado correctamente.'
+  if (status === 'found') return 'Caso marcado como reunificado.'
+  if (status === 'closed') return 'Caso archivado correctamente.'
+  if (status === 'rejected') return 'Caso rechazado correctamente.'
+  return 'Estado del caso actualizado.'
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
@@ -146,6 +154,7 @@ export default function AuthorityCases() {
   }, [cases, search, statusByCaseId, statusFilter])
 
   const applyStatus = async (caseId: string, status: WorkflowStatus) => {
+    setError(null)
     setActionLoadingId(caseId)
     try {
       const currentStatus = statusByCaseId[caseId] ?? 'pending'
@@ -154,6 +163,7 @@ export default function AuthorityCases() {
       if (status === 'rejected' && !availability.canReject) return
       await updateCaseWorkflowStatus(caseId, status)
       setStatusByCaseId((prev) => ({ ...prev, [caseId]: status }))
+      appToast.success(getStatusSuccessMessage(status))
       if (user?.id) {
         const action = status === 'approved' ? 'approved' : 'rejected'
         await logCaseAction(caseId, user.id, action)
@@ -165,10 +175,12 @@ export default function AuthorityCases() {
 
   const handleDeleteCase = async () => {
     if (!deleteTarget) return
+    setError(null)
     setDeleteLoading(true)
     try {
       await softDeleteCase(deleteTarget.id)
       setCases((prev) => prev.filter((item) => item.id !== deleteTarget.id))
+      appToast.success(`Caso ${deleteTarget.numero_caso} eliminado correctamente.`)
       setDeleteTarget(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo eliminar el caso.')
@@ -177,11 +189,16 @@ export default function AuthorityCases() {
 
   const submitComment = async () => {
     if (!commentTarget || !commentDraft.trim() || !user?.id) return
+    setError(null)
     setCommentLoading(true)
     try {
       const text = commentDraft.trim()
       const created = await createCaseComment(commentTarget.id, user.id, text)
-      setCommentsByCaseId((prev) => ({ ...prev, [commentTarget.id]: [...(prev[commentTarget.id] ?? []), { id: created.id, text, authorId: user.id, createdAt: new Date().toISOString() }] }))
+      setCommentsByCaseId((prev) => ({
+        ...prev,
+        [commentTarget.id]: [...(prev[commentTarget.id] ?? []), { id: created.id, text, authorId: user.id, createdAt: new Date().toISOString() }],
+      }))
+      appToast.info('Comentario guardado correctamente.')
       setCommentDraft('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar el comentario.')

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Plus, RefreshCw } from 'lucide-react'
 import AdminSidebar from '../components/Adminsidebar'
 import { useUsers } from '../../../shared/hooks/useUsers'
+import { appToast } from '../../../shared/components/ui'
 import { UsersFilters } from '../components/UsersFilters'
 import { UsersTable } from '../components/UsersTable'
 import { UserFormModal } from '../components/UserFormModal'
@@ -33,9 +34,16 @@ export default function AdminUsers() {
   const handleDelete = async () => {
     if (modal.type !== 'delete') return
     setDeleteLoading(true)
-    await deleteUser(modal.user.id)
-    setDeleteLoading(false)
-    closeModal()
+    try {
+      await deleteUser(modal.user.id)
+      appToast.success(`Usuario ${modal.user.name} ${modal.user.last_name} eliminado correctamente.`)
+      closeModal()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo eliminar el usuario.'
+      appToast.error(message)
+    } finally {
+      setDeleteLoading(false)
+    }
   }
 
   return (

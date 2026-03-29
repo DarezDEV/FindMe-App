@@ -128,7 +128,7 @@ export default function AdminDashboard() {
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-text-primary">Casos recientes (en vivo)</h2>
-            <Link to="/authority/cases" className="text-xs font-medium text-primary hover:underline">Ver modulo</Link>
+                  <Link to="/admin/cases" className="text-xs font-medium text-primary hover:underline">Ver modulo</Link>
           </div>
           {summary.recentCases.length === 0 ? (
             <p className="text-sm text-text-secondary">Sin casos recientes.</p>
