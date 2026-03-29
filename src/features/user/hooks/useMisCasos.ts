@@ -26,6 +26,7 @@ export interface CasoReciente {
 }
 
 export interface CasoDetalle extends CasoReciente {
+  person_id?: string | null
   edad: number | null
   genero: string | null
   lugar_desaparicion: string | null
@@ -84,6 +85,7 @@ interface CasoFallbackRow {
 }
 
 interface CasoDetalleFallbackRow {
+  person_id?: string | null
   id: string
   numero_caso: string
   nombres: string
@@ -140,6 +142,7 @@ const CASOS_FALLBACK_SELECT_NO_WORKFLOW = `
 
 const CASO_DETALLE_FALLBACK_SELECT = `
   id,
+  person_id,
   numero_caso,
   nombres,
   apellidos,
@@ -170,6 +173,7 @@ const CASO_DETALLE_FALLBACK_SELECT = `
 
 const CASO_DETALLE_FALLBACK_SELECT_NO_WORKFLOW = `
   id,
+  person_id,
   numero_caso,
   nombres,
   apellidos,
@@ -241,6 +245,7 @@ function isResolvedCase(status: string | null, workflowStatus: string | null) {
 function shouldIncludeCase(status: string | null, workflowStatus: string | null, options: FetchCaseOptions) {
   const normalizedStatus = status?.trim().toLowerCase() ?? ''
   const normalizedWorkflowStatus = workflowStatus?.trim().toLowerCase() ?? ''
+
   if (options.hideRejected && normalizedWorkflowStatus === 'rejected') {
     return false
   }
@@ -260,6 +265,17 @@ function shouldIncludeCase(status: string | null, workflowStatus: string | null,
   }
 
   return true
+}
+
+function isViewErrorRecoverable(message: string) {
+  const lowered = message.toLowerCase()
+  return (
+    lowered.includes('row-level security policy') ||
+    lowered.includes('permission denied') ||
+    (lowered.includes('column') && lowered.includes('does not exist')) ||
+    lowered.includes('relation') ||
+    lowered.includes('does not exist')
+  )
 }
 
 function normalizeText(value: unknown) {
@@ -345,16 +361,57 @@ async function fetchRowsByCaseId(table: string, caseId: string) {
 }
 
 async function fetchCaseComments(caseId: string) {
+  // Intentar múltiples estrategias de query para mayor resiliencia
+  const queries = [
+    () =>
+      supabase
+        .from('case_comments')
+        .select('*')
+        .eq('caso_id', caseId)
+        .order('created_at', { ascending: false }),
+    () =>
+      supabase
+        .from('case_comments')
+        .select('*')
+        .eq('caso_id', caseId)
+        .order('id', { ascending: false }),
+    () =>
+      supabase
+        .from('case_comments')
+        .select('*')
+        .eq('caso_id', caseId),
+  ] as const
+
+  for (const runQuery of queries) {
+    const response = await runQuery()
+
+    if (!response.error) {
+      return (response.data ?? [])
+        .map((row, index) => normalizeCommentRow(row as Record<string, unknown>, index))
+        .filter((row): row is CasoComentario => row !== null)
+    }
+
+    const message = response.error.message.toLowerCase()
+    if (message.includes('column') && message.includes('does not exist')) {
+      continue
+    }
+
+    if (isCommentListRecoverableError(response.error.message)) {
+      return [] as CasoComentario[]
+    }
+
+    throw response.error
+  }
+
+  // Último recurso: helper genérico
   try {
     const rows = (await fetchRowsByCaseId('case_comments', caseId)) as Record<string, unknown>[]
     return rows
-      .map((row, index) => normalizeCommentRow(row as Record<string, unknown>, index))
+      .map((row, index) => normalizeCommentRow(row, index))
       .filter((row): row is CasoComentario => row !== null)
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'No se pudieron cargar los comentarios.'
-    if (isCommentListRecoverableError(message)) {
-      return [] as CasoComentario[]
-    }
+    const message = error instanceof Error ? error.message : ''
+    if (isCommentListRecoverableError(message)) return [] as CasoComentario[]
     throw error
   }
 }
@@ -362,21 +419,21 @@ async function fetchCaseComments(caseId: string) {
 async function fetchMediaForCases(caseIds: string[]) {
   if (caseIds.length === 0) return [] as CasoMedia[]
 
-  const response = await supabase
+  const { data, error } = await supabase
     .from('media_case')
     .select(MEDIA_SELECT)
     .in('caso_id', caseIds)
     .order('orden', { ascending: true })
 
-  if (response.error) {
-    const message = response.error.message.toLowerCase()
+  if (error) {
+    const message = error.message.toLowerCase()
     if (message.includes('row-level security policy') || message.includes('permission denied')) {
       return [] as CasoMedia[]
     }
-    throw response.error
+    throw error
   }
 
-  const rows = (response.data ?? []) as Array<Record<string, unknown>>
+  const rows = (data ?? []) as Array<Record<string, unknown>>
   return rows.map((row) => ({
     id: String(row.id ?? ''),
     caso_id: (row.caso_id as string | undefined) ?? '',
@@ -490,26 +547,44 @@ export function useCasoDetalle(caseId: string) {
     enabled: !!caseId,
     staleTime: QUERY_STALE_TIME,
     queryFn: async () => {
-      const [fallback, media, comentarios] = await Promise.all([
-        supabase.from('cases').select(CASO_DETALLE_FALLBACK_SELECT).eq('id', caseId).single(),
-        fetchMediaForCases([caseId]),
+      const [mediaResponse, comentarios] = await Promise.all([
+        supabase
+          .from('media_case')
+          .select(MEDIA_SELECT)
+          .eq('caso_id', caseId)
+          .order('orden', { ascending: true }),
         fetchCaseComments(caseId),
       ])
 
-      if (fallback.error) {
-        const message = fallback.error.message.toLowerCase()
+      const safeMedia = (mediaResponse.data ?? []) as CasoMedia[]
+
+      // Intentar primero con la vista enriquecida, luego con fallback directo a `cases`
+      let caseResponse = await supabase
+        .from('cases')
+        .select(CASO_DETALLE_FALLBACK_SELECT)
+        .eq('id', caseId)
+        .single()
+
+      if (caseResponse.error) {
+        const message = caseResponse.error.message.toLowerCase()
+
+        // Si el error es por la columna workflow_status, reintentar sin ella
         if (message.includes('column') && message.includes('workflow_status')) {
           const retry = await supabase
             .from('cases')
             .select(CASO_DETALLE_FALLBACK_SELECT_NO_WORKFLOW)
             .eq('id', caseId)
             .single()
+
           if (retry.error) throw retry.error
+
           const fallbackCase = retry.data as CasoDetalleFallbackRow
-          const photoMedia = media.filter(item => item.tipo === 'foto')
+          const photoMedia = safeMedia.filter(item => item.tipo === 'foto')
           const mainPhoto = photoMedia.find(item => item.es_principal) ?? photoMedia[0]
+
           const caso: CasoDetalle = {
             id: fallbackCase.id,
+            person_id: fallbackCase.person_id ?? null,
             numero_caso: fallbackCase.numero_caso,
             nombres: fallbackCase.nombres,
             apellidos: fallbackCase.apellidos,
@@ -539,17 +614,25 @@ export function useCasoDetalle(caseId: string) {
             total_fotos: photoMedia.length,
             created_at: fallbackCase.created_at,
           }
-          return { caso, media, comentarios }
+
+          return { caso, media: safeMedia, comentarios }
         }
-        throw fallback.error
+
+        // Si el error es recuperable (permisos, relación inexistente) pero no de columna, propagar
+        if (!isViewErrorRecoverable(caseResponse.error.message)) {
+          throw caseResponse.error
+        }
+
+        throw caseResponse.error
       }
 
-      const fallbackCase = fallback.data as CasoDetalleFallbackRow
-      const photoMedia = media.filter(item => item.tipo === 'foto')
+      const fallbackCase = caseResponse.data as CasoDetalleFallbackRow
+      const photoMedia = safeMedia.filter(item => item.tipo === 'foto')
       const mainPhoto = photoMedia.find(item => item.es_principal) ?? photoMedia[0]
 
       const caso: CasoDetalle = {
         id: fallbackCase.id,
+        person_id: fallbackCase.person_id ?? null,
         numero_caso: fallbackCase.numero_caso,
         nombres: fallbackCase.nombres,
         apellidos: fallbackCase.apellidos,
@@ -580,7 +663,7 @@ export function useCasoDetalle(caseId: string) {
         created_at: fallbackCase.created_at,
       }
 
-      return { caso, media, comentarios }
+      return { caso, media: safeMedia, comentarios }
     },
   })
 }

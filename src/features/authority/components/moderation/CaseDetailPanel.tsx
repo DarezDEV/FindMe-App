@@ -90,11 +90,11 @@ export function CaseDetailPanel({ selectedCase }: CaseDetailPanelProps) {
 
   if (!selectedCase) {
     return (
-      <div className="card min-h-[460px] flex flex-col items-center justify-center gap-3 p-8 text-center">
-        <div className="w-12 h-12 rounded-full bg-primary-soft/60 flex items-center justify-center">
-          <FileText size={20} className="text-text-secondary/70" />
+      <div className="min-h-[460px] flex flex-col items-center justify-center gap-3 p-8 text-center rounded-xl border border-slate-200 bg-slate-50">
+        <div className="w-12 h-12 rounded-full bg-sky-400/10 border border-sky-400/20 flex items-center justify-center">
+          <FileText size={20} className="text-sky-300/80" />
         </div>
-        <p className="text-sm text-text-secondary">Selecciona un caso para ver su informacion completa.</p>
+        <p className="text-sm text-slate-500">Selecciona un caso para ver su informacion completa.</p>
       </div>
     )
   }
@@ -135,10 +135,10 @@ export function CaseDetailPanel({ selectedCase }: CaseDetailPanelProps) {
         </div>
       )}
 
-      <div className="card min-h-[460px] overflow-hidden">
+      <div className="min-h-[460px] overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
         <button
           type="button"
-          className="w-full relative group bg-primary-soft/20 border-b border-border"
+          className="w-full relative group bg-white border-b border-slate-200"
           style={{ aspectRatio: '16/10' }}
           onClick={() => selectedCase.photoUrl && setLightboxOpen(true)}
           disabled={!selectedCase.photoUrl}
@@ -157,7 +157,7 @@ export function CaseDetailPanel({ selectedCase }: CaseDetailPanelProps) {
               </span>
             </>
           ) : (
-            <span className="absolute inset-0 flex items-center justify-center text-sm text-text-secondary">
+            <span className="absolute inset-0 flex items-center justify-center text-sm text-slate-500">
               Foto pendiente
             </span>
           )}
@@ -166,9 +166,9 @@ export function CaseDetailPanel({ selectedCase }: CaseDetailPanelProps) {
         <div className="p-6 space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-text-primary">{selectedCase.name}</h2>
-              <p className="text-sm text-text-secondary mt-1">
-                Caso {selectedCase.caseNumber} · {selectedCase.age} anos
+              <h2 className="text-lg font-semibold text-slate-900">{selectedCase.name}</h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Caso {selectedCase.caseNumber} Â· {selectedCase.age} anos
               </p>
             </div>
             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium ${urgency.toneClass}`}>
@@ -177,7 +177,7 @@ export function CaseDetailPanel({ selectedCase }: CaseDetailPanelProps) {
             </span>
           </div>
 
-          <div className="rounded-lg border border-border bg-background p-3 space-y-2 text-sm">
+          <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2 text-sm">
             <MetaRow icon={<Clock4 size={13} />} label="Tiempo" value={urgency.days === 0 ? 'Hoy' : `Hace ${urgency.days} dias`} />
             <MetaRow icon={<UserCircle2 size={13} />} label="Genero" value={selectedCase.gender || 'No especificado'} />
             <MetaRow icon={<Calendar size={13} />} label="Fecha nacimiento" value={selectedCase.birthDate || 'No disponible'} />
@@ -190,24 +190,24 @@ export function CaseDetailPanel({ selectedCase }: CaseDetailPanelProps) {
             <MetaRow icon={<Mail size={13} />} label="Correo contacto" value={selectedCase.contactEmail ?? 'No disponible'} />
           </div>
 
-          <div className="rounded-lg border border-border bg-primary-soft/30 p-3 space-y-2">
+          <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
             <div className="flex items-center justify-between gap-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-secondary"> Contacto</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500"> Contacto</h3>
               <button
                 type="button"
                 onClick={() => void handleCopyPrompt()}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border border-border bg-card hover:bg-primary-soft/40 transition-colors"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border border-slate-200 bg-white text-slate-700 hover:text-blue-600 transition-colors"
               >
                 <Copy size={12} />
                 {copied ? 'Copiado' : 'Copiar'}
               </button>
             </div>
-            <p className="text-sm text-text-primary leading-relaxed">{promptText}</p>
+            <p className="text-sm text-slate-700 leading-relaxed">{promptText}</p>
           </div>
 
-          <div className="rounded-lg border border-border bg-card p-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-text-secondary mb-2">Descripcion</h3>
-            <p className="text-sm text-text-secondary leading-relaxed">{selectedCase.description}</p>
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Descripcion</h3>
+            <p className="text-sm text-slate-700 leading-relaxed">{selectedCase.description}</p>
           </div>
         </div>
       </div>
@@ -218,11 +218,13 @@ export function CaseDetailPanel({ selectedCase }: CaseDetailPanelProps) {
 function MetaRow({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
     <div className="flex items-start gap-2.5">
-      <span className="mt-0.5 text-text-secondary/70">{icon}</span>
+      <span className="mt-0.5 text-slate-500">{icon}</span>
       <div className="min-w-0">
-        <p className="text-xs text-text-secondary">{label}</p>
-        <p className="text-sm text-text-primary break-words">{value}</p>
+        <p className="text-xs text-slate-500">{label}</p>
+        <p className="text-sm text-slate-700 break-words">{value}</p>
       </div>
     </div>
   )
 }
+
+

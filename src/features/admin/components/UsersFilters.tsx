@@ -1,6 +1,6 @@
 // src/features/admin/components/users/UsersFilters.tsx
 import { Search } from 'lucide-react'
-import type { Role } from './role-meta'
+import type { Role } from './roles'
 
 interface Props {
   search: string
@@ -16,10 +16,10 @@ export function UsersFilters({
   filterRole, onRoleChange,
   filterStatus, onStatusChange,
 }: Props) {
-  const handleStatusChange = (value: string) => {
-    if (value === 'active' || value === 'inactive' || value === 'all') {
-      onStatusChange(value)
-    }
+  const parseStatus = (value: string): 'all' | 'active' | 'inactive' => {
+    if (value === 'active') return 'active'
+    if (value === 'inactive') return 'inactive'
+    return 'all'
   }
 
   return (
@@ -55,7 +55,7 @@ export function UsersFilters({
         <select
           className="input-field w-full sm:w-40"
           value={filterStatus}
-          onChange={e => handleStatusChange(e.target.value)}
+          onChange={(e) => onStatusChange(parseStatus(e.target.value))}
         >
           <option value="all">Todos</option>
           <option value="active">Activos</option>

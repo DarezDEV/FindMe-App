@@ -6,7 +6,6 @@ import LoginPage from '../../features/auth/pages/LoginPage'
 import RegisterPage from '../../features/auth/pages/RegisterPage'
 import ForgotPasswordPage from '../../features/auth/pages/ForgotPasswordPage'
 import ResetPasswordPage from '../../features/auth/pages/ResetPasswordPage'
-import AdminHome from '../../features/admin/pages/AdminHome'
 import UserHome from '../../features/user/pages/UserHome'
 import PublicarPersonaPerdidaPage from '../../features/user/pages/PublicarPersonaPerdidaPage'
 import CasoDetallePage from '../../features/user/pages/CasoDetallePage'
@@ -14,11 +13,18 @@ import ReportarAvistamientoPage from '../../features/user/pages/ReportarAvistami
 import ReportarContenidoPage from '../../features/user/pages/ReportarContenidoPage'
 import MisCasosPage from '../../features/user/pages/MisCasosPage'
 import MiPerfilPage from '../../features/user/pages/MiPerfilPage'
-
+import AdminHome from '../../features/admin/pages/AdminHome'
 import AuthorityHome from '../../features/authority/pages/AuthorityHome'
-import AuthorityCases from '../../features/authority/pages/AuthorityCases'
-import PendingCasesPage from '../../features/authority/pages/PendingCasesPage'
 import AdminUsers from '../../features/admin/pages/AdminUsers'
+import AdminCases from '../../features/admin/pages/AdminCases'
+import AdminSightings from '../../features/admin/pages/AdminSightings'
+import AdminReview from '../../features/admin/pages/AdminReview'
+import AdminSettings from '../../features/admin/pages/AdminSettings'
+import AuthorityCases from '../../features/authority/pages/AuthorityCases'
+import AuthorityCaseDetailPage from '../../features/authority/pages/AuthorityCaseDetailPage'
+import AuthorityCreateCasePage from '../../features/authority/pages/AuthorityCreateCasePage'
+import PendingCasesPage from '../../features/authority/pages/PendingCasesPage'
+import AuthoritySightings from '../../features/authority/pages/AuthoritySightings'
 import LandingPage from '../../features/public/pages/LandingPage'
 import PublicCasesPage from '../../features/public/pages/PublicCasesPage'
 import PublishCaseGatePage from '../../features/public/pages/PublishCaseGatePage'
@@ -49,22 +55,21 @@ function UnauthorizedPage() {
 
 const router = createBrowserRouter([
   // Publicas
+  { path: '/', element: <LandingPage /> },
   { path: '/cases', element: <PublicCasesPage /> },
   { path: '/publish-case', element: <PublishCaseGatePage /> },
   { path: '/unauthorized', element: <UnauthorizedPage /> },
 
   // Solo usuarios no autenticados
   {
-    path: '/',
     element: <GuestRoute />,
     children: [
-      { index: true, element: <LandingPage /> },
-      { path: 'login', element: <LoginPage /> },
-      { path: 'register', element: <RegisterPage /> },
-      { path: 'forgot-password', element: <ForgotPasswordPage /> },
+      { path: '/login', element: <LoginPage /> },
+      { path: '/register', element: <RegisterPage /> },
+      { path: '/forgot-password', element: <ForgotPasswordPage /> },
+      { path: '/reset-password', element: <ResetPasswordPage /> },
     ],
   },
-  { path: '/reset-password', element: <ResetPasswordPage /> },
 
   // Usuario comun
   {
@@ -89,6 +94,10 @@ const router = createBrowserRouter([
     children: [
       { path: '/admin/dashboard', element: <AdminHome /> },
       { path: '/admin/users', element: <AdminUsers /> },
+      { path: '/admin/cases', element: <AdminCases /> },
+      { path: '/admin/sightings', element: <AdminSightings /> },
+      { path: '/admin/revision', element: <AdminReview /> },
+      { path: '/admin/settings', element: <AdminSettings /> },
     ],
   },
 
@@ -98,6 +107,9 @@ const router = createBrowserRouter([
     children: [
       { path: '/authority', element: <AuthorityHome /> },
       { path: '/authority/cases', element: <AuthorityCases /> },
+      { path: '/authority/cases/new', element: <AuthorityCreateCasePage /> },
+      { path: '/authority/cases/:id', element: <AuthorityCaseDetailPage /> },
+      { path: '/authority/sightings', element: <AuthoritySightings /> },
       { path: '/authority/cases/pending', element: <PendingCasesPage /> },
     ],
   },

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Alert, Spinner } from '../../../shared/components/ui'
 import { useAuth } from '../../auth/hooks'
 import { AuthoritySidebar } from '../components/AuthoritySidebar'
 import { CaseDetailPanel } from '../components/moderation/CaseDetailPanel'
@@ -17,70 +16,47 @@ import {
   getPendingModerationCases,
   getProfilesBasicByIds,
   softDeleteCase,
+  subscribeToCasesRealtime,
   updateCaseComment,
   updateCaseWorkflowStatus,
 } from '../../../lib/supabase/db'
+import { logCaseAction } from '../utils/case-history'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type CaseComment = {
-  id: string
-  text: string
-  authorId: string
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+type CaseComment = { id: string; text: string; authorId: string }
 
 function formatDate(dateIso: string) {
   const parsed = new Date(dateIso)
   if (Number.isNaN(parsed.getTime())) return 'Sin fecha'
   return new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed)
 }
-
 function formatLocation(city: string | null, state: string | null, fallback: string | null) {
-  return city || state || fallback || 'Sin ubicacion'
+  return city || state || fallback || 'Sin ubicación'
 }
-
 function formatCreatedBy(userId: string | null | undefined, name?: string | null, lastName?: string | null) {
   const fullName = `${name ?? ''} ${lastName ?? ''}`.trim()
   if (fullName) return fullName
   if (!userId) return 'Usuario desconocido'
   return `Usuario ${userId.slice(0, 8)}`
 }
-
 function formatCaseStatus(status: string | null | undefined) {
   switch (status) {
-    case 'activo':
-      return 'Publicada'
-    case 'en_proceso':
-      return 'Publicada'
-    case 'resuelto':
-      return 'Reunificada'
-    case 'cerrado':
-      return 'Archivada'
-    default:
-      return 'Sin estado'
+    case 'activo': return 'Activo'; case 'en_proceso': return 'En proceso'
+    case 'resuelto': return 'Resuelto'; case 'cerrado': return 'Cerrado'; default: return 'Sin estado'
   }
 }
-
 function formatWorkflowStatus(status: string | null | undefined) {
   switch (status) {
-    case 'pending':
-      return 'Pendiente'
-    case 'approved':
-      return 'Publicada'
-    case 'rejected':
-      return 'Rechazado'
-    case 'found':
-      return 'Reunificada'
-    case 'closed':
-      return 'Archivada'
-    default:
-      return 'Pendiente'
+    case 'pending': return 'Pendiente'; case 'approved': return 'Aprobado'
+    case 'rejected': return 'Rechazado'; case 'found': return 'Encontrado'; case 'closed': return 'Cerrado'; default: return 'Pendiente'
   }
 }
 
-// ─── CommentItem ──────────────────────────────────────────────────────────────
+const FEEDBACK_META = {
+  success: { color: '#059669', bg: 'rgba(5,150,105,0.06)', border: 'rgba(5,150,105,0.2)', dot: '#059669' },
+  warning: { color: '#D97706', bg: 'rgba(217,119,6,0.06)', border: 'rgba(217,119,6,0.2)', dot: '#D97706' },
+  error:   { color: '#DC2626', bg: 'rgba(220,38,38,0.06)', border: 'rgba(220,38,38,0.2)', dot: '#DC2626' },
+  info:    { color: '#0284C7', bg: 'rgba(2,132,199,0.06)', border: 'rgba(2,132,199,0.2)', dot: '#0284C7' },
+}
 
 export default function PendingCasesPage() {
   const { user } = useAuth()
@@ -98,43 +74,25 @@ export default function PendingCasesPage() {
   const [actionLoading, setActionLoading] = useState(false)
 
   const loadPendingCases = useCallback(async () => {
-    setLoading(true)
-    setFeedback(null)
-
+    setLoading(true); setFeedback(null)
     try {
       const data = await getPendingModerationCases(200)
-      const userIds = data.map((item) => item.publicado_por).filter((value): value is string => Boolean(value))
+      const userIds = data.map((item) => item.publicado_por).filter((v): v is string => Boolean(v))
       let profileMap: Record<string, { name: string | null; lastName: string | null; email: string | null }> = {}
-
       try {
         const profiles = await getProfilesBasicByIds(userIds)
-        profileMap = profiles.reduce<Record<string, { name: string | null; lastName: string | null; email: string | null }>>(
-          (acc, profile) => {
-            acc[profile.id] = {
-              name: profile.name,
-              lastName: profile.last_name,
-              email: profile.email,
-            }
-            return acc
-          },
-          {},
-        )
-      } catch {
-        profileMap = {}
-      }
+        profileMap = profiles.reduce<typeof profileMap>((acc, p) => { acc[p.id] = { name: p.name, lastName: p.last_name, email: p.email }; return acc }, {})
+      } catch { profileMap = {} }
 
       const mapped: PendingCaseItem[] = data.map((item) => {
         const profile = item.publicado_por ? profileMap[item.publicado_por] : undefined
-
         return {
-          id: item.id,
-          caseNumber: item.numero_caso,
+          id: item.id, caseNumber: item.numero_caso,
           name: `${item.nombres} ${item.apellidos}`.trim(),
-          age: item.edad ?? 0,
-          gender: item.genero ?? null,
+          age: item.edad ?? 0, gender: item.genero ?? null,
           location: formatLocation(item.ciudad, item.estado_provincia, item.lugar_ultima_vez),
           lastSeenPlace: item.lugar_ultima_vez || 'Sin dato',
-          description: item.descripcion_general || 'Sin descripcion registrada.',
+          description: item.descripcion_general || 'Sin descripción registrada.',
           createdBy: formatCreatedBy(item.publicado_por, profile?.name, profile?.lastName),
           createdAt: formatDate(item.created_at),
           missingDate: item.fecha_desaparicion ? formatDate(item.fecha_desaparicion) : 'Sin fecha',
@@ -152,282 +110,268 @@ export default function PendingCasesPage() {
       const commentMap: Record<string, CaseComment[]> = {}
       comments.forEach((entry) => {
         if (!commentMap[entry.caso_id]) commentMap[entry.caso_id] = []
-        commentMap[entry.caso_id].push({
-          id: entry.id,
-          text: entry.comentario,
-          authorId: entry.autor_id,
-        })
+        commentMap[entry.caso_id].push({ id: entry.id, text: entry.comentario, authorId: entry.autor_id })
       })
 
-      setPendingCases(mapped)
-      setCommentsByCaseId(commentMap)
-      if (requestedCaseId && mapped.some((item) => item.id === requestedCaseId)) {
-        setSelectedCaseId(requestedCaseId)
-      } else {
-        setSelectedCaseId(mapped[0]?.id ?? null)
-      }
-
-      if (requestedCaseId && !mapped.some((item) => item.id === requestedCaseId)) {
-        setFeedbackType('warning')
-        setFeedback('El caso seleccionado desde "Casos" ya no esta pendiente de revision.')
-      }
+      setPendingCases(mapped); setCommentsByCaseId(commentMap)
+      if (requestedCaseId && mapped.some((item) => item.id === requestedCaseId)) { setSelectedCaseId(requestedCaseId) }
+      else { setSelectedCaseId(mapped[0]?.id ?? null) }
+      if (requestedCaseId && !mapped.some((item) => item.id === requestedCaseId)) { setFeedbackType('warning'); setFeedback('El caso seleccionado desde "Casos" ya no está pendiente de revisión.') }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudieron cargar los casos pendientes.'
-      setFeedbackType('error')
-      setFeedback(message)
-      setPendingCases([])
-      setSelectedCaseId(null)
-    } finally {
-      setLoading(false)
-    }
+      setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudieron cargar los casos pendientes.')
+      setPendingCases([]); setSelectedCaseId(null)
+    } finally { setLoading(false) }
   }, [requestedCaseId])
 
-  useEffect(() => {
-    void loadPendingCases()
-  }, [loadPendingCases])
+  useEffect(() => { void loadPendingCases() }, [loadPendingCases])
 
   useEffect(() => {
-    if (!selectedCaseId) return
-    if (selectedCaseId in photoUrlByCaseId) return
-
+    if (!selectedCaseId || selectedCaseId in photoUrlByCaseId) return
     let cancelled = false
-
     const loadPhoto = async () => {
-      try {
-        const url = await getCasePhotoUrlFromStorage(selectedCaseId)
-        if (cancelled) return
-        setPhotoUrlByCaseId((prev) => ({ ...prev, [selectedCaseId]: url }))
-      } catch {
-        if (cancelled) return
-        setPhotoUrlByCaseId((prev) => ({ ...prev, [selectedCaseId]: null }))
-      }
+      try { const url = await getCasePhotoUrlFromStorage(selectedCaseId); if (!cancelled) setPhotoUrlByCaseId((prev) => ({ ...prev, [selectedCaseId]: url })) }
+      catch { if (!cancelled) setPhotoUrlByCaseId((prev) => ({ ...prev, [selectedCaseId]: null })) }
     }
-
     void loadPhoto()
-
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [selectedCaseId, photoUrlByCaseId])
 
-  const selectedCase = useMemo(
-    () => pendingCases.find((item) => item.id === selectedCaseId) ?? null,
-    [pendingCases, selectedCaseId],
-  )
+  const selectedCase = useMemo(() => pendingCases.find((item) => item.id === selectedCaseId) ?? null, [pendingCases, selectedCaseId])
+  const selectedCaseWithPhoto = useMemo(() => { if (!selectedCase) return null; return { ...selectedCase, photoUrl: photoUrlByCaseId[selectedCase.id] ?? undefined } }, [photoUrlByCaseId, selectedCase])
 
-  const selectedCaseWithPhoto = useMemo(() => {
-    if (!selectedCase) return null
-    return {
-      ...selectedCase,
-      photoUrl: photoUrlByCaseId[selectedCase.id] ?? undefined,
-    }
-  }, [photoUrlByCaseId, selectedCase])
+  const removeFromPending = useCallback((caseId: string) => {
+    setPendingCases((prev) => { const next = prev.filter((item) => item.id !== caseId); setSelectedCaseId(next[0]?.id ?? null); return next })
+  }, [])
 
-  const removeFromPending = (caseId: string) => {
-    setPendingCases((prev) => {
-      const next = prev.filter((item) => item.id !== caseId)
-      setSelectedCaseId(next[0]?.id ?? null)
-      return next
+  useEffect(() => {
+    const unsubscribe = subscribeToCasesRealtime((payload) => {
+      const caseId = payload.new.id || payload.old.id; if (!caseId) return
+      if (payload.new.eliminado === true || (payload.new.workflow_status && payload.new.workflow_status !== 'pending')) { removeFromPending(caseId); return }
+      if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') void loadPendingCases()
     })
-  }
+    return unsubscribe
+  }, [loadPendingCases, removeFromPending])
 
   const approveCase = async () => {
-    if (!selectedCase) return
-
-    setActionLoading(true)
+    if (!selectedCase) return; setActionLoading(true)
     try {
       await updateCaseWorkflowStatus(selectedCase.id, 'approved')
-      removeFromPending(selectedCase.id)
-      setFeedbackType('success')
-      setFeedback(`Caso ${selectedCase.name} publicado.`)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudo publicar el caso.'
-      setFeedbackType('error')
-      setFeedback(message)
-    } finally {
-      setActionLoading(false)
+      if (user?.id) await logCaseAction(selectedCase.id, user.id, 'approved')
+      removeFromPending(selectedCase.id); setFeedbackType('success'); setFeedback(`Caso de ${selectedCase.name} aprobado exitosamente.`)
     }
+    catch (err) { setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo aprobar el caso.') }
+    finally { setActionLoading(false) }
   }
-
   const rejectCase = async () => {
-    if (!selectedCase) return
-
-    setActionLoading(true)
+    if (!selectedCase) return; setActionLoading(true)
     try {
       await updateCaseWorkflowStatus(selectedCase.id, 'rejected')
-      removeFromPending(selectedCase.id)
-      setFeedbackType('warning')
-      setFeedback(`Caso ${selectedCase.name} rechazado.`)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudo rechazar el caso.'
-      setFeedbackType('error')
-      setFeedback(message)
-    } finally {
-      setActionLoading(false)
+      if (user?.id) await logCaseAction(selectedCase.id, user.id, 'rejected')
+      removeFromPending(selectedCase.id); setFeedbackType('warning'); setFeedback(`Caso de ${selectedCase.name} rechazado.`)
     }
+    catch (err) { setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo rechazar el caso.') }
+    finally { setActionLoading(false) }
   }
-
   const markAsFalse = async () => {
-    if (!selectedCase) return
-
-    setActionLoading(true)
-    try {
-      await softDeleteCase(selectedCase.id)
-      removeFromPending(selectedCase.id)
-      setFeedbackType('error')
-      setFeedback(`Caso ${selectedCase.name} marcado como falso.`)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudo marcar como falso.'
-      setFeedbackType('error')
-      setFeedback(message)
-    } finally {
-      setActionLoading(false)
-    }
+    if (!selectedCase) return; setActionLoading(true)
+    try { await softDeleteCase(selectedCase.id); removeFromPending(selectedCase.id); setFeedbackType('error'); setFeedback(`Caso de ${selectedCase.name} marcado como falso y eliminado.`) }
+    catch (err) { setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo marcar como falso.') }
+    finally { setActionLoading(false) }
   }
-
   const saveComment = async (comment: string) => {
-    if (!selectedCase || !comment || !user?.id) return
-
-    setActionLoading(true)
+    if (!selectedCase || !comment || !user?.id) return; setActionLoading(true)
     try {
       const created = await createCaseComment(selectedCase.id, user.id, comment)
-      setCommentsByCaseId((prev) => ({
-        ...prev,
-        [selectedCase.id]: [
-          ...(prev[selectedCase.id] ?? []),
-          { id: created.id, text: comment, authorId: user.id },
-        ],
-      }))
-      setCommentModalOpen(false)
-      setFeedbackType('info')
-      setFeedback('Comentario agregado correctamente.')
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudo guardar el comentario.'
-      setFeedbackType('error')
-      setFeedback(message)
-    } finally {
-      setActionLoading(false)
-    }
+      setCommentsByCaseId((prev) => ({ ...prev, [selectedCase.id]: [...(prev[selectedCase.id] ?? []), { id: created.id, text: comment, authorId: user.id }] }))
+      setCommentModalOpen(false); setFeedbackType('info'); setFeedback('Nota agregada correctamente.')
+    } catch (err) { setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo guardar la nota.') }
+    finally { setActionLoading(false) }
   }
-
   const handleDeleteComment = async (commentId: string) => {
-    if (!selectedCase) return
-
-    setActionLoading(true)
-    try {
-      await deleteCaseComment(commentId)
-      setCommentsByCaseId((prev) => ({
-        ...prev,
-        [selectedCase.id]: (prev[selectedCase.id] ?? []).filter((c) => c.id !== commentId),
-      }))
-      setFeedbackType('info')
-      setFeedback('Comentario eliminado.')
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudo eliminar el comentario.'
-      setFeedbackType('error')
-      setFeedback(message)
-    } finally {
-      setActionLoading(false)
-    }
+    if (!selectedCase) return; setActionLoading(true)
+    try { await deleteCaseComment(commentId); setCommentsByCaseId((prev) => ({ ...prev, [selectedCase.id]: (prev[selectedCase.id] ?? []).filter((c) => c.id !== commentId) })); setFeedbackType('info'); setFeedback('Nota eliminada.') }
+    catch (err) { setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo eliminar la nota.') }
+    finally { setActionLoading(false) }
   }
-
   const handleEditComment = async (commentId: string, newText: string) => {
-    if (!selectedCase) return
-
-    setActionLoading(true)
-    try {
-      await updateCaseComment(commentId, newText)
-      setCommentsByCaseId((prev) => ({
-        ...prev,
-        [selectedCase.id]: (prev[selectedCase.id] ?? []).map((c) =>
-          c.id === commentId ? { ...c, text: newText } : c,
-        ),
-      }))
-      setFeedbackType('info')
-      setFeedback('Comentario actualizado.')
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudo editar el comentario.'
-      setFeedbackType('error')
-      setFeedback(message)
-    } finally {
-      setActionLoading(false)
-    }
+    if (!selectedCase) return; setActionLoading(true)
+    try { await updateCaseComment(commentId, newText); setCommentsByCaseId((prev) => ({ ...prev, [selectedCase.id]: (prev[selectedCase.id] ?? []).map((c) => c.id === commentId ? { ...c, text: newText } : c) })); setFeedbackType('info'); setFeedback('Nota actualizada.') }
+    catch (err) { setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo editar la nota.') }
+    finally { setActionLoading(false) }
   }
 
   const selectedCaseComments = selectedCase ? (commentsByCaseId[selectedCase.id] ?? []) : []
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#F2F4F7', fontFamily: "'Geist', 'Inter', sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+        @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+        @keyframes spin { to { transform:rotate(360deg); } }
+
+        .p-scroll::-webkit-scrollbar { width: 5px; }
+        .p-scroll::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.2); border-radius:999px; }
+
+        .p-card { background:#fff; border:1px solid #E4E7EC; border-radius:10px; box-shadow:0 1px 2px rgba(0,0,0,0.04),0 1px 4px rgba(0,0,0,0.03); }
+        .p-in { animation: fadeUp 0.4s ease-out both; }
+        .p-in-1 { animation-delay:0.06s; }
+        .p-in-2 { animation-delay:0.12s; }
+
+        .p-ghost {
+          display:inline-flex; align-items:center; gap:7px;
+          padding:7px 14px; border-radius:8px;
+          border:1px solid #E4E7EC; background:#fff;
+          color:#64748B; font-size:12px; font-family:'Geist',sans-serif; font-weight:500;
+          cursor:pointer; transition:all 0.15s;
+        }
+        .p-ghost:hover { border-color:#CBD5E1; color:#334155; }
+
+        .feedback-bar { animation: fadeIn 0.25s ease-out; }
+      `}</style>
+
       <AuthoritySidebar />
 
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-4">
-          <div className="card p-6 flex items-center justify-between gap-3">
+      <main className="p-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+        <div style={{ maxWidth: 1400, margin: '0 auto', padding: '40px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          {/* ─── HEADER ─── */}
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }} className="p-in">
             <div>
-              <h1 className="text-2xl font-bold text-text-primary">Revision de publicaciones</h1>
-              <p className="text-sm text-text-secondary mt-1">
-                Flujo de moderacion para casos pendientes antes de ser publicados.
+              <p style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, color: '#2B5CE6', letterSpacing: '0.28em', textTransform: 'uppercase', marginBottom: 8 }}>
+                Módulo de Moderación · Publicaciones
               </p>
+              <h1 style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 32, color: '#111827', fontWeight: 400, letterSpacing: '-0.03em', marginBottom: 6 }}>
+                Revisión de Publicaciones
+              </h1>
+              <p style={{ fontSize: 13, color: '#6B7280' }}>Flujo de moderación para casos pendientes antes de su publicación pública.</p>
             </div>
-            <button type="button" onClick={() => void loadPendingCases()} className="btn-secondary">
-              Recargar
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {!loading && pendingCases.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', borderRadius: 8, background: 'rgba(43,92,230,0.07)', border: '1px solid rgba(43,92,230,0.2)' }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#2B5CE6', animation: 'dotPulse 2s ease-in-out infinite' }} />
+                  <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: '#2B5CE6' }}>
+                    {pendingCases.length} pendiente{pendingCases.length !== 1 ? 's' : ''}
+                  </span>
+                  <style>{`@keyframes dotPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }`}</style>
+                </div>
+              )}
+              <button type="button" onClick={() => void loadPendingCases()} className="p-ghost">
+                Recargar
+              </button>
+            </div>
           </div>
 
-          {feedback && <Alert type={feedbackType} message={feedback} />}
+          {/* ─── FEEDBACK ─── */}
+          {feedback && (() => {
+            const meta = FEEDBACK_META[feedbackType]
+            return (
+              <div className="feedback-bar" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 18px', borderRadius: 10, border: `1px solid ${meta.border}`, background: meta.bg }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: meta.dot, flexShrink: 0 }} />
+                <span style={{ fontSize: 13, color: meta.color }}>{feedback}</span>
+              </div>
+            )
+          })()}
 
+          {/* ─── LOADING ─── */}
           {loading ? (
-            <div className="card p-12 flex items-center justify-center">
-              <Spinner size="lg" />
+            <div className="p-card" style={{ padding: '64px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 22, height: 22, border: '2px solid rgba(43,92,230,0.2)', borderTopColor: '#2B5CE6', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>Cargando casos pendientes...</p>
+            </div>
+          ) : pendingCases.length === 0 ? (
+            <div className="p-card p-in p-in-1" style={{ padding: '64px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 52, height: 52, borderRadius: 14, background: 'rgba(5,150,105,0.07)', border: '1px solid rgba(5,150,105,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4 }}>
+                <span style={{ fontSize: 22 }}>✓</span>
+              </div>
+              <p style={{ fontSize: 14, color: '#111827', fontWeight: 600 }}>Sin casos pendientes</p>
+              <p style={{ fontSize: 13, color: '#6B7280', textAlign: 'center', maxWidth: 320 }}>Todos los casos han sido revisados. El sistema está al día.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-4">
-              <PendingList
-                cases={pendingCases}
-                selectedCaseId={selectedCaseId}
-                onSelectCase={setSelectedCaseId}
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 20 }} className="p-in p-in-1">
 
-              <div className="space-y-4">
-                <CaseDetailPanel selectedCase={selectedCaseWithPhoto} />
+              {/* ─── PENDING LIST ─── */}
+              <div className="p-card" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 200px)' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F3F5' }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 }}>Cola de revisión</p>
+                  <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>
+                    {pendingCases.length} casos en espera
+                  </p>
+                </div>
+                <div className="p-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+                  <PendingList cases={pendingCases} selectedCaseId={selectedCaseId} onSelectCase={setSelectedCaseId} />
+                </div>
+              </div>
 
-                {selectedCase && selectedCaseComments.length > 0 && (
-                  <div className="card p-5">
-                    <h3 className="text-sm font-semibold text-text-primary mb-3">Comentarios de revision</h3>
-                    <div className="space-y-3">
-                      {selectedCaseComments.map((comment) => (
-                        <CommentItem
-                          key={comment.id}
-                          comment={comment}
-                          currentUserId={user?.id ?? ''}
-                          onDelete={() => void handleDeleteComment(comment.id)}
-                          onEdit={(newText) => void handleEditComment(comment.id, newText)}
-                          disabled={actionLoading}
-                        />
-                      ))}
+              {/* ─── DETAIL COLUMN ─── */}
+              <div className="p-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto', maxHeight: 'calc(100vh - 200px)' }}>
+
+                {/* Case Detail */}
+                <div className="p-card" style={{ overflow: 'hidden' }}>
+                  <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F3F5' }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 }}>Detalle del caso</p>
+                    {selectedCase && <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#2B5CE6' }}>{selectedCase.caseNumber}</p>}
+                  </div>
+                  <div style={{ padding: 20 }}>
+                    <CaseDetailPanel selectedCase={selectedCaseWithPhoto} />
+                  </div>
+                </div>
+
+                {/* Review Notes */}
+                {selectedCase && (
+                  <div className="p-card" style={{ overflow: 'hidden' }}>
+                    <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F3F5', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 }}>Notas de revisión</p>
+                        <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>
+                          {selectedCaseComments.length} nota{selectedCaseComments.length !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                      {selectedCaseComments.length > 0 && (
+                        <span style={{ padding: '3px 10px', borderRadius: 6, background: 'rgba(2,132,199,0.08)', border: '1px solid rgba(2,132,199,0.2)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#0284C7', fontWeight: 500 }}>
+                          {selectedCaseComments.length}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ padding: 20 }}>
+                      {selectedCaseComments.length === 0 ? (
+                        <p style={{ fontSize: 12, color: '#9CA3AF', fontFamily: "'JetBrains Mono', monospace" }}>Aún no hay notas registradas para este caso.</p>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {selectedCaseComments.map((comment) => (
+                            <CommentItem key={comment.id} comment={comment} currentUserId={user?.id ?? ''} onDelete={() => void handleDeleteComment(comment.id)} onEdit={(newText) => void handleEditComment(comment.id, newText)} disabled={actionLoading} />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
 
-                <ModerationActions
-                  disabled={!selectedCase || actionLoading}
-                  onApprove={() => void approveCase()}
-                  onReject={() => void rejectCase()}
-                  onAddComment={() => setCommentModalOpen(true)}
-                  onMarkFalse={() => void markAsFalse()}
-                />
+                {/* Moderation Actions */}
+                <div className="p-card" style={{ overflow: 'hidden' }}>
+                  <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F3F5' }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 }}>Acciones de moderación</p>
+                    <p style={{ fontSize: 12, color: '#9CA3AF' }}>Revisa y decide el estado de este caso.</p>
+                  </div>
+                  <div style={{ padding: 20 }}>
+                    <ModerationActions
+                      disabled={!selectedCase || actionLoading}
+                      commentsCount={selectedCaseComments.length}
+                      onApprove={() => void approveCase()}
+                      onReject={() => void rejectCase()}
+                      onAddComment={() => setCommentModalOpen(true)}
+                      onMarkFalse={() => void markAsFalse()}
+                    />
+                  </div>
+                </div>
+
               </div>
             </div>
           )}
         </div>
       </main>
 
-      <CommentModal
-        open={commentModalOpen}
-        caseName={selectedCase?.name ?? ''}
-        onClose={() => setCommentModalOpen(false)}
-        onSave={(comment) => void saveComment(comment)}
-      />
+      <CommentModal open={commentModalOpen} caseName={selectedCase?.name ?? ''} onClose={() => setCommentModalOpen(false)} onSave={(comment) => void saveComment(comment)} />
     </div>
   )
 }

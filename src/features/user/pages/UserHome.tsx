@@ -1,17 +1,32 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { AlertTriangle, MoreVertical, Plus, RefreshCw, UserSearch } from 'lucide-react'
+import { AlertTriangle, Calendar, MapPin, MoreVertical, Plus, RefreshCw, UserSearch } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
-import { Spinner } from '../../../shared/components/ui'
-import UserNavbar from '../components/Usernavbar'
-import { type CasoReciente, useCasosGenerales } from '../hooks/useMisCasos'
-import { supabase } from '../../../lib/supabase/client'
+import { Spinner, StatusBadge, type WorkflowStatus } from '../../../shared/components/ui'
+import { getAuthorityCases, subscribeToCasesRealtime, type AuthorityCaseRow } from '../../../lib/supabase/db'
+import { useCasosGenerales, type CasoReciente } from '../hooks/casos.hooks'
+import { UserNavbar } from '../components/UserNavbar'
 
-const STATUS_CONFIG: Record<CasoReciente['status'], { label: string; className: string }> = {
-  activo: { label: 'Publicada', className: 'bg-info/10 text-info' },
-  en_revision: { label: 'Publicada', className: 'bg-warning/10 text-warning' },
-  avistado: { label: 'Publicada', className: 'bg-primary-soft text-primary' },
-  encontrado: { label: 'Reunificada', className: 'bg-success/10 text-success' },
+function getPublicWorkflowStatus(caso: AuthorityCaseRow): WorkflowStatus | null {
+  if (caso.workflow_status) {
+    if (caso.workflow_status === 'rejected') return null
+    return caso.workflow_status
+  }
+  if (caso.status === 'resuelto') return 'found'
+  if (caso.status === 'cerrado') return 'closed'
+  if (caso.status === 'activo' || caso.status === 'en_proceso') return 'approved'
+  return null
+}
+
+function getLocation(caso: AuthorityCaseRow): string {
+  return caso.ciudad || caso.estado_provincia || caso.lugar_ultima_vez || 'Sin ubicacion'
+}
+
+function getDateLabel(caso: AuthorityCaseRow): string {
+  const sourceDate = caso.fecha_desaparicion || caso.created_at
+  const parsed = new Date(sourceDate)
+  if (Number.isNaN(parsed.getTime())) return 'Fecha no disponible'
+  return new Intl.DateTimeFormat('es-DO', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed)
 }
 
 const SCREEN_ROTATION_MS = 4200
@@ -22,7 +37,7 @@ function getCaseStatusLabel(caso: CasoReciente) {
   if (caso.workflow_status === 'approved') return 'Aprobada'
   if (caso.workflow_status === 'found' || caso.status === 'encontrado') return 'Reunificada'
   if (caso.workflow_status === 'closed') return 'Archivada'
-  return STATUS_CONFIG[caso.status].label
+  return 'Activo'
 }
 
 function getPosterStatus(caso: CasoReciente) {
@@ -73,6 +88,14 @@ export default function UserHome() {
     refetch: refetchCasos,
   } = useCasosGenerales(24, { hideResolved: false, hideRejected: true, approvedOnly: true })
 
+  // Suscripción en tiempo real via helper compartido
+  useEffect(() => {
+    const unsubscribe = subscribeToCasesRealtime(() => {
+      void refetchCasos()
+    })
+    return unsubscribe
+  }, [refetchCasos])
+
   const filteredCasos = useMemo(() => {
     if (!normalizedQuery) return casosGenerales
     return casosGenerales.filter((caso) => {
@@ -122,23 +145,6 @@ export default function UserHome() {
   }, [displayCases.length])
 
   useEffect(() => {
-    const channel = supabase
-      .channel('user-home-casos-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'cases' },
-        () => {
-          void refetchCasos()
-        }
-      )
-      .subscribe()
-
-    return () => {
-      void supabase.removeChannel(channel)
-    }
-  }, [refetchCasos])
-
-  useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null
       if (target?.closest('[data-case-menu]')) return
@@ -150,6 +156,7 @@ export default function UserHome() {
   }, [])
 
   if (authLoading || !user) return <Spinner fullScreen />
+
   return (
     <>
       <UserNavbar />
@@ -162,6 +169,10 @@ export default function UserHome() {
               <p className="text-sm text-text-secondary mt-1">
                 Consulta todos los casos recientes publicados en la plataforma.
               </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link to="/publish-case" className="btn-primary !px-4 !py-2 text-sm">Publicar caso</Link>
+              <Link to="/cases" className="btn-secondary !px-4 !py-2 text-sm">Ver listado completo</Link>
             </div>
           </div>
 
@@ -224,6 +235,16 @@ export default function UserHome() {
                     <h3 className="text-2xl font-bold text-text-primary mt-1">
                       {featuredCase.nombres} {featuredCase.apellidos}
                     </h3>
+                    <div className="flex items-center gap-4 mt-2 text-sm text-text-secondary">
+                      <span className="inline-flex items-center gap-1.5">
+                        <MapPin size={13} />
+                        {featuredCase.ciudad ?? 'Sin ciudad'}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <Calendar size={13} />
+                        {getDateLabel(featuredCase as unknown as AuthorityCaseRow)}
+                      </span>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3 text-sm text-text-secondary">
                     {[
@@ -252,7 +273,8 @@ export default function UserHome() {
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-text-primary">Listado general</h2>
             <button
-              onClick={() => refetchCasos()}
+              type="button"
+              onClick={() => void refetchCasos()}
               className="text-text-secondary hover:text-primary transition-colors inline-flex items-center gap-1.5 text-xs"
               title="Actualizar casos"
             >
@@ -276,7 +298,7 @@ export default function UserHome() {
                 <p className="text-sm font-medium text-error">Error al cargar casos</p>
                 <p className="text-xs text-text-secondary">Intenta nuevamente.</p>
               </div>
-              <button onClick={() => refetchCasos()} className="text-xs text-primary hover:underline">
+              <button type="button" onClick={() => void refetchCasos()} className="text-xs text-primary hover:underline">
                 Reintentar
               </button>
             </div>

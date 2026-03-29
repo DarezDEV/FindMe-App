@@ -1,4 +1,4 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 
 @theme {
   --color-primary: #3266db;
@@ -16,6 +16,80 @@
   --color-warning: #f59e0b;
   --color-error: #dc2626;
   --color-info: #0ea5e9;
+}
+
+/* ── Sileo variables alineadas con el tema de FindMe ── */
+:root {
+  --sileo-state-success: #16a34a;
+  --sileo-state-loading: #475569;
+  --sileo-state-error: #dc2626;
+  --sileo-state-warning: #f59e0b;
+  --sileo-state-info: #0ea5e9;
+  --sileo-state-action: #3266db;
+
+  --sileo-width: min(360px, calc(100vw - 1.5rem));
+  --sileo-height: 44px;
+  --sileo-duration: 500ms;
+}
+
+/* ── Superficie del toast: blanca, borde sutil, sombra card ── */
+[data-sileo-toast] > svg path,
+[data-sileo-toast] > svg rect {
+  fill: #ffffff !important;
+  stroke: #cbd5e1 !important;
+  stroke-width: 1px;
+}
+
+[data-sileo-svg] {
+  overflow: visible;
+  filter:
+    drop-shadow(0 18px 36px rgb(15 23 42 / 0.14))
+    drop-shadow(0 6px 14px rgb(15 23 42 / 0.1));
+}
+
+/* ── Tipografía del toast ── */
+[data-sileo-viewport][data-theme='light'] [data-sileo-title] {
+  color: #0f172a !important;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  letter-spacing: -0.01em;
+}
+
+[data-sileo-viewport][data-theme='light'] [data-sileo-title][data-state='error'] {
+  color: #dc2626 !important;
+}
+
+[data-sileo-viewport][data-theme='light'] [data-sileo-title][data-state='success'] {
+  color: #16a34a !important;
+}
+
+[data-sileo-viewport][data-theme='light'] [data-sileo-title][data-state='warning'] {
+  color: #f59e0b !important;
+}
+
+[data-sileo-viewport][data-theme='light'] [data-sileo-title][data-state='info'] {
+  color: #0f172a !important;
+}
+
+[data-sileo-viewport][data-theme='light'] [data-sileo-description] {
+  color: #475569 !important;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+/* ── Badge (icono) con fondo suave del color de estado ── */
+[data-sileo-badge][data-state] {
+  border-radius: 8px !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+
+/* ── Botón de acción dentro del toast ── */
+[data-sileo-button] {
+  border-radius: 8px !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
 }
 
 @layer base {
@@ -37,7 +111,7 @@
            transition-all duration-200;
   }
 
-  /* Bot�n primario */
+  /* Botón primario */
   .btn-primary {
     @apply bg-primary hover:bg-primary-hover active:scale-[0.98]
            text-white font-semibold py-2.5 px-6 rounded-lg text-sm
@@ -45,7 +119,7 @@
            focus:outline-none focus:ring-2 focus:ring-primary/40;
   }
 
-  /* Bot�n secundario */
+  /* Botón secundario */
   .btn-secondary {
     @apply bg-card hover:bg-primary-soft border border-border hover:border-primary
            text-text-primary hover:text-primary font-medium py-2.5 px-6 rounded-lg text-sm
@@ -139,3 +213,4 @@
     animation: none !important;
   }
 }
+

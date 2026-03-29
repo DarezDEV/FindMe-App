@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Bell, FileSearch, LayoutDashboard, LogOut, Menu, ShieldCheck, X } from 'lucide-react'
+import { Bell, FileSearch, LayoutDashboard, LogOut, Menu, ShieldCheck, X, Eye } from 'lucide-react'
 import { logoutUser } from '../../auth/services'
+import { appToast } from '../../../shared/components/ui'
 
 const authorityNavItems = [
-  { to: '/authority', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { to: '/authority/cases', label: 'Casos', icon: FileSearch, exact: true },
-  { to: '/authority/cases/pending', label: 'Revision', icon: Bell, exact: true },
-  { label: 'Alertas', icon: Bell },
+  { to: '/authority',               label: 'Dashboard',     icon: LayoutDashboard, exact: true },
+  { to: '/authority/cases',         label: 'Casos',         icon: FileSearch,      exact: true },
+  { to: '/authority/sightings',     label: 'Avistamientos', icon: Eye,             exact: true },
+  { to: '/authority/cases/pending', label: 'Revisión',      icon: Bell,            exact: true },
 ] as const
 
 interface SidebarBodyProps {
@@ -17,38 +18,118 @@ interface SidebarBodyProps {
 }
 
 function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) {
+  const [logoutHover, setLogoutHover] = useState(false)
+
   return (
-    <div className="h-full bg-card border-r border-border/90 flex flex-col">
-      <div className="h-20 border-b border-border/80 px-5 flex items-center gap-4 shrink-0">
-        <div className="w-11 h-11 rounded-xl bg-primary-soft/60 text-primary flex items-center justify-center border border-border/70">
+    <div style={{
+      height: '100%', display: 'flex', flexDirection: 'column',
+      background: '#ffffff', borderRight: '1px solid #E4E7EC',
+      fontFamily: "'Geist', 'Inter', system-ui, sans-serif",
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+        .sb-navlink {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 8px 10px;
+          border-radius: 8px;
+          font-size: 13px;
+          font-family: 'Geist', sans-serif;
+          color: #6B7280;
+          text-decoration: none;
+          transition: background 0.12s, color 0.12s;
+          position: relative;
+          width: 100%;
+          box-sizing: border-box;
+        }
+        .sb-navlink:hover { background: #F8F9FB; color: #111827; }
+        .sb-navlink.sb-active {
+          background: linear-gradient(90deg, rgba(43,92,230,0.09) 0%, rgba(43,92,230,0.03) 100%);
+          color: #111827;
+        }
+
+        .sb-accent {
+          position: absolute; left: 0; top: 50%;
+          transform: translateY(-50%);
+          width: 3px; height: 0;
+          border-radius: 0 2px 2px 0;
+          background: #2B5CE6;
+          transition: height 0.18s ease-out;
+        }
+        .sb-active .sb-accent { height: 18px; }
+
+        .sb-icon {
+          width: 28px; height: 28px; border-radius: 7px;
+          display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0; color: #9CA3AF;
+          transition: background 0.12s, color 0.12s;
+        }
+        .sb-navlink:hover .sb-icon { background: #F1F3F5; color: #6B7280; }
+        .sb-active .sb-icon { background: rgba(43,92,230,0.1); color: #2B5CE6; }
+
+        .sb-navlink .sb-lbl { flex: 1; font-weight: 400; }
+        .sb-active .sb-lbl  { font-weight: 600; color: #111827; }
+      `}</style>
+
+      {/* ─── BRAND ─── */}
+      <div style={{
+        height: 68, borderBottom: '1px solid #F1F3F5',
+        padding: '0 18px', display: 'flex', alignItems: 'center',
+        gap: 12, flexShrink: 0,
+      }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+          background: 'rgba(43,92,230,0.08)', border: '1px solid rgba(43,92,230,0.18)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 2px 8px rgba(43,92,230,0.1)',
+        }}>
           <img
-            src="/findMeLogo.svg"
-            alt="FindMe"
-            className="w-8 h-8 object-contain"
+            src="/findMeLogo.svg" alt="FindMe"
+            style={{ width: 20, height: 20, objectFit: 'contain' }}
             onError={(e) => {
               e.currentTarget.style.display = 'none'
-              const sibling = e.currentTarget.nextElementSibling as HTMLElement | null
-              sibling?.classList.remove('hidden')
+              const n = e.currentTarget.nextElementSibling as HTMLElement | null
+              if (n) n.style.display = 'flex'
             }}
           />
-          <ShieldCheck size={22} className="hidden text-primary" />
+          <span style={{ display: 'none', alignItems: 'center', justifyContent: 'center' }}>
+            <ShieldCheck size={16} style={{ color: '#2B5CE6' }} />
+          </span>
         </div>
-        <div className="flex flex-col gap-0.5">
-          <p className="text-sm font-semibold tracking-wide text-text-primary leading-none">FindMe</p>
-          <span className="inline-flex items-center gap-1 text-[10px] font-medium tracking-[0.18em] uppercase text-primary bg-primary-soft/80 px-2 py-0.5 rounded-full w-fit">
-            <ShieldCheck size={9} />
-            Authority
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+          <p style={{
+            fontFamily: "'Instrument Serif', Georgia, serif", fontStyle: 'italic',
+            fontSize: 17, color: '#111827', fontWeight: 400,
+            lineHeight: 1, letterSpacing: '-0.02em', margin: 0,
+          }}>
+            FindMe
+          </p>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            fontSize: 9, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500,
+            letterSpacing: '0.18em', textTransform: 'uppercase',
+            color: '#2B5CE6', background: 'rgba(43,92,230,0.07)',
+            border: '1px solid rgba(43,92,230,0.18)',
+            padding: '2px 7px', borderRadius: 4, width: 'fit-content',
+          }}>
+            <ShieldCheck size={7} /> Authority
           </span>
         </div>
       </div>
 
-      <div className="px-5 pt-6 pb-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary/55 select-none">
-          Navegacion
-        </p>
+      {/* ─── LABEL ─── */}
+      <div style={{ padding: '20px 18px 8px' }}>
+        <p style={{
+          fontSize: 9, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500,
+          letterSpacing: '0.28em', textTransform: 'uppercase',
+          color: '#C4C9D4', margin: 0, userSelect: 'none',
+        }}>Navegación</p>
       </div>
 
-      <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
+      {/* ─── NAV ─── */}
+      <nav style={{ flex: 1, padding: '0 10px', display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto' }}>
         {authorityNavItems.map((item) => {
           const { label, icon: Icon } = item
 
@@ -59,31 +140,13 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) 
                 to={item.to}
                 end={item.exact}
                 onClick={onNavigate}
-                className={({ isActive }) =>
-                  `group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors border ${
-                    isActive
-                      ? 'bg-primary-soft/45 text-text-primary border-primary/25'
-                      : 'text-text-secondary border-transparent hover:bg-primary-soft/25 hover:text-text-primary'
-                  }`
-                }
+                className={({ isActive }) => `sb-navlink${isActive ? ' sb-active' : ''}`}
               >
                 {({ isActive }) => (
                   <>
-                    <span
-                      className={`h-5 w-0.5 rounded-full ${
-                        isActive ? 'bg-primary' : 'bg-transparent group-hover:bg-primary/35'
-                      }`}
-                    />
-                    <span
-                      className={`flex items-center justify-center w-7 h-7 rounded-md transition-colors ${
-                        isActive
-                          ? 'bg-primary/12 text-primary'
-                          : 'text-text-secondary group-hover:text-text-primary'
-                      }`}
-                    >
-                      <Icon size={16} />
-                    </span>
-                    <span className={isActive ? 'font-medium' : 'font-normal'}>{label}</span>
+                    <span className="sb-accent" />
+                    <span className="sb-icon"><Icon size={14} /></span>
+                    <span className="sb-lbl">{label}</span>
                   </>
                 )}
               </NavLink>
@@ -91,37 +154,60 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) 
           }
 
           return (
-            <button
-              key={label}
-              type="button"
-              onClick={onNavigate}
-              className="group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-secondary/60 border border-transparent hover:bg-primary-soft/20 hover:text-text-secondary transition-colors cursor-not-allowed"
-            >
-              <span className="h-5 w-0.5 rounded-full bg-transparent" />
-              <span className="flex items-center justify-center w-7 h-7 rounded-md text-text-secondary/50">
-                <Icon size={16} />
+            <div key={label} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '8px 10px', borderRadius: 8,
+              fontSize: 13, fontFamily: "'Geist', sans-serif",
+              color: '#C4C9D4', opacity: 0.65, cursor: 'not-allowed',
+            }}>
+              <span style={{ width: 28, height: 28, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon size={14} />
               </span>
-              <span>{label}</span>
-              <span className="ml-auto text-[9px] px-2 py-0.5 rounded-full bg-border text-text-secondary/70 font-medium tracking-wide uppercase">
-                Pronto
-              </span>
-            </button>
+              <span style={{ flex: 1 }}>{label}</span>
+              <span style={{
+                fontSize: 9, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500,
+                letterSpacing: '0.15em', textTransform: 'uppercase',
+                color: '#C4C9D4', background: '#F8F9FB',
+                border: '1px solid #E4E7EC', padding: '2px 6px', borderRadius: 4,
+              }}>Pronto</span>
+            </div>
           )
         })}
       </nav>
 
-      <div className="px-3 pb-4 pt-3 border-t border-border/80 shrink-0">
+      {/* ─── DIVIDER ─── */}
+      <div style={{ margin: '8px 14px', height: 1, background: '#F1F3F5', flexShrink: 0 }} />
+
+      {/* ─── LOGOUT ─── */}
+      <div style={{ padding: '6px 10px 14px', flexShrink: 0 }}>
         <button
           type="button"
           onClick={onLogout}
           disabled={logoutLoading}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-secondary border border-transparent hover:bg-red-50/70 hover:text-red-500 transition-colors group disabled:opacity-60 disabled:cursor-not-allowed"
+          onMouseEnter={() => setLogoutHover(true)}
+          onMouseLeave={() => setLogoutHover(false)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '8px 10px', borderRadius: 8, width: '100%',
+            fontSize: 13, fontFamily: "'Geist', sans-serif", fontWeight: 400,
+            color: logoutHover ? '#DC2626' : '#9CA3AF',
+            background: logoutHover ? 'rgba(220,38,38,0.05)' : 'transparent',
+            border: 'none', cursor: logoutLoading ? 'not-allowed' : 'pointer',
+            opacity: logoutLoading ? 0.4 : 1,
+            transition: 'background 0.12s, color 0.12s',
+            textAlign: 'left',
+          }}
         >
-          <span className="h-5 w-0.5 rounded-full bg-transparent group-hover:bg-red-300/80" />
-          <span className="flex items-center justify-center w-7 h-7 rounded-md group-hover:text-red-500 text-text-secondary/60 transition-colors">
-            <LogOut size={16} />
+          <span style={{
+            width: 28, height: 28, borderRadius: 7, flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: logoutHover ? '#DC2626' : '#9CA3AF',
+            background: logoutHover ? 'rgba(220,38,38,0.08)' : 'transparent',
+            transition: 'background 0.12s, color 0.12s',
+          }}>
+            <LogOut size={14} />
           </span>
-          <span>{logoutLoading ? 'Cerrando sesion...' : 'Cerrar sesion'}</span>
+          <span>{logoutLoading ? 'Cerrando sesión...' : 'Cerrar sesión'}</span>
         </button>
       </div>
     </div>
@@ -137,10 +223,13 @@ export function AuthoritySidebar() {
     setLogoutLoading(true)
     try {
       await logoutUser()
+      appToast.success('Sesion cerrada correctamente.')
       setMobileOpen(false)
       navigate('/login', { replace: true })
     } catch (err) {
       console.error('Error al cerrar sesion:', err)
+      const message = err instanceof Error ? err.message : 'No se pudo cerrar la sesion.'
+      appToast.error(message)
     } finally {
       setLogoutLoading(false)
     }
@@ -148,38 +237,76 @@ export function AuthoritySidebar() {
 
   return (
     <>
-      <aside className="hidden md:block md:w-64 md:shrink-0">
-        <div className="h-full">
-          <SidebarBody onLogout={() => void handleLogout()} logoutLoading={logoutLoading} />
-        </div>
+      <style>{`
+        @keyframes slideInLeft {
+          from { transform: translateX(-100%); opacity: 0; }
+          to   { transform: translateX(0);     opacity: 1; }
+        }
+        .sb-aside {
+          width: 220px;
+          flex-shrink: 0;
+          height: 100%;
+        }
+        .sb-mobile-btn { display: none !important; }
+        @media (max-width: 768px) {
+          .sb-aside      { display: none !important; }
+          .sb-mobile-btn { display: flex !important; }
+        }
+      `}</style>
+
+      {/* ─── DESKTOP ─── */}
+      <aside className="sb-aside">
+        <SidebarBody onLogout={() => void handleLogout()} logoutLoading={logoutLoading} />
       </aside>
 
+      {/* ─── MOBILE TOGGLE ─── */}
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        className="md:hidden fixed top-4 left-4 z-40 bg-card border border-border rounded-xl p-2.5 text-text-primary shadow-md transition-all hover:shadow-lg"
-        aria-label="Abrir menu lateral"
+        className="sb-mobile-btn"
+        aria-label="Abrir menú"
+        style={{
+          position: 'fixed', top: 16, left: 16, zIndex: 40,
+          alignItems: 'center', justifyContent: 'center',
+          background: '#fff', border: '1px solid #E4E7EC',
+          borderRadius: 10, padding: 10, color: '#6B7280',
+          cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
+        }}
       >
-        <Menu size={20} />
+        <Menu size={17} />
       </button>
 
+      {/* ─── MOBILE DRAWER ─── */}
       {mobileOpen && (
         <>
           <button
             type="button"
-            className="md:hidden fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
             onClick={() => setMobileOpen(false)}
-            aria-label="Cerrar menu lateral"
+            aria-label="Cerrar menú"
+            style={{
+              position: 'fixed', inset: 0, zIndex: 40,
+              background: 'rgba(17,24,39,0.4)', backdropFilter: 'blur(4px)',
+              border: 'none', cursor: 'pointer',
+            }}
           />
-
-          <aside className="md:hidden fixed inset-y-0 left-0 z-50 w-64 shadow-2xl animate-in slide-in-from-left duration-200">
+          <aside style={{
+            position: 'fixed', top: 0, left: 0, bottom: 0,
+            zIndex: 50, width: 220,
+            animation: 'slideInLeft 0.2s ease',
+            boxShadow: '4px 0 24px rgba(0,0,0,0.12)',
+          }}>
             <button
               type="button"
               onClick={() => setMobileOpen(false)}
-              className="absolute top-4 right-4 z-10 bg-card border border-border rounded-lg p-1.5 text-text-secondary hover:text-text-primary transition-colors"
-              aria-label="Cerrar menu lateral"
+              aria-label="Cerrar menú"
+              style={{
+                position: 'absolute', top: 14, right: 14, zIndex: 10,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: '#fff', border: '1px solid #E4E7EC',
+                borderRadius: 7, padding: 6, color: '#6B7280', cursor: 'pointer',
+              }}
             >
-              <X size={16} />
+              <X size={14} />
             </button>
             <SidebarBody
               onNavigate={() => setMobileOpen(false)}

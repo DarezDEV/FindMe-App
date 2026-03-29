@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ShieldCheck, RotateCcw, ArrowLeft, Mail } from 'lucide-react'
 import { verifyEmailOtp, resendVerificationOtp } from '../../../lib/supabase/auth'
 import { ROLES } from '../../../shared/constants/roles'
+import { appToast } from '../../../shared/components/ui'
 import { useAuth } from '../hooks'
 
 interface Props {
@@ -109,6 +110,8 @@ export default function VerifyEmailPage({ email, onBack }: Props) {
         return
       }
 
+      appToast.success('Correo verificado correctamente.', { title: 'Cuenta activada' })
+
       if (profile.roles.includes(ROLES.ADMIN)) {
         navigate('/admin/dashboard', { replace: true })
       } else if (profile.roles.includes(ROLES.AUTHORITY)) {
@@ -145,6 +148,7 @@ export default function VerifyEmailPage({ email, onBack }: Props) {
     try {
       await resendVerificationOtp(email)
       setResendSuccess(true)
+      appToast.info('Enviamos un nuevo codigo de verificacion a tu correo.')
       setCooldown(RESEND_COOLDOWN)
       setCodes(['', '', '', '', '', ''])
       setTimeout(() => inputs.current[0]?.focus(), 50)
