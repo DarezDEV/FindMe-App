@@ -142,7 +142,7 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading }: SidebarBodyProps) 
                 onClick={onNavigate}
                 className={({ isActive }) => `sb-navlink${isActive ? ' sb-active' : ''}`}
               >
-                {({ isActive }) => (
+                {() => (
                   <>
                     <span className="sb-accent" />
                     <span className="sb-icon"><Icon size={14} /></span>

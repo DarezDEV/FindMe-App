@@ -1,31 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, Calendar, MapPin, MoreVertical, Plus, RefreshCw, UserSearch } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
-import { Spinner, StatusBadge, type WorkflowStatus } from '../../../shared/components/ui'
-import { getAuthorityCases, subscribeToCasesRealtime, type AuthorityCaseRow } from '../../../lib/supabase/db'
-import { useCasosGenerales, type CasoReciente } from '../hooks/casos.hooks'
-import { UserNavbar } from '../components/UserNavbar'
+import { Spinner } from '../../../shared/components/ui'
+import { subscribeToCasesRealtime } from '../../../lib/supabase/db'
+import { useCasosGenerales, type CasoReciente } from '../hooks/useMisCasos'
+import UserNavbar from '../components/Usernavbar'
 
-function getPublicWorkflowStatus(caso: AuthorityCaseRow): WorkflowStatus | null {
-  if (caso.workflow_status) {
-    if (caso.workflow_status === 'rejected') return null
-    return caso.workflow_status
-  }
-  if (caso.status === 'resuelto') return 'found'
-  if (caso.status === 'cerrado') return 'closed'
-  if (caso.status === 'activo' || caso.status === 'en_proceso') return 'approved'
-  return null
-}
+function getDateLabel(caso: Pick<CasoReciente, 'fecha_desaparicion' | 'created_at'>): string {
+  const sourceDate = caso.fecha_desaparicion ?? caso.created_at
+  if (!sourceDate) return 'Fecha no disponible'
 
-function getLocation(caso: AuthorityCaseRow): string {
-  return caso.ciudad || caso.estado_provincia || caso.lugar_ultima_vez || 'Sin ubicacion'
-}
-
-function getDateLabel(caso: AuthorityCaseRow): string {
-  const sourceDate = caso.fecha_desaparicion || caso.created_at
   const parsed = new Date(sourceDate)
   if (Number.isNaN(parsed.getTime())) return 'Fecha no disponible'
+
   return new Intl.DateTimeFormat('es-DO', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed)
 }
 
@@ -73,10 +61,114 @@ function CasoSkeleton() {
   )
 }
 
+function FeaturedCasesScreen({ cases }: { cases: CasoReciente[] }) {
+  const [featuredIndex, setFeaturedIndex] = useState(0)
+  const [isTransitioning, setIsTransitioning] = useState(false)
+
+  const length = cases.length
+  const safeIndex = length > 0 ? featuredIndex % length : 0
+  const featuredCase = length > 0 ? cases[safeIndex] : null
+
+  useEffect(() => {
+    if (length <= 1) return
+    let timeoutId: number | undefined
+    const timer = window.setInterval(() => {
+      setIsTransitioning(true)
+      timeoutId = window.setTimeout(() => {
+        setFeaturedIndex((current) => (current + 1) % length)
+        setIsTransitioning(false)
+      }, SCREEN_FADE_MS)
+    }, SCREEN_ROTATION_MS)
+    return () => {
+      window.clearInterval(timer)
+      if (timeoutId) window.clearTimeout(timeoutId)
+    }
+  }, [length])
+
+  if (!featuredCase) return null
+
+  return (
+    <section className="card overflow-hidden border border-border/70 bg-gradient-to-br from-white via-white to-primary-soft/40 shadow-[0_20px_45px_-40px_rgba(15,23,42,0.7)]">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/70 bg-white/80 backdrop-blur">
+        <div className="flex items-center gap-3">
+          <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 text-primary text-[10px] font-semibold px-2.5 py-1 uppercase tracking-widest">
+            En vivo
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold text-text-primary">Pantalla de casos</h2>
+            <p className="text-xs text-text-secondary">Se actualiza automaticamente.</p>
+          </div>
+        </div>
+        <span className="text-[11px] text-text-secondary">
+          {safeIndex + 1} / {length}
+        </span>
+      </div>
+
+      <div
+        className={`grid grid-cols-1 md:grid-cols-[280px_1fr] gap-5 p-5 transition-all duration-500 ${
+          isTransitioning ? 'opacity-0 translate-y-2 scale-[0.985]' : 'opacity-100 translate-y-0 scale-100'
+        }`}
+      >
+        <div className="relative border border-border/70 rounded-2xl overflow-hidden aspect-[3/4] flex items-center justify-center bg-background shadow-sm">
+          <span className="absolute left-3 top-3 rounded-full bg-primary text-white text-[10px] font-black px-2.5 py-1 tracking-widest shadow">
+            DESAPARECIDO
+          </span>
+          {featuredCase.foto_principal_url ? (
+            <img
+              src={featuredCase.foto_principal_url}
+              alt={`${featuredCase.nombres} ${featuredCase.apellidos}`}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <UserSearch size={38} className="text-text-secondary" />
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs text-text-secondary font-mono">{featuredCase.numero_caso}</p>
+            <h3 className="text-2xl font-bold text-text-primary mt-1">
+              {featuredCase.nombres} {featuredCase.apellidos}
+            </h3>
+            <div className="flex items-center gap-4 mt-2 text-sm text-text-secondary">
+              <span className="inline-flex items-center gap-1.5">
+                <MapPin size={13} />
+                {featuredCase.ciudad ?? 'Sin ciudad'}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Calendar size={13} />
+                {getDateLabel(featuredCase)}
+              </span>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-sm text-text-secondary">
+            {[
+              { label: 'Estado', value: getCaseStatusLabel(featuredCase) },
+              { label: 'Ciudad', value: featuredCase.ciudad ?? 'Sin ciudad' },
+              { label: 'Fecha', value: formatPosterDate(featuredCase.fecha_desaparicion) },
+              { label: 'Vistas', value: String(featuredCase.vistas) },
+            ].map((item) => (
+              <div key={item.label} className="rounded-xl border border-border/60 bg-white/70 px-3 py-2">
+                <p className="text-[11px] uppercase tracking-wide text-text-secondary">{item.label}</p>
+                <p className="font-semibold text-text-primary">{item.value}</p>
+              </div>
+            ))}
+          </div>
+          <Link
+            to={`/caso/${featuredCase.id}`}
+            className="btn-primary inline-flex text-sm items-center gap-2 w-fit"
+          >
+            Ver detalles
+          </Link>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export default function UserHome() {
   const { user, loading: authLoading } = useAuth()
   const [openMenuCaseId, setOpenMenuCaseId] = useState<string | null>(null)
-  const [isTransitioning, setIsTransitioning] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
   const searchQuery = searchParams.get('q') ?? ''
   const normalizedQuery = searchQuery.trim().toLowerCase()
@@ -96,53 +188,23 @@ export default function UserHome() {
     return unsubscribe
   }, [refetchCasos])
 
-  const filteredCasos = useMemo(() => {
-    if (!normalizedQuery) return casosGenerales
-    return casosGenerales.filter((caso) => {
-      const fullName = `${caso.nombres} ${caso.apellidos}`.toLowerCase()
-      const city = (caso.ciudad ?? '').toLowerCase()
-      const caseNumber = caso.numero_caso.toLowerCase()
-      return (
-        fullName.includes(normalizedQuery) ||
-        city.includes(normalizedQuery) ||
-        caseNumber.includes(normalizedQuery)
-      )
-    })
-  }, [casosGenerales, normalizedQuery])
+  const filteredCasos = normalizedQuery
+    ? casosGenerales.filter((caso) => {
+        const fullName = `${caso.nombres} ${caso.apellidos}`.toLowerCase()
+        const city = (caso.ciudad ?? '').toLowerCase()
+        const caseNumber = caso.numero_caso.toLowerCase()
+        return (
+          fullName.includes(normalizedQuery) ||
+          city.includes(normalizedQuery) ||
+          caseNumber.includes(normalizedQuery)
+        )
+      })
+    : casosGenerales
 
-  const missingCases = useMemo(
-    () =>
-      filteredCasos.filter(
-        (caso) =>
-          !(caso.workflow_status === 'found' || caso.workflow_status === 'closed' || caso.status === 'encontrado'),
-      ),
-    [filteredCasos],
+  const displayCases = filteredCasos.filter(
+    (caso) =>
+      !(caso.workflow_status === 'found' || caso.workflow_status === 'closed' || caso.status === 'encontrado'),
   )
-
-  const displayCases = missingCases
-  const [featuredIndex, setFeaturedIndex] = useState(0)
-  const featuredCase = displayCases[featuredIndex]
-
-  useEffect(() => {
-    setFeaturedIndex(0)
-    setIsTransitioning(false)
-  }, [displayCases.length, normalizedQuery])
-
-  useEffect(() => {
-    if (displayCases.length <= 1) return
-    let timeoutId: number | undefined
-    const timer = window.setInterval(() => {
-      setIsTransitioning(true)
-      timeoutId = window.setTimeout(() => {
-        setFeaturedIndex((current) => (current + 1) % displayCases.length)
-        setIsTransitioning(false)
-      }, SCREEN_FADE_MS)
-    }, SCREEN_ROTATION_MS)
-    return () => {
-      window.clearInterval(timer)
-      if (timeoutId) window.clearTimeout(timeoutId)
-    }
-  }, [displayCases.length])
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -192,82 +254,8 @@ export default function UserHome() {
             </div>
           )}
 
-          {!casosLoading && !casosError && featuredCase && (
-            <section className="card overflow-hidden border border-border/70 bg-gradient-to-br from-white via-white to-primary-soft/40 shadow-[0_20px_45px_-40px_rgba(15,23,42,0.7)]">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-border/70 bg-white/80 backdrop-blur">
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 text-primary text-[10px] font-semibold px-2.5 py-1 uppercase tracking-widest">
-                    En vivo
-                  </span>
-                  <div>
-                    <h2 className="text-sm font-semibold text-text-primary">Pantalla de casos</h2>
-                    <p className="text-xs text-text-secondary">Se actualiza automaticamente.</p>
-                  </div>
-                </div>
-                <span className="text-[11px] text-text-secondary">
-                  {featuredIndex + 1} / {displayCases.length}
-                </span>
-              </div>
-
-              <div
-                className={`grid grid-cols-1 md:grid-cols-[280px_1fr] gap-5 p-5 transition-all duration-500 ${
-                  isTransitioning ? 'opacity-0 translate-y-2 scale-[0.985]' : 'opacity-100 translate-y-0 scale-100'
-                }`}
-              >
-                <div className="relative border border-border/70 rounded-2xl overflow-hidden aspect-[3/4] flex items-center justify-center bg-background shadow-sm">
-                  <span className="absolute left-3 top-3 rounded-full bg-primary text-white text-[10px] font-black px-2.5 py-1 tracking-widest shadow">
-                    DESAPARECIDO
-                  </span>
-                  {featuredCase.foto_principal_url ? (
-                    <img
-                      src={featuredCase.foto_principal_url}
-                      alt={`${featuredCase.nombres} ${featuredCase.apellidos}`}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <UserSearch size={38} className="text-text-secondary" />
-                  )}
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-xs text-text-secondary font-mono">{featuredCase.numero_caso}</p>
-                    <h3 className="text-2xl font-bold text-text-primary mt-1">
-                      {featuredCase.nombres} {featuredCase.apellidos}
-                    </h3>
-                    <div className="flex items-center gap-4 mt-2 text-sm text-text-secondary">
-                      <span className="inline-flex items-center gap-1.5">
-                        <MapPin size={13} />
-                        {featuredCase.ciudad ?? 'Sin ciudad'}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <Calendar size={13} />
-                        {getDateLabel(featuredCase as unknown as AuthorityCaseRow)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 text-sm text-text-secondary">
-                    {[
-                      { label: 'Estado', value: getCaseStatusLabel(featuredCase) },
-                      { label: 'Ciudad', value: featuredCase.ciudad ?? 'Sin ciudad' },
-                      { label: 'Fecha', value: formatPosterDate(featuredCase.fecha_desaparicion) },
-                      { label: 'Vistas', value: String(featuredCase.vistas) },
-                    ].map((item) => (
-                      <div key={item.label} className="rounded-xl border border-border/60 bg-white/70 px-3 py-2">
-                        <p className="text-[11px] uppercase tracking-wide text-text-secondary">{item.label}</p>
-                        <p className="font-semibold text-text-primary">{item.value}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <Link
-                    to={`/caso/${featuredCase.id}`}
-                    className="btn-primary inline-flex text-sm items-center gap-2 w-fit"
-                  >
-                    Ver detalles
-                  </Link>
-                </div>
-              </div>
-            </section>
+          {!casosLoading && !casosError && displayCases.length > 0 && (
+            <FeaturedCasesScreen key={`${normalizedQuery}-${displayCases.length}`} cases={displayCases} />
           )}
 
           <div className="flex items-center justify-between">

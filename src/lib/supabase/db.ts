@@ -222,6 +222,77 @@ export async function getProfileWithRoles(userId: string): Promise<UserProfile> 
   return { ...profile, roles } as UserProfile
 }
 
+export async function getUserRolesByIds(userIds: string[]): Promise<Record<string, string[]>> {
+  if (userIds.length === 0) return {}
+
+  const uniqueIds = [...new Set(userIds.filter(Boolean))]
+  if (uniqueIds.length === 0) return {}
+
+  const { data: relationData, error: relationError } = await withRetry(() =>
+    supabase
+      .from('user_roles')
+      .select('user_id, role_id')
+      .in('user_id', uniqueIds),
+  )
+
+  if (relationError) {
+    console.error('[getUserRolesByIds] Error:', relationError)
+    throw relationError
+  }
+
+  const roleIdsByUser = new Map<string, string[]>()
+  const roleIds: string[] = []
+
+  const relationRows = (relationData ?? []) as Array<Record<string, unknown>>
+  relationRows.forEach((row) => {
+    const userId = pickString(row, ['user_id'])
+    const roleId = pickString(row, ['role_id'])
+    if (!userId || !roleId) return
+
+    roleIds.push(roleId)
+    const existing = roleIdsByUser.get(userId) ?? []
+    existing.push(roleId)
+    roleIdsByUser.set(userId, existing)
+  })
+
+  const result: Record<string, string[]> = {}
+  uniqueIds.forEach((id) => {
+    result[id] = []
+  })
+
+  const uniqueRoleIds = [...new Set(roleIds)]
+  if (uniqueRoleIds.length === 0) return result
+
+  const { data: rolesData, error: rolesError } = await withRetry(() =>
+    supabase
+      .from('roles')
+      .select('id, name')
+      .in('id', uniqueRoleIds),
+  )
+
+  if (rolesError) {
+    console.error('[getUserRolesByIds] Roles error:', rolesError)
+    throw rolesError
+  }
+
+  const roleNameById = new Map<string, string>()
+  const roleRows = (rolesData ?? []) as Array<Record<string, unknown>>
+  roleRows.forEach((row) => {
+    const roleId = pickString(row, ['id'])
+    const roleName = pickString(row, ['name'])
+    if (!roleId || !roleName) return
+    roleNameById.set(roleId, roleName)
+  })
+
+  roleIdsByUser.forEach((ids, userId) => {
+    result[userId] = Array.from(
+      new Set(ids.map((id) => roleNameById.get(id)).filter((value): value is string => Boolean(value))),
+    )
+  })
+
+  return result
+}
+
 interface GetCasesParams {
   search?: string
   status?: CaseStatus | 'all'
@@ -554,6 +625,59 @@ export async function updateCaseWorkflowStatus(caseId: string, status: CaseWorkf
 
   if (error) {
     console.error('[updateCaseWorkflowStatus] Error:', error)
+    throw error
+  }
+}
+
+export interface PersonCaseHistoryRow {
+  id: string
+  numero_caso: string
+  status: string | null
+  workflow_status: CaseWorkflowStatus | null
+  created_at: string | null
+}
+
+export async function getCasesByPersonId(
+  personId: string,
+  excludeCaseId?: string,
+): Promise<PersonCaseHistoryRow[]> {
+  let query = supabase
+    .from('cases')
+    .select('id, numero_caso, status, workflow_status, created_at')
+    .eq('person_id', personId)
+    .eq('eliminado', false)
+    .order('created_at', { ascending: false })
+
+  if (excludeCaseId) {
+    query = query.neq('id', excludeCaseId)
+  }
+
+  const { data, error } = await withRetry(() => query, { timeoutMs: 20000, retries: 1 })
+  if (error) {
+    console.error('[getCasesByPersonId] Error:', error)
+    throw error
+  }
+
+  return (data ?? []) as PersonCaseHistoryRow[]
+}
+
+export async function createCaseClosure(caseId: string, userId: string, note: string): Promise<void> {
+  const trimmed = note.trim()
+  if (!trimmed) throw new Error('La nota de cierre no puede estar vacia.')
+
+  const { error } = await withRetry(() =>
+    supabase
+      .from('cases_closed')
+      .insert({
+        case_id: caseId,
+        closed_by: userId,
+        closed_note: trimmed,
+        closed_at: new Date().toISOString(),
+      }),
+  )
+
+  if (error) {
+    console.error('[createCaseClosure] Error:', error)
     throw error
   }
 }

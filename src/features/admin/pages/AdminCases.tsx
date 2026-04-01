@@ -1,16 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  Calendar,
-  CheckCircle2,
-  Filter,
-  MapPin,
-  MessageSquare,
-  RefreshCw,
-  Search,
-  Trash2,
-  XCircle,
-} from 'lucide-react'
+import { Calendar, CheckCircle2, Filter, MapPin, MessageSquare, RefreshCw, Search, Trash2, XCircle } from 'lucide-react'
 import AdminSidebar from '../components/Adminsidebar'
 import {
   createCaseComment,
@@ -26,6 +16,8 @@ import {
 import { useAuth } from '../../auth/hooks'
 import { appToast, type WorkflowStatus } from '../../../shared/components/ui'
 import { CommentItem } from '../../authority/components/moderation/CommentItem'
+import { logCaseAction } from '../../authority/utils/case-history'
+import { deriveWorkflowStatus, getCaseActionAvailability } from '../../authority/utils/case-workflow'
 
 type StatusFilter = 'all' | WorkflowStatus
 type CaseCommentItem = {
@@ -47,10 +39,7 @@ function getDateLabel(caso: AuthorityCaseRow): string {
 }
 
 function getPersistedStatus(row: AuthorityCaseRow): WorkflowStatus {
-  if (row.workflow_status) return row.workflow_status
-  if (row.status === 'resuelto') return 'found'
-  if (row.status === 'cerrado') return 'closed'
-  return 'pending'
+  return deriveWorkflowStatus(row)
 }
 
 function getStatusSuccessMessage(status: WorkflowStatus) {
@@ -61,38 +50,31 @@ function getStatusSuccessMessage(status: WorkflowStatus) {
   return 'Estado del caso actualizado.'
 }
 
-function deriveWorkflowStatus(
-  workflowStatus: string | null | undefined,
-  rawStatus: string | null | undefined,
-): WorkflowStatus | null {
-  if (
-    workflowStatus === 'pending' ||
-    workflowStatus === 'approved' ||
-    workflowStatus === 'rejected' ||
-    workflowStatus === 'found' ||
-    workflowStatus === 'closed'
-  ) {
-    return workflowStatus
-  }
-  if (rawStatus === 'resuelto') return 'found'
-  if (rawStatus === 'cerrado') return 'closed'
-  return null
-}
-
-const STATUS_CONFIG: Record<string, { label: string; dot: string; badge: string }> = {
-  all: { label: 'Todos', dot: 'bg-slate-400', badge: '' },
-  pending: { label: 'Pendiente', dot: 'bg-amber-400', badge: 'text-amber-400 bg-amber-400/10 border-amber-400/20' },
-  approved: { label: 'Aprobado', dot: 'bg-emerald-400', badge: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' },
-  rejected: { label: 'Rechazado', dot: 'bg-rose-400', badge: 'text-rose-400 bg-rose-400/10 border-rose-400/20' },
-  found: { label: 'Encontrado', dot: 'bg-sky-400', badge: 'text-sky-400 bg-sky-400/10 border-sky-400/20' },
-  closed: { label: 'Cerrado', dot: 'bg-slate-400', badge: 'text-slate-400 bg-slate-400/10 border-slate-400/20' },
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
+  all:      { label: 'Todos',      color: '#64748B', bg: 'rgba(100,116,139,0.08)',  dot: '#94A3B8' },
+  pending:  { label: 'Pendiente',  color: '#2B5CE6', bg: 'rgba(43,92,230,0.08)',   dot: '#2B5CE6' },
+  approved: { label: 'Aprobado',   color: '#059669', bg: 'rgba(5,150,105,0.08)',   dot: '#059669' },
+  rejected: { label: 'Rechazado',  color: '#DC2626', bg: 'rgba(220,38,38,0.08)',   dot: '#DC2626' },
+  found:    { label: 'Encontrado', color: '#0284C7', bg: 'rgba(2,132,199,0.08)',   dot: '#0284C7' },
+  closed:   { label: 'Cerrado',    color: '#6B7280', bg: 'rgba(107,114,128,0.08)', dot: '#9CA3AF' },
 }
 
 function InlineStatusBadge({ status }: { status: string }) {
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.pending
+  const isPending = status === 'pending'
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold uppercase tracking-widest border ${cfg.badge}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: '6px',
+      padding: '3px 10px', borderRadius: '999px',
+      background: cfg.bg, color: cfg.color,
+      fontSize: '10px', fontFamily: "'JetBrains Mono', monospace",
+      fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.12em',
+    }}>
+      <span style={{
+        width: 6, height: 6, borderRadius: '50%', background: cfg.dot,
+        animation: isPending ? 'dotPulse 2s ease-in-out infinite' : 'none',
+        flexShrink: 0,
+      }} />
       {cfg.label}
     </span>
   )
@@ -126,12 +108,7 @@ export default function AdminCases() {
       const commentsMap: Record<string, CaseCommentItem[]> = {}
       comments.forEach((comment) => {
         if (!commentsMap[comment.caso_id]) commentsMap[comment.caso_id] = []
-        commentsMap[comment.caso_id].push({
-          id: comment.id,
-          text: comment.comentario,
-          authorId: comment.autor_id,
-          createdAt: comment.created_at,
-        })
+        commentsMap[comment.caso_id].push({ id: comment.id, text: comment.comentario, authorId: comment.autor_id, createdAt: comment.created_at })
       })
       setCases(data)
       setStatusByCaseId(statusMap)
@@ -149,40 +126,25 @@ export default function AdminCases() {
     const unsubscribe = subscribeToCasesRealtime((payload) => {
       const caseId = payload.new.id || payload.old.id
       if (!caseId) return
-
       if (payload.new.eliminado === true) {
         setCases((prev) => prev.filter((item) => item.id !== caseId))
-        setStatusByCaseId((prev) => {
-          const next = { ...prev }
-          delete next[caseId]
-          return next
-        })
-        setCommentsByCaseId((prev) => {
-          const next = { ...prev }
-          delete next[caseId]
-          return next
-        })
+        setStatusByCaseId((prev) => { const next = { ...prev }; delete next[caseId]; return next })
+        setCommentsByCaseId((prev) => { const next = { ...prev }; delete next[caseId]; return next })
         return
       }
-
-      const nextStatus = deriveWorkflowStatus(payload.new.workflow_status, payload.new.status)
-      if (nextStatus) {
-        setStatusByCaseId((prev) => ({ ...prev, [caseId]: nextStatus }))
-      }
-
+      const nextStatus = deriveWorkflowStatus({
+        workflow_status: payload.new.workflow_status ?? null,
+        status: payload.new.status ?? null,
+      })
+      if (nextStatus) setStatusByCaseId((prev) => ({ ...prev, [caseId]: nextStatus }))
       setCases((prev) =>
         prev.map((item) =>
           item.id === caseId
-            ? {
-                ...item,
-                status: payload.new.status ?? item.status,
-                workflow_status: payload.new.workflow_status ?? item.workflow_status,
-              }
+            ? { ...item, status: payload.new.status ?? item.status, workflow_status: payload.new.workflow_status ?? item.workflow_status }
             : item,
         ),
       )
     })
-
     return unsubscribe
   }, [])
 
@@ -201,9 +163,19 @@ export default function AdminCases() {
     setError(null)
     setActionLoadingId(caseId)
     try {
+      const currentStatus = statusByCaseId[caseId] ?? 'pending'
+      const availability = getCaseActionAvailability(currentStatus)
+      if (status === 'approved' && !availability.canApprove) return
+      if (status === 'rejected' && !availability.canReject) return
+
       await updateCaseWorkflowStatus(caseId, status)
       setStatusByCaseId((prev) => ({ ...prev, [caseId]: status }))
       appToast.success(getStatusSuccessMessage(status))
+
+      if (user?.id) {
+        const action = status === 'approved' ? 'approved' : 'rejected'
+        await logCaseAction(caseId, user.id, action)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo actualizar el estado del caso.')
     } finally {
@@ -236,10 +208,7 @@ export default function AdminCases() {
       const created = await createCaseComment(commentTarget.id, user.id, text)
       setCommentsByCaseId((prev) => ({
         ...prev,
-        [commentTarget.id]: [
-          ...(prev[commentTarget.id] ?? []),
-          { id: created.id, text, authorId: user.id, createdAt: new Date().toISOString() },
-        ],
+        [commentTarget.id]: [...(prev[commentTarget.id] ?? []), { id: created.id, text, authorId: user.id, createdAt: new Date().toISOString() }],
       }))
       appToast.info('Comentario guardado correctamente.')
       setCommentDraft('')
@@ -254,10 +223,7 @@ export default function AdminCases() {
     setCommentLoading(true)
     try {
       await deleteCaseComment(commentId)
-      setCommentsByCaseId((prev) => ({
-        ...prev,
-        [caseId]: (prev[caseId] ?? []).filter((comment) => comment.id !== commentId),
-      }))
+      setCommentsByCaseId((prev) => ({ ...prev, [caseId]: (prev[caseId] ?? []).filter((c) => c.id !== commentId) }))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo eliminar el comentario.')
     } finally {
@@ -269,12 +235,7 @@ export default function AdminCases() {
     setCommentLoading(true)
     try {
       await updateCaseComment(commentId, newText)
-      setCommentsByCaseId((prev) => ({
-        ...prev,
-        [caseId]: (prev[caseId] ?? []).map((comment) =>
-          comment.id === commentId ? { ...comment, text: newText } : comment,
-        ),
-      }))
+      setCommentsByCaseId((prev) => ({ ...prev, [caseId]: (prev[caseId] ?? []).map((c) => c.id === commentId ? { ...c, text: newText } : c) }))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo actualizar el comentario.')
     } finally {
@@ -284,77 +245,191 @@ export default function AdminCases() {
 
   return (
     <AdminSidebar>
-      <div className="min-h-screen bg-[#0a0c10] font-['Syne',sans-serif]">
+      <div style={{ height: '100vh', overflow: 'hidden', background: '#F2F4F7', fontFamily: "'Geist', 'Inter', sans-serif" }}>
         <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&display=swap');
-          .case-row { transition: background 0.15s ease; }
-          .case-row:hover { background: rgba(251,191,36,0.03); }
-          .action-btn { transition: all 0.15s ease; }
-          .status-pill { transition: all 0.12s ease; }
-          .status-pill:hover { transform: translateY(-1px); }
-          .modal-overlay { animation: fadeIn 0.15s ease; }
-          .modal-card { animation: slideUp 0.2s ease; }
-          @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
-          @keyframes slideUp { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
-          ::-webkit-scrollbar { width: 4px; height: 4px; }
-          ::-webkit-scrollbar-track { background: transparent; }
-          ::-webkit-scrollbar-thumb { background: #1e2535; border-radius: 4px; }
-          .input-dark { background: #0f1117; border: 1px solid #1e2535; color: #e2e8f0; border-radius: 10px; padding: 10px 16px; width: 100%; outline: none; font-size: 13px; transition: border-color 0.15s; }
-          .input-dark:focus { border-color: #fbbf24; }
-          .input-dark::placeholder { color: #4a5568; }
-          .textarea-dark { background: #0f1117; border: 1px solid #1e2535; color: #e2e8f0; border-radius: 10px; padding: 12px 16px; width: 100%; outline: none; font-size: 13px; transition: border-color 0.15s; resize: none; font-family: inherit; }
-          .textarea-dark:focus { border-color: #fbbf24; }
-          .textarea-dark::placeholder { color: #4a5568; }
+          @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+          /* ─── KEYFRAMES ─── */
+          @keyframes dotPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.75); }
+          }
+          @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to   { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px) scale(0.98); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+          }
+          @keyframes overlayIn {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+          }
+          @keyframes rowIn {
+            from { opacity: 0; transform: translateX(-6px); }
+            to   { opacity: 1; transform: translateX(0); }
+          }
+          @keyframes spin { to { transform: rotate(360deg); } }
+
+          /* ─── SCROLL ─── */
+          .auth-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+          .auth-scroll::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.25); border-radius: 999px; }
+
+          /* ─── SECTION ANIMATION ─── */
+          .section-in { animation: fadeUp 0.4s ease-out both; }
+          .section-in-1 { animation-delay: 0.05s; }
+          .section-in-2 { animation-delay: 0.1s; }
+          .section-in-3 { animation-delay: 0.15s; }
+
+          /* ─── TABLE ROWS ─── */
+          .case-tr { animation: rowIn 0.35s ease-out both; }
+          .case-tr:hover td { background: rgba(43,92,230,0.04) !important; }
+          .case-tr:hover .row-accent { opacity: 1 !important; }
+
+          /* ─── FILTER CHIPS ─── */
+          .filter-chip {
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 6px 14px; border-radius: 999px;
+            border: 1px solid #E4E7EC;
+            font-size: 12px; font-family: 'Geist', sans-serif; font-weight: 500;
+            color: #64748B; background: #fff;
+            cursor: pointer; transition: all 0.15s ease-out;
+          }
+          .filter-chip:hover { border-color: #CBD5E1; color: #334155; }
+          .filter-chip.active { border-color: rgba(43,92,230,0.35); background: rgba(43,92,230,0.06); color: #2B5CE6; }
+
+          /* ─── ACTION BUTTONS ─── */
+          .act-btn {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 5px 10px; border-radius: 6px;
+            font-size: 11px; font-family: 'Geist', sans-serif; font-weight: 500;
+            cursor: pointer; transition: all 0.15s ease-out; border: 1px solid transparent;
+          }
+          .act-btn:hover { transform: translateY(-1px); }
+          .act-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+          .act-approve { color: #059669; background: rgba(5,150,105,0.08); border-color: rgba(5,150,105,0.2); }
+          .act-approve:hover { background: rgba(5,150,105,0.14); }
+          .act-reject  { color: #DC2626; background: transparent; border-color: rgba(220,38,38,0.3); }
+          .act-reject:hover  { background: rgba(220,38,38,0.06); }
+          .act-note    { color: #0284C7; background: rgba(2,132,199,0.07); border-color: rgba(2,132,199,0.2); }
+          .act-note:hover    { background: rgba(2,132,199,0.12); }
+          .act-del     { color: #9CA3AF; background: transparent; border-color: transparent; padding: 5px 7px; }
+          .act-del:hover     { color: #DC2626; background: rgba(220,38,38,0.07); }
+
+          /* ─── INPUT FIELDS ─── */
+          .auth-input {
+            background: #fff; border: 1px solid #E4E7EC; color: #111827;
+            border-radius: 8px; padding: 9px 14px; width: 100%; outline: none;
+            font-size: 13px; font-family: 'Geist', sans-serif;
+            transition: border-color 0.15s, box-shadow 0.15s;
+          }
+          .auth-input:focus { border-color: #2B5CE6; box-shadow: 0 0 0 3px rgba(43,92,230,0.1); }
+          .auth-input::placeholder { color: #9CA3AF; }
+
+          .auth-textarea {
+            background: #F8F9FB; border: 1px solid #E4E7EC; color: #111827;
+            border-radius: 8px; padding: 11px 14px; width: 100%; outline: none;
+            font-size: 13px; font-family: 'Geist', sans-serif; resize: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+          }
+          .auth-textarea:focus { border-color: #2B5CE6; box-shadow: 0 0 0 3px rgba(43,92,230,0.1); background: #fff; }
+
+          /* ─── BUTTONS ─── */
+          .btn-ghost {
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 8px 16px; border-radius: 8px;
+            border: 1px solid #E4E7EC; background: #fff;
+            color: #64748B; font-size: 12px; font-family: 'Geist', sans-serif; font-weight: 500;
+            cursor: pointer; transition: all 0.15s ease-out;
+          }
+          .btn-ghost:hover { border-color: #CBD5E1; color: #334155; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+
+          .btn-primary {
+            display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+            padding: 9px 18px; border-radius: 8px;
+            border: none; background: #2B5CE6; color: #fff;
+            font-size: 13px; font-family: 'Geist', sans-serif; font-weight: 500;
+            cursor: pointer; transition: all 0.15s ease-out;
+          }
+          .btn-primary:hover { background: #2450CC; box-shadow: 0 4px 12px rgba(43,92,230,0.25); }
+          .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+
+          .btn-danger {
+            display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+            padding: 9px 18px; border-radius: 8px;
+            border: none; background: #DC2626; color: #fff;
+            font-size: 13px; font-family: 'Geist', sans-serif; font-weight: 500;
+            cursor: pointer; transition: all 0.15s ease-out;
+          }
+          .btn-danger:hover { background: #B91C1C; box-shadow: 0 4px 12px rgba(220,38,38,0.25); }
+          .btn-danger:disabled { opacity: 0.45; cursor: not-allowed; }
+
+          /* ─── CARD ─── */
+          .auth-card {
+            background: #fff; border: 1px solid #E4E7EC;
+            border-radius: 10px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 1px 4px rgba(0,0,0,0.04);
+          }
+
+          /* ─── MODAL ─── */
+          .modal-overlay {
+            position: fixed; inset: 0; z-index: 50;
+            display: flex; align-items: center; justify-content: center; padding: 20px;
+            background: rgba(17,24,39,0.45); backdrop-filter: blur(5px);
+            animation: overlayIn 0.2s ease-out;
+          }
+          .modal-card {
+            position: relative; width: 100%;
+            background: #fff; border: 1px solid #E4E7EC;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.18);
+            animation: slideUp 0.25s ease-out;
+          }
         `}</style>
 
-        <main className="overflow-y-auto">
-          <div className="max-w-7xl mx-auto px-6 py-8 space-y-5">
-            <div className="flex items-end justify-between">
-              <div>
-                <p className="text-[11px] font-mono text-amber-400/70 tracking-[0.2em] uppercase mb-1">Sistema de Gestión</p>
-                <h1 className="text-3xl font-bold text-slate-100 tracking-tight">Casos</h1>
-                <p className="text-sm text-slate-500 mt-1">Gestión y seguimiento de todos los casos registrados en el sistema.</p>
+        <main className="auth-scroll" style={{ height: '100%', overflowY: 'auto' }}>
+          <div style={{ maxWidth: 1280, margin: '0 auto', padding: '40px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div className="auth-card section-in" style={{ padding: '28px 32px', background: 'linear-gradient(135deg, #fff 0%, #F8F9FF 100%)' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                <div>
+                  <p style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, color: '#2B5CE6', letterSpacing: '0.28em', textTransform: 'uppercase', marginBottom: 8 }}>
+                    Panel admin · Casos
+                  </p>
+                  <h1 style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 32, color: '#111827', fontWeight: 400, letterSpacing: '-0.03em', marginBottom: 6 }}>
+                    Registro de casos
+                  </h1>
+                  <p style={{ fontSize: 13, color: '#6B7280', maxWidth: 520 }}>
+                    Gestión y seguimiento de todos los casos registrados en el sistema.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button type="button" onClick={() => void loadCases()} className="btn-ghost">
+                    <RefreshCw size={12} />
+                    Actualizar
+                  </button>
+                  <button type="button" onClick={() => navigate('/admin/revision')} className="btn-primary">
+                    Revisar pendientes
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={loadCases}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#12151f] border border-[#1e2535] text-slate-400 hover:text-slate-200 hover:border-slate-600 text-xs font-medium transition-all duration-150"
-              >
-                <RefreshCw size={13} />
-                Actualizar
-              </button>
             </div>
 
-            <div className="bg-[#0d1018] border border-[#1a1f2e] rounded-2xl p-5 space-y-4">
-              <div className="flex gap-3 items-center">
-                <div className="relative flex-1 max-w-sm">
-                  <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Buscar por nombre..."
-                    className="input-dark pl-9"
-                  />
+            <div className="auth-card section-in section-in-1" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ position: 'relative', flex: 1, minWidth: 220, maxWidth: 340 }}>
+                  <Search size={13} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', pointerEvents: 'none' }} />
+                  <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nombre..." className="auth-input" style={{ paddingLeft: 36 }} />
                 </div>
-                <div className="flex items-center gap-1.5 text-slate-500">
-                  <Filter size={13} />
-                  <span className="text-xs font-mono">Filtrar por estado:</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#9CA3AF' }}>
+                  <Filter size={12} />
+                  <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.2em', textTransform: 'uppercase' }}>Estado</span>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {Object.entries(STATUS_CONFIG).map(([value, cfg]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setStatusFilter(value as StatusFilter)}
-                    className={`status-pill inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                      statusFilter === value
-                        ? 'bg-amber-400/10 text-amber-300 border-amber-400/30'
-                        : 'bg-[#0f1117] text-slate-500 border-[#1e2535] hover:border-slate-600 hover:text-slate-300'
-                    }`}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                  <button key={value} type="button" onClick={() => setStatusFilter(value as StatusFilter)} className={`filter-chip ${statusFilter === value ? 'active' : ''}`}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.dot, flexShrink: 0 }} />
                     {cfg.label}
                   </button>
                 ))}
@@ -362,30 +437,30 @@ export default function AdminCases() {
             </div>
 
             {error && (
-              <div className="flex items-center gap-3 p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-sm">
-                <XCircle size={16} />
-                {error}
+              <div className="auth-card section-in" style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(220,38,38,0.04)', borderColor: 'rgba(220,38,38,0.2)' }}>
+                <XCircle size={14} style={{ color: '#DC2626', flexShrink: 0 }} />
+                <span style={{ fontSize: 13, color: '#B91C1C' }}>{error}</span>
               </div>
             )}
 
-            <div className="bg-[#0d1018] border border-[#1a1f2e] rounded-2xl overflow-hidden">
+            <div className="auth-card section-in section-in-2" style={{ overflow: 'hidden' }}>
               {loading ? (
-                <div className="p-16 flex flex-col items-center justify-center gap-3">
-                  <div className="w-6 h-6 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
-                  <p className="text-xs text-slate-600 font-mono">Cargando casos...</p>
+                <div style={{ padding: '64px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 22, height: 22, border: '2px solid rgba(43,92,230,0.2)', borderTopColor: '#2B5CE6', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                  <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>Cargando casos...</p>
                 </div>
               ) : filteredCases.length === 0 ? (
-                <div className="p-16 flex flex-col items-center justify-center gap-2">
-                  <p className="text-slate-500 text-sm">No se encontraron casos.</p>
-                  <p className="text-slate-700 text-xs">Intenta cambiar los filtros de búsqueda.</p>
+                <div style={{ padding: '64px 24px', textAlign: 'center' }}>
+                  <p style={{ fontSize: 13, color: '#6B7280', fontWeight: 500 }}>No se encontraron casos.</p>
+                  <p style={{ fontSize: 12, color: '#9CA3AF', marginTop: 6 }}>Intenta cambiar los filtros de búsqueda.</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1000px]">
+                <div style={{ overflowX: 'auto' }} className="auth-scroll">
+                  <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse' }}>
                     <thead>
-                      <tr className="border-b border-[#1a1f2e]">
+                      <tr>
                         {['Nº Caso', 'Persona', 'Zona', 'Fecha', 'Estado', 'Acciones'].map((h) => (
-                          <th key={h} className="px-5 py-3.5 text-left text-[10px] font-mono font-medium text-slate-600 uppercase tracking-[0.15em]">
+                          <th key={h} style={{ padding: '12px 20px', textAlign: 'left', fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF', letterSpacing: '0.15em', textTransform: 'uppercase', borderBottom: '1px solid #F1F3F5' }}>
                             {h}
                           </th>
                         ))}
@@ -394,74 +469,62 @@ export default function AdminCases() {
                     <tbody>
                       {filteredCases.map((item, idx) => {
                         const workflowStatus = statusByCaseId[item.id] ?? 'pending'
+                        const availability = getCaseActionAvailability(workflowStatus)
                         const commentsCount = commentsByCaseId[item.id]?.length ?? 0
                         const isActionLoading = actionLoadingId === item.id
                         return (
-                          <tr
-                            key={item.id}
-                            className={`case-row border-b border-[#13161e] last:border-b-0 ${idx % 2 === 0 ? '' : 'bg-white/[0.01]'}`}
-                          >
-                            <td className="px-5 py-4">
-                              <span className="font-mono text-xs text-amber-400/80 font-medium">{item.numero_caso}</span>
+                          <tr key={item.id} className="case-tr" style={{ animationDelay: `${idx * 18}ms`, position: 'relative' }}>
+                            <td style={{ padding: '14px 20px', borderBottom: '1px solid #F1F3F5', background: idx % 2 !== 0 ? '#FAFBFC' : '#fff', position: 'relative' }}>
+                              <span className="row-accent" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, borderRadius: '0 2px 2px 0', background: '#2B5CE6', opacity: 0, transition: 'opacity 0.15s' }} />
+                              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#2B5CE6', fontWeight: 500 }}>{item.numero_caso}</span>
                             </td>
-                            <td className="px-5 py-4">
-                              <button
-                                type="button"
-                                onClick={() => navigate(`/admin/revision?caseId=${item.id}`)}
-                                className="text-left text-sm font-semibold text-slate-200 hover:text-amber-300 transition-colors"
+                            <td style={{ padding: '14px 20px', borderBottom: '1px solid #F1F3F5', background: idx % 2 !== 0 ? '#FAFBFC' : '#fff' }}>
+                              <button type="button" onClick={() => navigate(`/admin/revision?caseId=${item.id}`)} style={{
+                                background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left',
+                                fontSize: 13, fontFamily: "'Geist', sans-serif", fontWeight: 600, color: '#111827',
+                                transition: 'color 0.15s',
+                              }}
+                                onMouseEnter={(e) => { e.currentTarget.style.color = '#2B5CE6' }}
+                                onMouseLeave={(e) => { e.currentTarget.style.color = '#111827' }}
                               >
                                 {item.nombres} {item.apellidos}
                               </button>
                             </td>
-                            <td className="px-5 py-4">
-                              <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
-                                <MapPin size={11} className="text-slate-600" />
+                            <td style={{ padding: '14px 20px', borderBottom: '1px solid #F1F3F5', background: idx % 2 !== 0 ? '#FAFBFC' : '#fff' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#6B7280' }}>
+                                <MapPin size={11} style={{ color: '#9CA3AF', flexShrink: 0 }} />
                                 {getLocation(item)}
                               </span>
                             </td>
-                            <td className="px-5 py-4">
-                              <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
-                                <Calendar size={11} className="text-slate-600" />
+                            <td style={{ padding: '14px 20px', borderBottom: '1px solid #F1F3F5', background: idx % 2 !== 0 ? '#FAFBFC' : '#fff' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#6B7280' }}>
+                                <Calendar size={11} style={{ color: '#9CA3AF', flexShrink: 0 }} />
                                 {getDateLabel(item)}
                               </span>
                             </td>
-                            <td className="px-5 py-4">
+                            <td style={{ padding: '14px 20px', borderBottom: '1px solid #F1F3F5', background: idx % 2 !== 0 ? '#FAFBFC' : '#fff' }}>
                               <InlineStatusBadge status={workflowStatus} />
                             </td>
-                            <td className="px-5 py-4">
-                              <div className="flex items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => void applyStatus(item.id, 'approved')}
-                                  disabled={isActionLoading}
-                                  className="action-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-400 bg-emerald-400/8 border border-emerald-400/15 hover:bg-emerald-400/15 hover:border-emerald-400/30 disabled:opacity-40 transition-all"
-                                >
-                                  <CheckCircle2 size={11} />
-                                  Aprobar
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => void applyStatus(item.id, 'rejected')}
-                                  disabled={isActionLoading}
-                                  className="action-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-amber-400 bg-amber-400/8 border border-amber-400/15 hover:bg-amber-400/15 hover:border-amber-400/30 disabled:opacity-40 transition-all"
-                                >
-                                  <XCircle size={11} />
-                                  Rechazar
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => { setCommentTarget(item); setCommentDraft('') }}
-                                  className="action-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-sky-400 bg-sky-400/8 border border-sky-400/15 hover:bg-sky-400/15 hover:border-sky-400/30 transition-all"
-                                >
-                                  <MessageSquare size={11} />
-                                  {commentsCount > 0 ? `Notas (${commentsCount})` : 'Anotar'}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setDeleteTarget(item)}
-                                  className="action-btn inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold text-rose-400 bg-rose-400/8 border border-rose-400/15 hover:bg-rose-400/15 hover:border-rose-400/30 transition-all"
-                                >
-                                  <Trash2 size={11} />
+                            <td style={{ padding: '14px 20px', borderBottom: '1px solid #F1F3F5', background: idx % 2 !== 0 ? '#FAFBFC' : '#fff' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                {availability.canApprove && (
+                                  <button type="button" onClick={() => void applyStatus(item.id, 'approved')} disabled={isActionLoading} className="act-btn act-approve">
+                                    <CheckCircle2 size={11} /> Aprobar
+                                  </button>
+                                )}
+                                {availability.canReject && (
+                                  <button type="button" onClick={() => void applyStatus(item.id, 'rejected')} disabled={isActionLoading} className="act-btn act-reject">
+                                    <XCircle size={11} /> Rechazar
+                                  </button>
+                                )}
+                                {availability.canMarkFound && (
+                                  <button type="button" onClick={() => { setCommentTarget(item); setCommentDraft('') }} className="act-btn act-note">
+                                    <MessageSquare size={11} />
+                                    {commentsCount > 0 ? `Notas (${commentsCount})` : 'Anotar'}
+                                  </button>
+                                )}
+                                <button type="button" onClick={() => setDeleteTarget(item)} className="act-btn act-del">
+                                  <Trash2 size={12} />
                                 </button>
                               </div>
                             </td>
@@ -470,15 +533,15 @@ export default function AdminCases() {
                       })}
                     </tbody>
                   </table>
-                </div>
-              )}
 
-              {!loading && filteredCases.length > 0 && (
-                <div className="px-5 py-3 border-t border-[#1a1f2e] flex items-center justify-between">
-                  <p className="text-xs font-mono text-slate-600">
-                    {filteredCases.length} caso{filteredCases.length !== 1 ? 's' : ''} mostrado{filteredCases.length !== 1 ? 's' : ''}
-                  </p>
-                  <p className="text-xs font-mono text-slate-700">{cases.length} en total</p>
+                  <div style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #F1F3F5' }}>
+                    <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>
+                      {filteredCases.length} caso{filteredCases.length !== 1 ? 's' : ''} mostrado{filteredCases.length !== 1 ? 's' : ''}
+                    </p>
+                    <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>
+                      {cases.length} en total
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
@@ -486,94 +549,68 @@ export default function AdminCases() {
         </main>
 
         {deleteTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay">
-            <button type="button" className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setDeleteTarget(null)} />
-            <div className="relative modal-card bg-[#0d1018] border border-[#1a1f2e] rounded-2xl p-7 w-full max-w-md shadow-2xl">
-              <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mb-5">
-                <Trash2 size={20} className="text-rose-400" />
-              </div>
-              <h2 className="text-lg font-bold text-slate-100 mb-1">Confirmar eliminación</h2>
-              <p className="text-sm text-slate-500 mb-6">
-                Estás por eliminar el caso{' '}
-                <span className="font-mono text-amber-400">{deleteTarget.numero_caso}</span>.
-                Esta acción no se puede deshacer.
-              </p>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setDeleteTarget(null)}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-[#0f1117] border border-[#1e2535] text-slate-400 hover:text-slate-200 text-sm font-medium transition-all"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDeleteCase()}
-                  disabled={deleteLoading}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-sm font-semibold disabled:opacity-50 transition-all"
-                >
-                  {deleteLoading ? 'Eliminando...' : 'Eliminar caso'}
-                </button>
+          <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setDeleteTarget(null) }}>
+            <div className="modal-card" style={{ maxWidth: 420, borderLeft: '3px solid #DC2626' }}>
+              <div style={{ padding: '28px 28px 24px' }}>
+                <div style={{ width: 42, height: 42, borderRadius: 10, background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 18 }}>
+                  <Trash2 size={18} style={{ color: '#DC2626' }} />
+                </div>
+                <h2 style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 22, color: '#111827', fontWeight: 400, marginBottom: 8 }}>Confirmar eliminación</h2>
+                <p style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.6, marginBottom: 24 }}>
+                  Estás por eliminar el caso{' '}
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#2B5CE6', fontWeight: 500 }}>{deleteTarget.numero_caso}</span>.
+                  {' '}Esta acción no se puede deshacer.
+                </p>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button type="button" onClick={() => setDeleteTarget(null)} className="btn-ghost" style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
+                  <button type="button" onClick={() => void handleDeleteCase()} disabled={deleteLoading} className="btn-danger" style={{ flex: 1 }}>
+                    {deleteLoading ? 'Eliminando...' : 'Eliminar caso'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         )}
 
         {commentTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay">
-            <button type="button" className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setCommentTarget(null)} />
-            <div className="relative modal-card bg-[#0d1018] border border-[#1a1f2e] rounded-2xl p-7 w-full max-w-2xl shadow-2xl">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-10 h-10 rounded-xl bg-sky-400/10 border border-sky-400/20 flex items-center justify-center">
-                  <MessageSquare size={16} className="text-sky-400" />
+          <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setCommentTarget(null) }}>
+            <div className="modal-card" style={{ maxWidth: 580, borderLeft: '3px solid #0284C7' }}>
+              <div style={{ padding: '28px 28px 24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(2,132,199,0.08)', border: '1px solid rgba(2,132,199,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <MessageSquare size={16} style={{ color: '#0284C7' }} />
+                  </div>
+                  <div>
+                    <h2 style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 20, color: '#111827', fontWeight: 400 }}>Notas del caso</h2>
+                    <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#2B5CE6', marginTop: 2 }}>{commentTarget.numero_caso}</p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-base font-bold text-slate-100">Notas del caso</h2>
-                  <p className="text-xs font-mono text-amber-400/70">{commentTarget.numero_caso}</p>
-                </div>
-              </div>
 
-              <div className="rounded-xl border border-[#1a1f2e] bg-[#090b0f] p-4 space-y-2.5 max-h-52 overflow-y-auto mb-4">
-                {(commentsByCaseId[commentTarget.id] ?? []).length === 0 ? (
-                  <p className="text-xs text-slate-600 font-mono text-center py-3">Sin notas registradas para este caso.</p>
-                ) : (
-                  (commentsByCaseId[commentTarget.id] ?? []).map((comment) => (
-                    <div key={comment.id} className="space-y-2">
-                      <CommentItem
-                        comment={comment}
-                        currentUserId={user?.id ?? ''}
-                        onDelete={() => void handleDeleteComment(commentTarget.id, comment.id)}
-                        onEdit={(newText) => void handleEditComment(commentTarget.id, comment.id, newText)}
-                        disabled={commentLoading}
-                      />
-                      <p className="px-1 text-[11px] font-mono text-slate-700">
-                        {new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(comment.createdAt))}
-                      </p>
+                <div style={{ background: '#F8F9FB', border: '1px solid #E4E7EC', borderRadius: 8, padding: '12px 14px', maxHeight: 200, overflowY: 'auto', marginBottom: 14 }} className="auth-scroll">
+                  {(commentsByCaseId[commentTarget.id] ?? []).length === 0 ? (
+                    <p style={{ fontSize: 12, color: '#9CA3AF', fontFamily: "'JetBrains Mono', monospace", padding: '8px 0' }}>Sin notas registradas para este caso.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {(commentsByCaseId[commentTarget.id] ?? []).map((comment) => (
+                        <div key={comment.id}>
+                          <CommentItem comment={comment} currentUserId={user?.id ?? ''} onDelete={() => void handleDeleteComment(commentTarget.id, comment.id)} onEdit={(newText) => void handleEditComment(commentTarget.id, comment.id, newText)} disabled={commentLoading} />
+                          <p style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF', marginTop: 4, paddingLeft: 2 }}>
+                            {new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(comment.createdAt))}
+                          </p>
+                        </div>
+                      ))}
                     </div>
-                  ))
-                )}
-              </div>
+                  )}
+                </div>
 
-              <textarea
-                value={commentDraft}
-                onChange={(e) => setCommentDraft(e.target.value)}
-                rows={4}
-                className="textarea-dark mb-4"
-                placeholder="Escribe una observación para este caso..."
-              />
+                <textarea value={commentDraft} onChange={(e) => setCommentDraft(e.target.value)} rows={4} className="auth-textarea" placeholder="Escribe una observación para este caso..." style={{ marginBottom: 16, display: 'block' }} />
 
-              <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setCommentTarget(null)} className="flex-1 px-4 py-2.5 rounded-xl bg-[#0f1117] border border-[#1e2535] text-slate-400 hover:text-slate-200 text-sm font-medium transition-all">
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void submitComment()}
-                  disabled={!commentDraft.trim() || commentLoading}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-[#0a0c10] text-sm font-bold disabled:opacity-40 transition-all"
-                >
-                  {commentLoading ? 'Guardando...' : 'Guardar nota'}
-                </button>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button type="button" onClick={() => setCommentTarget(null)} className="btn-ghost" style={{ flex: 1, justifyContent: 'center' }}>Cancelar</button>
+                  <button type="button" onClick={() => void submitComment()} disabled={!commentDraft.trim() || commentLoading} className="btn-primary" style={{ flex: 1 }}>
+                    {commentLoading ? 'Guardando...' : 'Guardar nota'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

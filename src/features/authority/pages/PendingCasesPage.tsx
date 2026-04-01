@@ -203,7 +203,7 @@ export default function PendingCasesPage() {
   const selectedCaseComments = selectedCase ? (commentsByCaseId[selectedCase.id] ?? []) : []
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#F2F4F7', fontFamily: "'Geist', 'Inter', sans-serif" }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#F2F4F7', fontFamily: "'Geist', 'Inter', sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
         @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
@@ -232,7 +232,7 @@ export default function PendingCasesPage() {
 
       <AuthoritySidebar />
 
-      <main className="p-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+      <main style={{ flex: 1 }}>
         <div style={{ maxWidth: 1400, margin: '0 auto', padding: '40px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
           {/* ─── HEADER ─── */}
@@ -288,7 +288,7 @@ export default function PendingCasesPage() {
               <p style={{ fontSize: 13, color: '#6B7280', textAlign: 'center', maxWidth: 320 }}>Todos los casos han sido revisados. El sistema está al día.</p>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 20 }} className="p-in p-in-1">
+            <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 20, alignItems: 'start' }} className="p-in p-in-1">
 
               {/* ─── PENDING LIST ─── */}
               <div className="p-card" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 200px)' }}>
@@ -298,13 +298,13 @@ export default function PendingCasesPage() {
                     {pendingCases.length} casos en espera
                   </p>
                 </div>
-                <div className="p-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+                <div className="p-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
                   <PendingList cases={pendingCases} selectedCaseId={selectedCaseId} onSelectCase={setSelectedCaseId} />
                 </div>
               </div>
 
               {/* ─── DETAIL COLUMN ─── */}
-              <div className="p-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto', maxHeight: 'calc(100vh - 200px)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
                 {/* Case Detail */}
                 <div className="p-card" style={{ overflow: 'hidden' }}>

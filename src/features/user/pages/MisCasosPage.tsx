@@ -404,7 +404,8 @@ async function updateCaseForUser(
     if (error) {
       const message = error.message.toLowerCase()
       if (message.includes('column') && message.includes('workflow_status')) {
-        const { workflow_status: _, ...rest } = payload
+        const { workflow_status: workflowStatus, ...rest } = payload
+        void workflowStatus
         if (Object.keys(rest).length > 0) {
           const retry = await supabase
             .from('cases')

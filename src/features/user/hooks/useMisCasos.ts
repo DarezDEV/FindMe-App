@@ -488,22 +488,34 @@ async function fetchCasosFallback(limit?: number, userId?: string, options: Fetc
     query = query.limit(queryLimit)
   }
 
-  let { data, error } = await query
+  const initialResponse = await query
+  let data = initialResponse.data as Array<Record<string, unknown>> | null
+  let error = initialResponse.error
   if (error) {
     const message = error.message.toLowerCase()
     if (message.includes('column') && message.includes('workflow_status')) {
-      const retry = await supabase
+      let retryQuery = supabase
         .from('cases')
         .select(CASOS_FALLBACK_SELECT_NO_WORKFLOW)
         .eq('eliminado', false)
         .order('created_at', { ascending: false })
-      data = retry.data
-      error = retry.error ?? null
+
+      if (userId) {
+        retryQuery = retryQuery.eq('publicado_por', userId)
+      }
+
+      if (typeof queryLimit === 'number') {
+        retryQuery = retryQuery.limit(queryLimit)
+      }
+
+      const retry = await retryQuery
+      data = retry.data as Array<Record<string, unknown>> | null
+      error = retry.error
     }
   }
   if (error) throw error
 
-  const rows = (data ?? []) as CasoFallbackRow[]
+  const rows = (data ?? []) as unknown as CasoFallbackRow[]
   const visibleRows = rows.filter(row =>
     shouldIncludeCase(row.status, row.workflow_status, { hideResolved, hideRejected, approvedOnly })
   )
@@ -559,7 +571,7 @@ export function useCasoDetalle(caseId: string) {
       const safeMedia = (mediaResponse.data ?? []) as CasoMedia[]
 
       // Intentar primero con la vista enriquecida, luego con fallback directo a `cases`
-      let caseResponse = await supabase
+      const caseResponse = await supabase
         .from('cases')
         .select(CASO_DETALLE_FALLBACK_SELECT)
         .eq('id', caseId)
