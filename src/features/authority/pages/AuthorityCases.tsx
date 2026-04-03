@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, MapPin, Calendar, RefreshCw, MessageSquare, CheckCircle2, XCircle, Trash2, Filter } from 'lucide-react'
 import { AuthoritySidebar } from '../components/AuthoritySidebar'
+import AuthorityTopbar from '../components/AuthorityTopbar'
 import {
   createCaseComment,
   deleteCaseComment,
@@ -372,6 +373,7 @@ export default function AuthorityCases() {
 
       {/* ─── MAIN CONTENT ─── */}
       <main className="auth-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+        <AuthorityTopbar />
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '40px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
           {/* ─── PAGE HEADER ─── */}

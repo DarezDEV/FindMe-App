@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { ChevronLeft, FilePlus2 } from 'lucide-react'
 import { Alert } from '../../../shared/components/ui'
 import { AuthoritySidebar } from '../components/AuthoritySidebar'
+import AuthorityTopbar from '../components/AuthorityTopbar'
 import { usePublicarForm } from '../../user/hooks/usePublicarForm'
 import { StepIndicator } from '../../user/components/StepIndicator'
 import { FormNavigation } from '../../user/components/FormNavigation'
@@ -32,6 +33,7 @@ export default function AuthorityCreateCasePage() {
     <div className="flex h-screen bg-background overflow-hidden">
       <AuthoritySidebar />
       <main className="flex-1 overflow-y-auto">
+        <AuthorityTopbar />
         <div className="min-h-screen bg-background py-8 px-4">
           <div className="max-w-3xl mx-auto">
             <div className="mb-8">

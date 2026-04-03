@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../auth/hooks'
 import { AuthoritySidebar } from '../components/AuthoritySidebar'
+import AuthorityTopbar from '../components/AuthorityTopbar'
 import { CaseDetailPanel } from '../components/moderation/CaseDetailPanel'
 import { CommentItem } from '../components/moderation/CommentItem'
 import { CommentModal } from '../components/moderation/CommentModal'
@@ -233,6 +234,7 @@ export default function PendingCasesPage() {
       <AuthoritySidebar />
 
       <main className="p-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+        <AuthorityTopbar />
         <div style={{ maxWidth: 1400, margin: '0 auto', padding: '40px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
           {/* ─── HEADER ─── */}

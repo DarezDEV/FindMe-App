@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ChevronLeft, Eye, Mail, MapPin, MessageSquare, Phone, UserSearch, Video, Calendar, User, Hash, AlertCircle, X } from 'lucide-react'
 import { AuthoritySidebar } from '../components/AuthoritySidebar'
+import AuthorityTopbar from '../components/AuthorityTopbar'
 import { Spinner } from '../../../shared/components/ui'
 import { useCasoDetalle } from '../../user/hooks/useMisCasos'
 import { useAuth } from '../../auth/hooks'
@@ -163,8 +164,11 @@ export default function AuthorityCaseDetailPage() {
     return (
       <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#F2F4F7' }}>
         <AuthoritySidebar />
-        <main style={{ flex: 1, overflowY: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Spinner fullScreen />
+        <main style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+          <AuthorityTopbar />
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Spinner fullScreen />
+          </div>
         </main>
       </div>
     )
@@ -175,8 +179,10 @@ export default function AuthorityCaseDetailPage() {
     return (
       <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#F2F4F7' }}>
         <AuthoritySidebar />
-        <main style={{ flex: 1, overflowY: 'auto', padding: '40px 32px' }}>
-          <SectionCard style={{ maxWidth: 480, padding: 28 }}>
+        <main style={{ flex: 1, overflowY: 'auto' }}>
+          <AuthorityTopbar />
+          <div style={{ padding: '40px 32px' }}>
+            <SectionCard style={{ maxWidth: 480, padding: 28 }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
               <div style={{ width: 36, height: 36, borderRadius: 9, background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <AlertCircle size={16} style={{ color: '#DC2626' }} />
@@ -196,7 +202,8 @@ export default function AuthorityCaseDetailPage() {
                 </div>
               </div>
             </div>
-          </SectionCard>
+            </SectionCard>
+          </div>
         </main>
       </div>
     )
@@ -453,6 +460,7 @@ export default function AuthorityCaseDetailPage() {
       <AuthoritySidebar />
 
       <main className="cd-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+        <AuthorityTopbar />
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: '36px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
           {/* ─── BACK LINK ─── */}

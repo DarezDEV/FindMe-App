@@ -6,18 +6,15 @@ import {
   CheckCircle,
   ChevronDown,
   Flag,
-  LogOut,
   MapPin,
   Menu,
   Plus,
   Search,
-  User,
   UserSearch,
   X,
 } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
-import { logoutUser } from '../../auth/services'
-import { appToast } from '../../../shared/components/ui'
+import UserProfileMenu from '../../../shared/components/layout/UserProfileMenu'
 import { type CasoReciente, useMisCasos } from '../hooks/useMisCasos'
 
 type DropdownKey = 'notifications' | 'user' | 'publish' | null
@@ -51,12 +48,6 @@ const publishOptions: PublishOption[] = [
     icon: <UserSearch size={16} />,
   },
 ]
-
-function getInitials(name: string, lastName: string) {
-  const first = name.trim().charAt(0).toUpperCase()
-  const second = lastName.trim().charAt(0).toUpperCase()
-  return `${first}${second}`.trim() || 'U'
-}
 
 function formatTime(value: string | null) {
   if (!value) return 'Reciente'
@@ -174,7 +165,6 @@ export default function UserNavbar() {
   const [open, setOpen] = useState<DropdownKey>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
-  const [loggingOut, setLoggingOut] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const ref = useRef<HTMLDivElement>(null)
   const location = useLocation()
@@ -183,11 +173,6 @@ export default function UserNavbar() {
 
   const notifications = useMemo(() => buildNotifications(myCases), [myCases])
   const unreadNotifs = notifications.filter(item => item.unread).length
-
-  const userName = user?.name ?? 'Usuario'
-  const userLastName = user?.last_nmae ?? ''
-  const userEmail = user?.email ?? 'sin-correo'
-  const userInitials = getInitials(userName, userLastName)
 
   const toggle = (key: DropdownKey) => setOpen(prev => (prev === key ? null : key))
 
@@ -205,22 +190,6 @@ export default function UserNavbar() {
       navigate('/user')
     }
     closeAll()
-  }
-
-  const handleLogout = async () => {
-    if (loggingOut) return
-    setLoggingOut(true)
-    try {
-      await logoutUser()
-      appToast.success('Sesion cerrada correctamente.')
-      closeAll()
-      navigate('/login', { replace: true })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudo cerrar la sesion.'
-      appToast.error(message)
-    } finally {
-      setLoggingOut(false)
-    }
   }
 
   useEffect(() => {
@@ -406,60 +375,15 @@ export default function UserNavbar() {
               </Link>
 
               <div className="relative ml-1">
-                <button
-                  onClick={() => toggle('user')}
-                  className={`flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg hover:bg-background transition-colors duration-150 ${
-                    open === 'user' ? 'bg-background' : ''
-                  }`}
-                >
-                  <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
-                    <span className="text-white text-xs font-bold select-none">{userInitials}</span>
-                  </div>
-                  <ChevronDown
-                    size={14}
-                    className={`text-text-secondary hidden sm:block transition-transform duration-200 ${
-                      open === 'user' ? 'rotate-180' : ''
-                    }`}
-                  />
-                </button>
-
-                {open === 'user' && (
-                  <DropdownPanel className="right-0 w-56">
-                    <div className="px-4 py-3 border-b border-border">
-                      <p className="text-sm font-semibold text-text-primary">
-                        {userName} {userLastName}
-                      </p>
-                      <p className="text-xs text-text-secondary">{userEmail}</p>
-                      <span className="badge-user mt-1.5 inline-flex">Usuario</span>
-                    </div>
-                    <div className="p-1.5">
-                      {[
-                        { icon: <User size={15} />, label: 'Mi perfil', to: '/perfil' },
-                        { icon: <CheckCircle size={15} />, label: 'Mis casos', to: '/mis-casos' },
-                      ].map(item => (
-                        <Link
-                          key={item.label}
-                          to={item.to}
-                          onClick={closeAll}
-                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-text-secondary hover:bg-background hover:text-text-primary transition-colors duration-150"
-                        >
-                          {item.icon}
-                          {item.label}
-                        </Link>
-                      ))}
-                    </div>
-                    <div className="p-1.5 border-t border-border">
-                      <button
-                        onClick={handleLogout}
-                        disabled={loggingOut}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-error hover:bg-error/5 transition-colors duration-150 disabled:opacity-60"
-                      >
-                        <LogOut size={15} />
-                        {loggingOut ? 'Cerrando...' : 'Cerrar sesion'}
-                      </button>
-                    </div>
-                  </DropdownPanel>
-                )}
+                <UserProfileMenu
+                  open={open === 'user'}
+                  onToggle={() => {
+                    setOpen((prev) => (prev === 'user' ? null : 'user'))
+                  }}
+                  onClose={closeAll}
+                  roleLabel="Usuario"
+                  badgeClassName="badge-user"
+                />
               </div>
 
               <button
