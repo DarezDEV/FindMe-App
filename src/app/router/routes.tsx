@@ -25,6 +25,7 @@ import AuthorityCaseDetailPage from '../../features/authority/pages/AuthorityCas
 import AuthorityCreateCasePage from '../../features/authority/pages/AuthorityCreateCasePage'
 import PendingCasesPage from '../../features/authority/pages/PendingCasesPage'
 import AuthoritySightings from '../../features/authority/pages/AuthoritySightings'
+import AuthorityProfilePage from '../../features/authority/pages/AuthorityProfilePage'
 import LandingPage from '../../features/public/pages/LandingPage'
 import PublicCasesPage from '../../features/public/pages/PublicCasesPage'
 import PublishCaseGatePage from '../../features/public/pages/PublishCaseGatePage'
@@ -78,20 +79,13 @@ const router = createBrowserRouter([
       { path: '/dashboard', element: <UserHome /> },
       { path: '/user', element: <UserHome /> },
       { path: '/publicar', element: <PublicarPersonaPerdidaPage /> },
+      { path: '/perfil', element: <MiPerfilPage /> },
+      { path: '/mis-casos', element: <MisCasosPage /> },
       { path: '/caso/:id', element: <CasoDetallePage /> },
       { path: '/avistamiento', element: <ReportarAvistamientoPage /> },
       { path: '/caso/:id/avistamiento', element: <ReportarAvistamientoPage /> },
       { path: '/reportar', element: <ReportarContenidoPage /> },
       { path: '/caso/:id/reportar', element: <ReportarContenidoPage /> },
-    ],
-  },
-
-  // Perfil accesible para usuarios autenticados (user/authority/admin)
-  {
-    element: <RoleRoute allowedRoles={[ROLES.USER, ROLES.AUTHORITY, ROLES.ADMIN]} />,
-    children: [
-      { path: '/perfil', element: <MiPerfilPage /> },
-      { path: '/mis-casos', element: <MisCasosPage /> },
     ],
   },
 
@@ -118,6 +112,7 @@ const router = createBrowserRouter([
       { path: '/authority/cases/:id', element: <AuthorityCaseDetailPage /> },
       { path: '/authority/sightings', element: <AuthoritySightings /> },
       { path: '/authority/cases/pending', element: <PendingCasesPage /> },
+      { path: '/authority/perfil', element: <AuthorityProfilePage /> },
     ],
   },
 

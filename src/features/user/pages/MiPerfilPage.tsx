@@ -5,6 +5,7 @@ import { useAuth } from '../../auth/hooks'
 import { Alert, Spinner } from '../../../shared/components/ui'
 import { supabase } from '../../../lib/supabase/client'
 import UserNavbar from '../components/UserNavbar'
+import AuthorityTopbar from '../../authority/components/AuthorityTopbar'
 
 interface ProfileFormState {
   name: string
@@ -100,7 +101,17 @@ function formatDate(value: string) {
   })
 }
 
-export default function MiPerfilPage() {
+interface MiPerfilPageProps {
+  showNavbar?: boolean
+  homePath?: string
+  showAuthorityTopbar?: boolean
+}
+
+export default function MiPerfilPage({
+  showNavbar = true,
+  homePath = '/user',
+  showAuthorityTopbar = false,
+}: MiPerfilPageProps) {
   const { user, loading: authLoading, refreshUser } = useAuth()
   const [form, setForm] = useState<ProfileFormState>({ name: '', lastName: '', avatarUrl: '' })
   const [saving, setSaving] = useState(false)
@@ -149,7 +160,8 @@ export default function MiPerfilPage() {
   if (authLoading || !user) {
     return (
       <>
-        <UserNavbar />
+        {showNavbar && <UserNavbar />}
+        {showAuthorityTopbar && <AuthorityTopbar />}
         <Spinner fullScreen />
       </>
     )
@@ -157,12 +169,13 @@ export default function MiPerfilPage() {
 
   return (
     <>
-      <UserNavbar />
+      {showNavbar && <UserNavbar />}
+      {showAuthorityTopbar && <AuthorityTopbar />}
 
       <main className="min-h-screen bg-background py-8 px-4">
         <div className="max-w-3xl mx-auto space-y-6">
           <Link
-            to="/user"
+            to={homePath}
             className="inline-flex items-center gap-1.5 text-xs text-text-secondary hover:text-primary transition-colors"
           >
             <ChevronLeft size={14} />

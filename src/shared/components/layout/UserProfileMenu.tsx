@@ -18,6 +18,7 @@ interface UserProfileMenuProps {
   roleLabel?: string
   badgeClassName?: string
   align?: 'left' | 'right'
+  items?: Array<{ icon: React.ReactNode; label: string; to: string }>
 }
 
 export default function UserProfileMenu({
@@ -27,6 +28,7 @@ export default function UserProfileMenu({
   roleLabel = 'Usuario',
   badgeClassName = 'badge-user',
   align = 'right',
+  items,
 }: UserProfileMenuProps) {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -37,6 +39,10 @@ export default function UserProfileMenu({
   const userLastName = user?.last_nmae ?? ''
   const userEmail = user?.email ?? 'sin-correo'
   const userInitials = getInitials(userName, userLastName)
+  const menuItems = items ?? [
+    { icon: <User size={15} />, label: 'Mi perfil', to: '/perfil' },
+    { icon: <CheckCircle size={15} />, label: 'Mis casos', to: '/mis-casos' },
+  ]
 
   const handleLogout = async () => {
     if (loggingOut) return
@@ -105,10 +111,7 @@ export default function UserProfileMenu({
             <span className={`${badgeClassName} mt-1.5 inline-flex`}>{roleLabel}</span>
           </div>
           <div className="p-1.5">
-            {[
-              { icon: <User size={15} />, label: 'Mi perfil', to: '/perfil' },
-              { icon: <CheckCircle size={15} />, label: 'Mis casos', to: '/mis-casos' },
-            ].map(item => (
+            {menuItems.map(item => (
               <Link
                 key={item.label}
                 to={item.to}
