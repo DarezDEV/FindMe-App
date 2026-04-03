@@ -78,13 +78,20 @@ const router = createBrowserRouter([
       { path: '/dashboard', element: <UserHome /> },
       { path: '/user', element: <UserHome /> },
       { path: '/publicar', element: <PublicarPersonaPerdidaPage /> },
-      { path: '/perfil', element: <MiPerfilPage /> },
-      { path: '/mis-casos', element: <MisCasosPage /> },
       { path: '/caso/:id', element: <CasoDetallePage /> },
       { path: '/avistamiento', element: <ReportarAvistamientoPage /> },
       { path: '/caso/:id/avistamiento', element: <ReportarAvistamientoPage /> },
       { path: '/reportar', element: <ReportarContenidoPage /> },
       { path: '/caso/:id/reportar', element: <ReportarContenidoPage /> },
+    ],
+  },
+
+  // Perfil accesible para usuarios autenticados (user/authority/admin)
+  {
+    element: <RoleRoute allowedRoles={[ROLES.USER, ROLES.AUTHORITY, ROLES.ADMIN]} />,
+    children: [
+      { path: '/perfil', element: <MiPerfilPage /> },
+      { path: '/mis-casos', element: <MisCasosPage /> },
     ],
   },
 
