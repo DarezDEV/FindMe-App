@@ -1,29 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, Calendar, MapPin, MoreVertical, Plus, RefreshCw, UserSearch } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
-import { Spinner, StatusBadge, type WorkflowStatus } from '../../../shared/components/ui'
-import { getAuthorityCases, subscribeToCasesRealtime, type AuthorityCaseRow } from '../../../lib/supabase/db'
-import { useCasosGenerales, type CasoReciente } from '../hooks/casos.hooks'
-import { UserNavbar } from '../components/UserNavbar'
+import { Spinner } from '../../../shared/components/ui'
+import { subscribeToCasesRealtime } from '../../../lib/supabase/db'
+import { useCasosGenerales, type CasoReciente } from '../hooks/useMisCasos'
+import UserNavbar from '../components/UserNavbar'
 
-function getPublicWorkflowStatus(caso: AuthorityCaseRow): WorkflowStatus | null {
-  if (caso.workflow_status) {
-    if (caso.workflow_status === 'rejected') return null
-    return caso.workflow_status
-  }
-  if (caso.status === 'resuelto') return 'found'
-  if (caso.status === 'cerrado') return 'closed'
-  if (caso.status === 'activo' || caso.status === 'en_proceso') return 'approved'
-  return null
-}
-
-function getLocation(caso: AuthorityCaseRow): string {
-  return caso.ciudad || caso.estado_provincia || caso.lugar_ultima_vez || 'Sin ubicacion'
-}
-
-function getDateLabel(caso: AuthorityCaseRow): string {
-  const sourceDate = caso.fecha_desaparicion || caso.created_at
+function getDateLabel(caso: CasoReciente): string {
+  const sourceDate = caso.fecha_desaparicion ?? caso.created_at
+  if (!sourceDate) return 'Fecha no disponible'
   const parsed = new Date(sourceDate)
   if (Number.isNaN(parsed.getTime())) return 'Fecha no disponible'
   return new Intl.DateTimeFormat('es-DO', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed)
@@ -242,7 +228,7 @@ export default function UserHome() {
                       </span>
                       <span className="inline-flex items-center gap-1.5">
                         <Calendar size={13} />
-                        {getDateLabel(featuredCase as unknown as AuthorityCaseRow)}
+                        {getDateLabel(featuredCase)}
                       </span>
                     </div>
                   </div>

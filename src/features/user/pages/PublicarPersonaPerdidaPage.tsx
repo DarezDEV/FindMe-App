@@ -11,7 +11,7 @@ import { StepUbicacion } from '../components/StepUbicacion'
 import { StepUltimoAvistamiento } from '../components/StepUltimoAvistamiento'
 import { StepPreferencias } from '../components/StepPreferencias'
 import { SuccessScreen } from '../components/SuccessScreen'
-import UserNavbar from '../components/Usernavbar'
+import UserNavbar from '../components/UserNavbar'
 
 export default function PublicarPersonaPerdida() {
   const {

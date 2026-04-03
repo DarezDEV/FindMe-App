@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import type { PostgrestError } from '@supabase/supabase-js'
 import { supabase } from '../../../lib/supabase/client'
 
 type CasoStatus = 'activo' | 'en_revision' | 'avistado' | 'encontrado'
@@ -488,7 +489,13 @@ async function fetchCasosFallback(limit?: number, userId?: string, options: Fetc
     query = query.limit(queryLimit)
   }
 
-  let { data, error } = await query
+  let data: CasoFallbackRow[] | null = null
+  let error: PostgrestError | null = null
+  {
+    const response = await query
+    data = response.data as CasoFallbackRow[] | null
+    error = response.error
+  }
   if (error) {
     const message = error.message.toLowerCase()
     if (message.includes('column') && message.includes('workflow_status')) {
@@ -497,7 +504,7 @@ async function fetchCasosFallback(limit?: number, userId?: string, options: Fetc
         .select(CASOS_FALLBACK_SELECT_NO_WORKFLOW)
         .eq('eliminado', false)
         .order('created_at', { ascending: false })
-      data = retry.data
+      data = retry.data as CasoFallbackRow[] | null
       error = retry.error ?? null
     }
   }
@@ -518,7 +525,7 @@ async function fetchCasos(limit?: number, userId?: string, options: FetchCaseOpt
 }
 
 export function useMisCasos(userId: string, limit = 3) {
-  return useQuery({
+  return useQuery<CasoReciente[], Error>({
     queryKey: ['mis-casos', userId, limit],
     queryFn: () => fetchCasos(limit, userId),
     enabled: !!userId,
@@ -534,7 +541,7 @@ export function useCasosGenerales(
   const hideRejected = options.hideRejected ?? false
   const approvedOnly = options.approvedOnly ?? false
 
-  return useQuery({
+  return useQuery<CasoReciente[], Error>({
     queryKey: ['casos-generales', limit, hideResolved, hideRejected, approvedOnly],
     queryFn: () => fetchCasos(limit, undefined, { hideResolved, hideRejected, approvedOnly }),
     staleTime: QUERY_STALE_TIME,
@@ -542,7 +549,7 @@ export function useCasosGenerales(
 }
 
 export function useCasoDetalle(caseId: string) {
-  return useQuery({
+  return useQuery<{ caso: CasoDetalle; media: CasoMedia[]; comentarios: CasoComentario[] }, Error>({
     queryKey: ['caso-detalle', caseId],
     enabled: !!caseId,
     staleTime: QUERY_STALE_TIME,

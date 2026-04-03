@@ -5,6 +5,10 @@ interface UserRoleRow {
   role_id: string
 }
 
+interface UserRoleWithUserRow extends UserRoleRow {
+  user_id: string
+}
+
 interface RoleRow {
   name: string
 }
@@ -64,6 +68,13 @@ export interface CaseRealtimePayload {
   eventType: 'INSERT' | 'UPDATE' | 'DELETE'
   new: Partial<CaseRealtimeRow>
   old: Partial<CaseRealtimeRow>
+}
+
+export interface PersonCaseHistoryRow {
+  id: string
+  numero_caso: string
+  workflow_status: CaseWorkflowStatus | null
+  created_at: string | null
 }
 
 export interface AuthoritySightingRow {
@@ -214,6 +225,52 @@ export async function getUserRoles(userId: string): Promise<string[]> {
   return names
 }
 
+export async function getUserRolesByIds(userIds: string[]): Promise<Record<string, string[]>> {
+  if (userIds.length === 0) return {}
+
+  const uniqueIds = [...new Set(userIds.filter(Boolean))]
+  if (uniqueIds.length === 0) return {}
+
+  const { data: userRoles, error: urError } = await withRetry(() =>
+    supabase
+      .from('user_roles')
+      .select('user_id, role_id')
+      .in('user_id', uniqueIds),
+  )
+
+  if (urError) throw urError
+  const rows = (userRoles ?? []) as UserRoleWithUserRow[]
+  if (rows.length === 0) return {}
+
+  const roleIds = Array.from(new Set(rows.map((row) => row.role_id)))
+  if (roleIds.length === 0) return {}
+
+  const { data: roles, error: rError } = await withRetry(() =>
+    supabase
+      .from('roles')
+      .select('id, name')
+      .in('id', roleIds),
+  )
+
+  if (rError) throw rError
+
+  const roleNameById = new Map<string, string>()
+  ;(roles ?? []).forEach((role) => {
+    const id = (role as { id?: string | null }).id ?? ''
+    if (id) roleNameById.set(id, (role as RoleRow).name)
+  })
+
+  const result: Record<string, string[]> = {}
+  rows.forEach((row) => {
+    const name = roleNameById.get(row.role_id)
+    if (!name) return
+    if (!result[row.user_id]) result[row.user_id] = []
+    result[row.user_id].push(name)
+  })
+
+  return result
+}
+
 export async function getProfileWithRoles(userId: string): Promise<UserProfile> {
   const [profile, roles] = await Promise.all([
     getProfile(userId),
@@ -257,6 +314,50 @@ export async function getAuthorityCases(params: GetCasesParams = {}): Promise<Au
   }
 
   return (data ?? []) as AuthorityCaseRow[]
+}
+
+export async function getCasesByPersonId(
+  personId: string,
+  excludeCaseId?: string,
+): Promise<PersonCaseHistoryRow[]> {
+  let query = supabase
+    .from('cases')
+    .select('id, numero_caso, workflow_status, created_at')
+    .eq('person_id', personId)
+    .eq('eliminado', false)
+    .order('created_at', { ascending: false })
+
+  if (excludeCaseId) {
+    query = query.neq('id', excludeCaseId)
+  }
+
+  let { data, error } = await withRetry(() => query, { timeoutMs: 30000, retries: 1 })
+  if (error && isColumnMissingError(error)) {
+    const retry = await withRetry(() =>
+      supabase
+        .from('cases')
+        .select('id, numero_caso, created_at')
+        .eq('person_id', personId)
+        .eq('eliminado', false)
+        .order('created_at', { ascending: false }),
+      { timeoutMs: 30000, retries: 1 },
+    )
+    data = (retry as { data?: unknown[] | null }).data as typeof data
+    error = (retry as { error?: typeof error }).error ?? null
+  }
+
+  if (error) {
+    console.error('[getCasesByPersonId] Error:', error)
+    throw error
+  }
+
+  const rows = (data ?? []) as Array<Record<string, unknown>>
+  return rows.map((row) => ({
+    id: String(row.id ?? ''),
+    numero_caso: String(row.numero_caso ?? ''),
+    workflow_status: normalizeCaseWorkflowStatus(row.workflow_status),
+    created_at: getStringValue(row.created_at),
+  }))
 }
 
 export function subscribeToCasesRealtime(
@@ -554,6 +655,39 @@ export async function updateCaseWorkflowStatus(caseId: string, status: CaseWorkf
 
   if (error) {
     console.error('[updateCaseWorkflowStatus] Error:', error)
+    throw error
+  }
+}
+
+export async function createCaseClosure(caseId: string, userId: string, detail: string): Promise<void> {
+  const payload = {
+    case_id: caseId,
+    closed_by: userId,
+    note: detail.trim() || null,
+    created_at: new Date().toISOString(),
+  }
+
+  const { error } = await withRetry(() =>
+    supabase
+      .from('cases_closed')
+      .insert(payload),
+  )
+
+  if (error) {
+    if (isTableMissingError(error)) {
+      const fallback = await withRetry(() =>
+        supabase
+          .from('case_closures')
+          .insert(payload),
+      )
+      const fallbackError = (fallback as { error?: unknown }).error
+      if (fallbackError) {
+        console.error('[createCaseClosure] Error:', fallbackError)
+        throw fallbackError as Error
+      }
+      return
+    }
+    console.error('[createCaseClosure] Error:', error)
     throw error
   }
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ChevronLeft, Eye, Link2, Mail, MapPin, MessageSquare, MoreVertical, Phone, Share2, UserSearch, Video } from 'lucide-react'
-import UserNavbar from '../components/Usernavbar'
+import UserNavbar from '../components/UserNavbar'
 import { Alert, Spinner } from '../../../shared/components/ui'
 import {
   createCaseComment,

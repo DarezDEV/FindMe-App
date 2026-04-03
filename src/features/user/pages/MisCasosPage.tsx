@@ -6,7 +6,7 @@ import { Alert, Spinner } from '../../../shared/components/ui'
 import { supabase } from '../../../lib/supabase/client'
 import { createCaseComment, getProfilesBasicByIds } from '../../../lib/supabase/db'
 import { uploadFile } from '../../../shared/utils/api'
-import UserNavbar from '../components/Usernavbar'
+import UserNavbar from '../components/UserNavbar'
 import { type CasoReciente, useMisCasos } from '../hooks/useMisCasos'
 
 type ReviewStatus = 'pending' | 'approved' | 'rejected' | 'found' | 'closed'

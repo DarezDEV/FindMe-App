@@ -4,7 +4,7 @@ import { ChevronLeft, Mail, Save, ShieldCheck, UserCircle2 } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
 import { Alert, Spinner } from '../../../shared/components/ui'
 import { supabase } from '../../../lib/supabase/client'
-import UserNavbar from '../components/Usernavbar'
+import UserNavbar from '../components/UserNavbar'
 
 interface ProfileFormState {
   name: string
