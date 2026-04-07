@@ -59,7 +59,7 @@ function getPosterTitle(status: string | null, workflowStatus: string | null) {
 
 function buildApproximateLocation(city: string | null, country: string | null) {
   const parts = [city, country].filter((part): part is string => Boolean(part?.trim()))
-  return parts.length > 0 ? parts.join(', ') : 'Ubicacion reservada'
+  return parts.length > 0 ? parts.join(', ') : 'Ubicación reservada'
 }
 
 type ShareNetwork = 'whatsapp' | 'facebook' | 'x'
@@ -434,7 +434,7 @@ export default function CasoDetallePage() {
           </div>
           <div class="name">${fullName || 'Nombre no disponible'}</div>
           <div class="contact">
-            <h4>Para informacion</h4>
+            <h4>Para información</h4>
             ${
               contactVisible
                 ? `
@@ -558,7 +558,7 @@ export default function CasoDetallePage() {
     }
 
     if (!user?.id) {
-      setCommentNotice({ type: 'warning', message: 'Inicia sesion para comentar en publicaciones activas.' })
+      setCommentNotice({ type: 'warning', message: 'Inicia sesión para comentar en publicaciones activas.' })
       return
     }
 
@@ -602,7 +602,7 @@ export default function CasoDetallePage() {
   const reportPublicComment = async (comment: PublicComment) => {
     setCommentNotice(null)
     if (!user?.id) {
-      setCommentNotice({ type: 'warning', message: 'Inicia sesion para reportar comentarios.' })
+      setCommentNotice({ type: 'warning', message: 'Inicia sesión para reportar comentarios.' })
       return
     }
 
@@ -971,7 +971,7 @@ export default function CasoDetallePage() {
                   rows={3}
                   value={publicCommentDraft}
                   onChange={(event) => setPublicCommentDraft(event.target.value.slice(0, 300))}
-                  placeholder={user ? 'Escribe un comentario de apoyo o informacion util...' : 'Inicia sesion para comentar'}
+                  placeholder={user ? 'Escribe un comentario de apoyo o información útil...' : 'Inicia sesión para comentar'}
                   className="input-field resize-none"
                   disabled={!user || publicCommentSubmitting}
                 />

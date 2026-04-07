@@ -559,15 +559,15 @@ export async function publicarCaso(formData: FormData): Promise<PublishCaseResul
   const { data, error: userError } = await withTimeout(
     supabase.auth.getUser(),
     QUERY_TIMEOUT_MS,
-    'Se agoto el tiempo al validar la sesion. Recarga la pagina e intenta de nuevo.'
+    'Se agotó el tiempo al validar la sesión. Recarga la página e intenta de nuevo.'
   )
   if (userError) {
-    throw new Error('No se pudo validar la sesion del usuario.')
+    throw new Error('No se pudo validar la sesión del usuario.')
   }
 
   const user = data.user
   if (!user?.id) {
-    throw new Error('Debes iniciar sesion para publicar un caso.')
+    throw new Error('Debes iniciar sesión para publicar un caso.')
   }
 
   const caseNumber = buildCaseNumber()

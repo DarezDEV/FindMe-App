@@ -40,7 +40,7 @@ function getDateLabel(caso: AuthorityCaseRow): string {
   const sourceDate = caso.fecha_desaparicion || caso.created_at
   const parsed = new Date(sourceDate)
   if (Number.isNaN(parsed.getTime())) return 'Fecha no disponible'
-  return new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed)
+  return new Intl.DateTimeFormat('es-DO', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed)
 }
 
 function getWorkflowStatus(caso: AuthorityCaseRow): WorkflowStatus | null {
@@ -94,7 +94,7 @@ function groupPublicComments(rows: CaseCommentRow[]) {
 function formatCommentDate(value: string) {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return 'Reciente'
-  return new Intl.DateTimeFormat('es-MX', {
+  return new Intl.DateTimeFormat('es-DO', {
     day: '2-digit',
     month: 'short',
     hour: '2-digit',
@@ -358,7 +358,7 @@ export default function PublicCasesPage() {
         setSubmittingCommentCaseId(null)
       }
     },
-    [commentDraftByCaseId, user?.id, user?.last_nmae, user?.name]
+    [commentDraftByCaseId, user?.id]
   )
 
   const reportPublicComment = useCallback(

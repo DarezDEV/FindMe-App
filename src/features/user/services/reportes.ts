@@ -59,12 +59,12 @@ async function getAuthenticatedUserId() {
   const { data, error } = await supabase.auth.getUser()
 
   if (error) {
-    throw new Error('No se pudo validar la sesion del usuario.')
+    throw new Error('No se pudo validar la sesión del usuario.')
   }
 
   const userId = data.user?.id
   if (!userId) {
-    throw new Error('Debes iniciar sesion para enviar este formulario.')
+    throw new Error('Debes iniciar sesión para enviar este formulario.')
   }
 
   return userId
@@ -103,7 +103,7 @@ async function runInsertAttempts(attempts: Array<() => Promise<string | null>>) 
   }
 
   const lastError = errors[errors.length - 1]
-  throw new Error(lastError ? mapInsertErrorMessage(lastError) : 'No se pudo registrar la informacion.')
+  throw new Error(lastError ? mapInsertErrorMessage(lastError) : 'No se pudo registrar la información.')
 }
 
 export async function reportarAvistamiento(input: AvistamientoInput): Promise<void> {

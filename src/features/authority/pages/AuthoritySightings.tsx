@@ -26,7 +26,7 @@ function formatDate(value: string): string {
 }
 
 const STATUS_META: Record<Exclude<SightingStatus, 'all'>, { label: string; color: string; bg: string; dot: string }> = {
-  pending:  { label: 'Pendiente',  color: '#2B5CE6', bg: 'rgba(43,92,230,0.08)',  dot: '#2B5CE6' },
+  pending:  { label: 'Pendiente',  color: 'var(--color-primary, #3266db)', bg: 'rgba(43,92,230,0.08)',  dot: '#2B5CE6' },
   approved: { label: 'Aceptado',   color: '#059669', bg: 'rgba(5,150,105,0.08)',  dot: '#059669' },
   rejected: { label: 'Rechazado',  color: '#DC2626', bg: 'rgba(220,38,38,0.08)',  dot: '#DC2626' },
 }
@@ -76,16 +76,15 @@ export default function AuthoritySightings() {
   }
 
   const statCards = [
-    { label: 'Total', value: summary.total, color: '#111827', bg: '#F8F9FB', border: '#E4E7EC' },
-    { label: 'Pendientes', value: summary.pending, color: '#2B5CE6', bg: 'rgba(43,92,230,0.05)', border: 'rgba(43,92,230,0.2)' },
+    { label: 'Total', value: summary.total, color: 'var(--color-text-primary, #0f172a)', bg: '#F8F9FB', border: '#E4E7EC' },
+    { label: 'Pendientes', value: summary.pending, color: 'var(--color-primary, #3266db)', bg: 'rgba(43,92,230,0.05)', border: 'rgba(43,92,230,0.2)' },
     { label: 'Aceptados', value: summary.approved, color: '#059669', bg: 'rgba(5,150,105,0.05)', border: 'rgba(5,150,105,0.2)' },
     { label: 'Rechazados', value: summary.rejected, color: '#DC2626', bg: 'rgba(220,38,38,0.05)', border: 'rgba(220,38,38,0.2)' },
   ]
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#F2F4F7', fontFamily: "'Geist', 'Inter', sans-serif" }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--color-background, #f8fafc)', fontFamily: 'system-ui, sans-serif' }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
         @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
         @keyframes dotPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.75)} }
         @keyframes rowIn { from { opacity:0; transform:translateX(-4px); } to { opacity:1; transform:translateX(0); } }
@@ -107,7 +106,7 @@ export default function AuthoritySightings() {
           display:inline-flex; align-items:center; gap:6px;
           padding:5px 13px; border-radius:999px;
           border:1px solid #E4E7EC; background:#fff;
-          font-size:12px; font-family:'Geist',sans-serif; font-weight:500;
+          font-size:12px; font-family: system-ui, sans-serif; font-weight:500;
           color:#64748B; cursor:pointer; transition:all 0.15s;
         }
         .filter-pill:hover { border-color:#CBD5E1; color:#334155; }
@@ -116,7 +115,7 @@ export default function AuthoritySightings() {
         .si-input {
           background:#fff; border:1px solid #E4E7EC; color:#111827;
           border-radius:8px; padding:9px 14px 9px 36px; width:100%; outline:none;
-          font-size:13px; font-family:'Geist',sans-serif;
+          font-size:13px; font-family: system-ui, sans-serif;
           transition:border-color 0.15s, box-shadow 0.15s;
         }
         .si-input:focus { border-color:#2B5CE6; box-shadow:0 0 0 3px rgba(43,92,230,0.1); }
@@ -125,7 +124,7 @@ export default function AuthoritySightings() {
         .si-btn-approve {
           display:inline-flex; align-items:center; gap:5px;
           padding:6px 12px; border-radius:7px;
-          font-size:12px; font-family:'Geist',sans-serif; font-weight:500;
+          font-size:12px; font-family: system-ui, sans-serif; font-weight:500;
           color:#059669; background:rgba(5,150,105,0.08); border:1px solid rgba(5,150,105,0.2);
           cursor:pointer; transition:all 0.15s;
         }
@@ -135,7 +134,7 @@ export default function AuthoritySightings() {
         .si-btn-reject {
           display:inline-flex; align-items:center; gap:5px;
           padding:6px 12px; border-radius:7px;
-          font-size:12px; font-family:'Geist',sans-serif; font-weight:500;
+          font-size:12px; font-family: system-ui, sans-serif; font-weight:500;
           color:#DC2626; background:transparent; border:1px solid rgba(220,38,38,0.25);
           cursor:pointer; transition:all 0.15s;
         }
@@ -152,20 +151,20 @@ export default function AuthoritySightings() {
           <div className="si-card si-in" style={{ padding: '28px 32px', background: 'linear-gradient(135deg, #fff 0%, #F8F9FF 100%)' }}>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
               <div>
-                <p style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, color: '#2B5CE6', letterSpacing: '0.28em', textTransform: 'uppercase', marginBottom: 8 }}>
+                <p style={{ fontSize: 10, fontFamily: 'monospace', fontWeight: 500, color: 'var(--color-primary, #3266db)', letterSpacing: '0.28em', textTransform: 'uppercase', marginBottom: 8 }}>
                   Sistema de Gestión · Avistamientos
                 </p>
-                <h1 style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 32, color: '#111827', fontWeight: 400, letterSpacing: '-0.03em', marginBottom: 6 }}>
+                <h1 style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 32, color: 'var(--color-text-primary, #0f172a)', fontWeight: 400, letterSpacing: '-0.03em', marginBottom: 6 }}>
                   Avistamientos
                 </h1>
-                <p style={{ fontSize: 13, color: '#6B7280' }}>
+                <p style={{ fontSize: 13, color: 'var(--color-text-secondary, #475569)' }}>
                   Revisa reportes de posibles ubicaciones relacionadas a casos activos.
                 </p>
               </div>
               <button type="button" onClick={() => void loadSightings()} style={{
                 display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 16px',
-                borderRadius: 8, border: '1px solid #E4E7EC', background: '#fff',
-                color: '#64748B', fontSize: 12, fontFamily: "'Geist', sans-serif", fontWeight: 500,
+                borderRadius: 8, border: '1px solid var(--color-border, #e2e8f0)', background: 'var(--color-card, #ffffff)',
+                color: '#64748B', fontSize: 12, fontFamily: 'system-ui, sans-serif', fontWeight: 500,
                 cursor: 'pointer', transition: 'all 0.15s',
               }}>
                 <RefreshCw size={12} /> Actualizar
@@ -177,8 +176,8 @@ export default function AuthoritySightings() {
           <div className="si-in si-in-1" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
             {statCards.map((s) => (
               <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, padding: '18px 20px' }}>
-                <p style={{ fontSize: 11, color: '#6B7280', fontWeight: 500, marginBottom: 8 }}>{s.label}</p>
-                <p style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 30, color: s.color, fontWeight: 400, lineHeight: 1 }}>{s.value}</p>
+                <p style={{ fontSize: 11, color: 'var(--color-text-secondary, #475569)', fontWeight: 500, marginBottom: 8 }}>{s.label}</p>
+                <p style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 30, color: s.color, fontWeight: 400, lineHeight: 1 }}>{s.value}</p>
               </div>
             ))}
           </div>
@@ -187,7 +186,7 @@ export default function AuthoritySightings() {
           <div className="si-card si-in si-in-1" style={{ padding: '18px 22px' }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
               <div style={{ position: 'relative', flex: 1, minWidth: 240, maxWidth: 380 }}>
-                <Search size={13} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', pointerEvents: 'none' }} />
+                <Search size={13} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-secondary, #475569)', pointerEvents: 'none' }} />
                 <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por caso, persona o ubicación..." className="si-input" />
               </div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -217,15 +216,15 @@ export default function AuthoritySightings() {
             {loading ? (
               <div style={{ padding: '64px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                 <div style={{ width: 22, height: 22, border: '2px solid rgba(43,92,230,0.2)', borderTopColor: '#2B5CE6', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>Cargando avistamientos...</p>
+                <p style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--color-text-secondary, #475569)' }}>Cargando avistamientos...</p>
               </div>
             ) : filteredSightings.length === 0 ? (
               <div style={{ padding: '64px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 48, height: 48, borderRadius: 12, background: '#F8F9FB', border: '1px solid #E4E7EC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Eye size={20} style={{ color: '#9CA3AF' }} />
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--color-background, #f8fafc)', border: '1px solid var(--color-border, #e2e8f0)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Eye size={20} style={{ color: 'var(--color-text-secondary, #475569)' }} />
                 </div>
-                <p style={{ fontSize: 14, color: '#6B7280', fontWeight: 500 }}>No hay avistamientos disponibles.</p>
-                <p style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', maxWidth: 320 }}>Si tus compañeros ya crearon la tabla, esta vista la detecta automáticamente.</p>
+                <p style={{ fontSize: 14, color: 'var(--color-text-secondary, #475569)', fontWeight: 500 }}>No hay avistamientos disponibles.</p>
+                <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #475569)', textAlign: 'center', maxWidth: 320 }}>Si tus compañeros ya crearon la tabla, esta vista la detecta automáticamente.</p>
               </div>
             ) : (
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
@@ -234,7 +233,7 @@ export default function AuthoritySightings() {
                   const meta = STATUS_META[status]
                   const rowLoading = actionLoadingId === item.id
                   return (
-                    <li key={item.id} className="sight-row" style={{ padding: '20px 24px', borderBottom: '1px solid #F1F3F5', animationDelay: `${idx * 20}ms`, background: idx % 2 !== 0 ? '#FAFBFC' : '#fff', position: 'relative' }}>
+                    <li key={item.id} className="sight-row" style={{ padding: '20px 24px', borderBottom: '1px solid var(--color-border, #e2e8f0)', animationDelay: `${idx * 20}ms`, background: idx % 2 !== 0 ? '#FAFBFC' : '#fff', position: 'relative' }}>
                       {/* Left accent */}
                       <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: meta.color, opacity: 0.5, borderRadius: '0 2px 2px 0' }} />
 
@@ -244,39 +243,39 @@ export default function AuthoritySightings() {
                           display: 'inline-flex', alignItems: 'center', gap: 6,
                           padding: '3px 10px', borderRadius: 999,
                           background: meta.bg, color: meta.color,
-                          fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
+                          fontSize: 10, fontFamily: 'monospace',
                           fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.12em',
                         }}>
                           <span style={{ width: 5, height: 5, borderRadius: '50%', background: meta.dot, animation: status === 'pending' ? 'dotPulse 2s ease-in-out infinite' : 'none' }} />
                           {meta.label}
                         </span>
                         {item.caseNumber && (
-                          <span style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#2B5CE6', background: 'rgba(43,92,230,0.07)', border: '1px solid rgba(43,92,230,0.15)', padding: '3px 9px', borderRadius: 6 }}>
+                          <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--color-primary, #3266db)', background: 'rgba(43,92,230,0.07)', border: '1px solid rgba(43,92,230,0.15)', padding: '3px 9px', borderRadius: 6 }}>
                             Caso {item.caseNumber}
                           </span>
                         )}
-                        <span style={{ fontSize: 11, color: '#9CA3AF', fontFamily: "'JetBrains Mono', monospace" }}>
+                        <span style={{ fontSize: 11, color: 'var(--color-text-secondary, #475569)', fontFamily: 'monospace' }}>
                           {item.sourceTable}
                         </span>
                       </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: '#374151' }}>
-                          <UserRound size={13} style={{ color: '#9CA3AF', flexShrink: 0 }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--color-text-primary, #0f172a)' }}>
+                          <UserRound size={13} style={{ color: 'var(--color-text-secondary, #475569)', flexShrink: 0 }} />
                           {item.missingPersonName ?? 'Persona no identificada'}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: '#374151' }}>
-                          <MapPin size={13} style={{ color: '#9CA3AF', flexShrink: 0 }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--color-text-primary, #0f172a)' }}>
+                          <MapPin size={13} style={{ color: 'var(--color-text-secondary, #475569)', flexShrink: 0 }} />
                           {item.location ?? 'Ubicación no especificada'}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: '#9CA3AF', gridColumn: '1 / -1' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'var(--color-text-secondary, #475569)', gridColumn: '1 / -1' }}>
                           <Calendar size={11} />
                           {formatDate(item.created_at)}
-                          {item.reporterName && <span style={{ color: '#6B7280' }}>· Reportado por {item.reporterName}</span>}
+                          {item.reporterName && <span style={{ color: 'var(--color-text-secondary, #475569)' }}>· Reportado por {item.reporterName}</span>}
                         </div>
                       </div>
 
-                      <p style={{ fontSize: 13, lineHeight: 1.65, color: '#374151', background: '#F8F9FB', border: '1px solid #E4E7EC', borderRadius: 8, padding: '10px 14px', marginBottom: 14 }}>
+                      <p style={{ fontSize: 13, lineHeight: 1.65, color: 'var(--color-text-primary, #0f172a)', background: 'var(--color-background, #f8fafc)', border: '1px solid var(--color-border, #e2e8f0)', borderRadius: 8, padding: '10px 14px', marginBottom: 14 }}>
                         {item.details}
                       </p>
 

@@ -31,7 +31,7 @@ const EMPTY_SUMMARY: AuthorityDashboardSummary = {
 function formatDate(dateIso: string) {
   const parsed = new Date(dateIso)
   if (Number.isNaN(parsed.getTime())) return 'Sin fecha'
-  return new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed)
+  return new Intl.DateTimeFormat('es-DO', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed)
 }
 function formatLocation(caso: AuthorityCaseRow) {
   return caso.ciudad || caso.estado_provincia || caso.lugar_ultima_vez || 'Sin ubicación'
@@ -53,14 +53,14 @@ function StatCard({ label, value, icon, color, bg, border, trend, trendLabel }: 
         </div>
         {trend !== undefined && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.06)' }}>
-            <TrendingUp size={9} style={{ color: '#9CA3AF' }} />
-            <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: '#6B7280' }}>{trend}</span>
+            <TrendingUp size={9} style={{ color: 'var(--color-text-secondary, #475569)' }} />
+            <span style={{ fontSize: 10, fontFamily: "monospace", color: 'var(--color-text-secondary, #475569)' }}>{trend}</span>
           </div>
         )}
       </div>
-      <p style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 34, color, fontWeight: 400, lineHeight: 1, marginBottom: 6 }}>{value}</p>
-      <p style={{ fontSize: 12, color: '#6B7280', fontWeight: 500 }}>{label}</p>
-      {trendLabel && <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF', marginTop: 6 }}>{trendLabel}</p>}
+      <p style={{ fontFamily: "Georgia, serif", fontStyle: 'italic', fontSize: 34, color, fontWeight: 400, lineHeight: 1, marginBottom: 6 }}>{value}</p>
+      <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #475569)', fontWeight: 500 }}>{label}</p>
+      {trendLabel && <p style={{ fontSize: 11, fontFamily: "monospace", color: 'var(--color-text-secondary, #475569)', marginTop: 6 }}>{trendLabel}</p>}
     </div>
   )
 }
@@ -94,9 +94,8 @@ export function AuthorityDashboard() {
   const resolutionRate = summary.total > 0 ? Math.round(((summary.resolved + summary.found) / summary.total) * 100) : 0
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F2F4F7', fontFamily: "'Geist', 'Inter', sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: 'var(--color-background, #f8fafc)', fontFamily: "system-ui, sans-serif" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
         @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
         @keyframes spin { to { transform:rotate(360deg); } }
         @keyframes growBar { from{transform:scaleX(0)} to{transform:scaleX(1)} }
@@ -119,7 +118,7 @@ export function AuthorityDashboard() {
           display:inline-flex; align-items:center; gap:7px;
           padding:8px 16px; border-radius:8px;
           border:1px solid #E4E7EC; background:#fff;
-          color:#64748B; font-size:12px; font-family:'Geist',sans-serif; font-weight:500;
+          color:#64748B; font-size:12px; font-family: system-ui, sans-serif; font-weight:500;
           cursor:pointer; transition:all 0.15s;
         }
         .d-ghost:hover { border-color:#CBD5E1; color:#334155; }
@@ -141,19 +140,19 @@ export function AuthorityDashboard() {
         {/* ─── HEADER ─── */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20 }} className="d-in">
           <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-            <div style={{ width: 52, height: 52, borderRadius: 14, background: 'rgba(43,92,230,0.08)', border: '1px solid rgba(43,92,230,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <ShieldCheck size={24} style={{ color: '#2B5CE6' }} />
+            <div style={{ width: 52, height: 52, borderRadius: 14, background: 'var(--color-primary-soft, #e8f0ff)', border: '1px solid rgba(43,92,230,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <ShieldCheck size={24} style={{ color: 'var(--color-primary, #3266db)' }} />
             </div>
             <div>
-              <p style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, color: '#2B5CE6', letterSpacing: '0.28em', textTransform: 'uppercase', marginBottom: 6 }}>
+              <p style={{ fontSize: 10, fontFamily: "monospace", fontWeight: 500, color: 'var(--color-primary, #3266db)', letterSpacing: '0.28em', textTransform: 'uppercase', marginBottom: 6 }}>
                 Panel de Control · Autoridad
               </p>
-              <h1 style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 30, color: '#111827', fontWeight: 400, letterSpacing: '-0.03em', marginBottom: 4 }}>
+              <h1 style={{ fontFamily: "Georgia, serif", fontStyle: 'italic', fontSize: 30, color: 'var(--color-text-primary, #0f172a)', fontWeight: 400, letterSpacing: '-0.03em', marginBottom: 4 }}>
                 {user?.name ? `Bienvenido, ${user.name}` : 'Panel de Autoridad'}
               </h1>
-              <p style={{ fontSize: 12, color: '#9CA3AF', fontFamily: "'JetBrains Mono', monospace" }}>
+              <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #475569)', fontFamily: "monospace" }}>
                 {lastUpdated
-                  ? `Actualizado · ${lastUpdated.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}`
+                  ? `Actualizado · ${lastUpdated.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' })}`
                   : 'Sistema de gestión en tiempo real'
                 }
               </p>
@@ -176,7 +175,7 @@ export function AuthorityDashboard() {
         {loading ? (
           <div className="d-card" style={{ padding: '64px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
             <div style={{ width: 22, height: 22, border: '2px solid rgba(43,92,230,0.2)', borderTopColor: '#2B5CE6', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-            <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>Cargando estadísticas...</p>
+            <p style={{ fontSize: 11, fontFamily: "monospace", color: 'var(--color-text-secondary, #475569)' }}>Cargando estadísticas...</p>
           </div>
         ) : (
           <>
@@ -186,7 +185,7 @@ export function AuthorityDashboard() {
                 { label: 'Casos activos',   value: summary.active,    icon: <AlertTriangle size={17} />, color: '#DC2626', bg: 'rgba(220,38,38,0.05)',   border: 'rgba(220,38,38,0.15)',   trend: `${summary.pending}`, trendLabel: `${summary.pending} pendiente${summary.pending !== 1 ? 's' : ''} de revisión`, delay: '0ms' },
                 { label: 'En proceso',       value: summary.inProgress, icon: <Clock size={17} />,         color: '#0284C7', bg: 'rgba(2,132,199,0.05)',   border: 'rgba(2,132,199,0.15)',   trend: `${summary.approved}`, trendLabel: `${summary.approved} aprobado${summary.approved !== 1 ? 's' : ''}`, delay: '60ms' },
                 { label: 'Casos resueltos',  value: summary.resolved,  icon: <CheckCircle2 size={17} />,   color: '#059669', bg: 'rgba(5,150,105,0.05)',  border: 'rgba(5,150,105,0.15)',  trend: `${summary.found}`, trendLabel: `${summary.found} persona${summary.found !== 1 ? 's' : ''} encontrada${summary.found !== 1 ? 's' : ''}`, delay: '120ms' },
-                { label: 'Total registros',  value: summary.total,     icon: <Eye size={17} />,            color: '#374151', bg: '#F8F9FB',                border: '#E4E7EC',               trend: `${resolutionRate}%`, trendLabel: 'Tasa de resolución global', delay: '180ms' },
+                { label: 'Total registros',  value: summary.total,     icon: <Eye size={17} />,            color: 'var(--color-text-primary, #0f172a)', bg: '#F8F9FB',                border: '#E4E7EC',               trend: `${resolutionRate}%`, trendLabel: 'Tasa de resolución global', delay: '180ms' },
               ].map((card) => (
                 <div key={card.label} className="d-in" style={{ animationDelay: card.delay }}>
                   <StatCard {...card} />
@@ -198,17 +197,17 @@ export function AuthorityDashboard() {
             <div className="d-card d-in d-in-2" style={{ padding: '24px 28px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <div>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 4 }}>Tasa de resolución</p>
-                  <p style={{ fontSize: 12, color: '#9CA3AF' }}>Progreso global del sistema</p>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary, #0f172a)', marginBottom: 4 }}>Tasa de resolución</p>
+                  <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #475569)' }}>Progreso global del sistema</p>
                 </div>
-                <span style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 28, color: '#2B5CE6', fontWeight: 400 }}>{resolutionRate}%</span>
+                <span style={{ fontFamily: "Georgia, serif", fontStyle: 'italic', fontSize: 28, color: 'var(--color-primary, #3266db)', fontWeight: 400 }}>{resolutionRate}%</span>
               </div>
               <div style={{ height: 6, borderRadius: 999, background: '#F1F3F5', overflow: 'hidden' }}>
                 <div className="bar-grow" style={{ height: '100%', borderRadius: 999, background: 'linear-gradient(90deg, #2B5CE6, #5B8BF5)', width: `${resolutionRate}%` }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-                <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>0%</span>
-                <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>100%</span>
+                <span style={{ fontSize: 10, fontFamily: "monospace", color: 'var(--color-text-secondary, #475569)' }}>0%</span>
+                <span style={{ fontSize: 10, fontFamily: "monospace", color: 'var(--color-text-secondary, #475569)' }}>100%</span>
               </div>
             </div>
 
@@ -217,10 +216,10 @@ export function AuthorityDashboard() {
 
               {/* Recent Cases */}
               <div className="d-card" style={{ overflow: 'hidden' }}>
-                <div style={{ padding: '18px 22px', borderBottom: '1px solid #F1F3F5', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--color-border, #e2e8f0)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 }}>Últimos casos registrados</p>
-                    <p style={{ fontSize: 12, color: '#9CA3AF' }}>Actividad reciente en el sistema</p>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary, #0f172a)', marginBottom: 2 }}>Últimos casos registrados</p>
+                    <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #475569)' }}>Actividad reciente en el sistema</p>
                   </div>
                   <button type="button" onClick={() => navigate('/authority/cases')} className="see-all">
                     Ver todos <ArrowRight size={12} />
@@ -230,7 +229,7 @@ export function AuthorityDashboard() {
                 {summary.recentCases.length === 0 ? (
                   <div style={{ padding: '48px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                     <Activity size={18} style={{ color: '#D1D5DB' }} />
-                    <p style={{ fontSize: 13, color: '#9CA3AF' }}>Sin casos registrados.</p>
+                    <p style={{ fontSize: 13, color: 'var(--color-text-secondary, #475569)' }}>Sin casos registrados.</p>
                   </div>
                 ) : (
                   <div>
@@ -250,17 +249,17 @@ export function AuthorityDashboard() {
                         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-                              <span style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>{caso.numero_caso}</span>
+                              <span style={{ fontSize: 10, fontFamily: "monospace", color: 'var(--color-text-secondary, #475569)' }}>{caso.numero_caso}</span>
                               <span style={{ width: 3, height: 3, borderRadius: '50%', background: '#D1D5DB', flexShrink: 0 }} />
-                              <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary, #0f172a)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {caso.nombres} {caso.apellidos}
                               </span>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#9CA3AF' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--color-text-secondary, #475569)' }}>
                                 <MapPin size={10} style={{ flexShrink: 0 }} /> {formatLocation(caso)}
                               </span>
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#9CA3AF' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--color-text-secondary, #475569)' }}>
                                 <Calendar size={10} style={{ flexShrink: 0 }} /> {formatDate(caso.created_at)}
                               </span>
                             </div>
@@ -275,21 +274,21 @@ export function AuthorityDashboard() {
 
               {/* Quick Stats */}
               <div className="d-card" style={{ overflow: 'hidden' }}>
-                <div style={{ padding: '18px 20px', borderBottom: '1px solid #F1F3F5' }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 }}>Resumen de estados</p>
-                  <p style={{ fontSize: 12, color: '#9CA3AF' }}>Distribución por workflow</p>
+                <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--color-border, #e2e8f0)' }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary, #0f172a)', marginBottom: 2 }}>Resumen de estados</p>
+                  <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #475569)' }}>Distribución por workflow</p>
                 </div>
                 <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {QUICK_STATS.map(({ key, label, dot }) => (
-                    <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', borderRadius: 8, background: '#F8F9FB', border: '1px solid #F1F3F5', transition: 'border-color 0.15s' }}
+                    <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 12px', borderRadius: 8, background: 'var(--color-background, #f8fafc)', border: '1px solid #F1F3F5', transition: 'border-color 0.15s' }}
                       onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#E4E7EC' }}
                       onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#F1F3F5' }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ width: 7, height: 7, borderRadius: '50%', background: dot, flexShrink: 0 }} />
-                        <span style={{ fontSize: 12, color: '#6B7280' }}>{label}</span>
+                        <span style={{ fontSize: 12, color: 'var(--color-text-secondary, #475569)' }}>{label}</span>
                       </div>
-                      <span style={{ fontSize: 13, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, color: '#374151' }}>
+                      <span style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 500, color: 'var(--color-text-primary, #0f172a)' }}>
                         {summary[key as keyof typeof summary] as number}
                       </span>
                     </div>
@@ -298,10 +297,10 @@ export function AuthorityDashboard() {
                   {/* Total */}
                   <div style={{ marginTop: 6, padding: '10px 12px', borderRadius: 8, background: 'rgba(43,92,230,0.06)', border: '1px solid rgba(43,92,230,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Users size={12} style={{ color: '#2B5CE6' }} />
-                      <span style={{ fontSize: 12, color: '#2B5CE6', fontWeight: 500 }}>Total global</span>
+                      <Users size={12} style={{ color: 'var(--color-primary, #3266db)' }} />
+                      <span style={{ fontSize: 12, color: 'var(--color-primary, #3266db)', fontWeight: 500 }}>Total global</span>
                     </div>
-                    <span style={{ fontSize: 14, fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', color: '#2B5CE6', fontWeight: 400 }}>
+                    <span style={{ fontSize: 14, fontFamily: "Georgia, serif", fontStyle: 'italic', color: 'var(--color-primary, #3266db)', fontWeight: 400 }}>
                       {summary.total}
                     </span>
                   </div>

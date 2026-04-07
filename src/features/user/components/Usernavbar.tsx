@@ -216,7 +216,7 @@ export default function UserNavbar() {
       closeAll()
       navigate('/login', { replace: true })
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudo cerrar la sesion.'
+      const message = err instanceof Error ? err.message : 'No se pudo cerrar la sesión.'
       appToast.error(message)
     } finally {
       setLoggingOut(false)
@@ -455,7 +455,7 @@ export default function UserNavbar() {
                         className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-error hover:bg-error/5 transition-colors duration-150 disabled:opacity-60"
                       >
                         <LogOut size={15} />
-                        {loggingOut ? 'Cerrando...' : 'Cerrar sesion'}
+                        {loggingOut ? 'Cerrando...' : 'Cerrar sesión'}
                       </button>
                     </div>
                   </DropdownPanel>

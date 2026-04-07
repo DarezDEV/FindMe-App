@@ -48,8 +48,8 @@ function formatWorkflowStatus(status: string | null | undefined) {
 
 function getStatusColor(status: string) {
   if (status === 'encontrado') return { color: '#059669', bg: 'rgba(5,150,105,0.08)', border: 'rgba(5,150,105,0.2)', dot: '#059669' }
-  if (status === 'cerrado') return { color: '#6B7280', bg: 'rgba(107,114,128,0.08)', border: 'rgba(107,114,128,0.2)', dot: '#9CA3AF' }
-  return { color: '#2B5CE6', bg: 'rgba(43,92,230,0.08)', border: 'rgba(43,92,230,0.2)', dot: '#2B5CE6' }
+  if (status === 'cerrado') return { color: 'var(--color-text-secondary, #475569)', bg: 'rgba(107,114,128,0.08)', border: 'rgba(107,114,128,0.2)', dot: '#9CA3AF' }
+  return { color: 'var(--color-primary, #3266db)', bg: 'rgba(43,92,230,0.08)', border: 'rgba(43,92,230,0.2)', dot: '#2B5CE6' }
 }
 
 function buildApproximateLocation(city: string | null, country: string | null) {
@@ -63,12 +63,12 @@ function DataField({ label, value, mono = false }: { label: string; value: strin
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
       <p style={{
-        fontSize: 9, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500,
-        letterSpacing: '0.22em', textTransform: 'uppercase', color: '#9CA3AF', margin: 0,
+        fontSize: 9, fontFamily: 'monospace', fontWeight: 500,
+        letterSpacing: '0.22em', textTransform: 'uppercase', color: 'var(--color-text-secondary, #475569)', margin: 0,
       }}>{label}</p>
       <p style={{
         fontSize: 13, color: value ? '#111827' : '#C4C9D4', margin: 0,
-        fontFamily: mono ? "'JetBrains Mono', monospace" : "'Geist', sans-serif",
+        fontFamily: mono ? 'monospace' : 'system-ui, sans-serif',
         fontWeight: value ? 500 : 400,
       }}>
         {value ?? 'No disponible'}
@@ -80,7 +80,7 @@ function DataField({ label, value, mono = false }: { label: string; value: strin
 function SectionCard({ children, style, className }: { children: ReactNode; style?: CSSProperties; className?: string }) {
   return (
     <div className={className} style={{
-      background: '#fff', border: '1px solid #E4E7EC', borderRadius: 12,
+      background: 'var(--color-card, #ffffff)', border: '1px solid var(--color-border, #e2e8f0)', borderRadius: 12,
       boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 1px 4px rgba(0,0,0,0.03)',
       ...style,
     }}>
@@ -92,21 +92,21 @@ function SectionCard({ children, style, className }: { children: ReactNode; styl
 function SectionHeader({ icon, title, count }: { icon: React.ReactNode; title: string; count?: number }) {
   return (
     <div style={{
-      padding: '18px 24px', borderBottom: '1px solid #F1F3F5',
+      padding: '18px 24px', borderBottom: '1px solid var(--color-border, #e2e8f0)',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <span style={{
           width: 30, height: 30, borderRadius: 8,
           background: 'rgba(43,92,230,0.07)', border: '1px solid rgba(43,92,230,0.15)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2B5CE6', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary, #3266db)', flexShrink: 0,
         }}>{icon}</span>
-        <p style={{ fontFamily: "'Geist', sans-serif", fontSize: 14, fontWeight: 600, color: '#111827', margin: 0 }}>{title}</p>
+        <p style={{ fontFamily: 'system-ui, sans-serif', fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary, #0f172a)', margin: 0 }}>{title}</p>
       </div>
       {count !== undefined && (
         <span style={{
-          fontSize: 10, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500,
-          color: '#2B5CE6', background: 'rgba(43,92,230,0.08)', border: '1px solid rgba(43,92,230,0.18)',
+          fontSize: 10, fontFamily: 'monospace', fontWeight: 500,
+          color: 'var(--color-primary, #3266db)', background: 'var(--color-primary-soft, #e8f0ff)', border: '1px solid var(--color-primary, #3266db)',
           padding: '3px 9px', borderRadius: 999,
         }}>{count}</span>
       )}
@@ -161,7 +161,7 @@ export default function AuthorityCaseDetailPage() {
   // ─── Loading ───
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#F2F4F7' }}>
+      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--color-background, #f8fafc)' }}>
         <AuthoritySidebar />
         <main style={{ flex: 1, overflowY: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Spinner fullScreen />
@@ -173,7 +173,7 @@ export default function AuthorityCaseDetailPage() {
   // ─── Error ───
   if (isError || !data) {
     return (
-      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#F2F4F7' }}>
+      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--color-background, #f8fafc)' }}>
         <AuthoritySidebar />
         <main style={{ flex: 1, overflowY: 'auto', padding: '40px 32px' }}>
           <SectionCard style={{ maxWidth: 480, padding: 28 }}>
@@ -182,15 +182,15 @@ export default function AuthorityCaseDetailPage() {
                 <AlertCircle size={16} style={{ color: '#DC2626' }} />
               </div>
               <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 14, fontWeight: 600, color: '#111827', marginBottom: 4, fontFamily: "'Geist', sans-serif" }}>No se pudo cargar el caso</p>
-                <p style={{ fontSize: 12, color: '#9CA3AF', fontFamily: "'JetBrains Mono', monospace" }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary, #0f172a)', marginBottom: 4, fontFamily: 'system-ui, sans-serif' }}>No se pudo cargar el caso</p>
+                <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #475569)', fontFamily: 'monospace' }}>
                   {error instanceof Error ? error.message : 'Error inesperado.'}
                 </p>
                 <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-                  <button onClick={() => refetch()} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid #E4E7EC', background: '#fff', color: '#374151', fontSize: 12, fontFamily: "'Geist', sans-serif", fontWeight: 500, cursor: 'pointer' }}>
+                  <button onClick={() => refetch()} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--color-border, #e2e8f0)', background: 'var(--color-card, #ffffff)', color: 'var(--color-text-primary, #0f172a)', fontSize: 12, fontFamily: 'system-ui, sans-serif', fontWeight: 500, cursor: 'pointer' }}>
                     Reintentar
                   </button>
-                  <Link to="/authority/cases" style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#2B5CE6', color: '#fff', fontSize: 12, fontFamily: "'Geist', sans-serif", fontWeight: 500, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
+                  <Link to="/authority/cases" style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#2B5CE6', color: '#fff', fontSize: 12, fontFamily: 'system-ui, sans-serif', fontWeight: 500, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
                     Volver
                   </Link>
                 </div>
@@ -273,10 +273,8 @@ export default function AuthorityCaseDetailPage() {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#F2F4F7', fontFamily: "'Geist', 'Inter', system-ui, sans-serif" }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--color-background, #f8fafc)', fontFamily: 'system-ui, sans-serif' }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
-
         @keyframes fadeUp   { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
         @keyframes fadeIn   { from { opacity:0; } to { opacity:1; } }
         @keyframes slideRight { from { opacity:0; transform:translateX(-12px); } to { opacity:1; transform:translateX(0); } }
@@ -294,7 +292,7 @@ export default function AuthorityCaseDetailPage() {
 
         .cd-back {
           display: inline-flex; align-items: center; gap: 5px;
-          font-size: 12px; font-family: 'Geist', sans-serif; font-weight: 500;
+          font-size: 12px; font-family: system-ui, sans-serif; font-weight: 500;
           color: #9CA3AF; text-decoration: none;
           transition: color 0.15s;
           animation: slideRight 0.3s ease-out both;
@@ -353,7 +351,7 @@ export default function AuthorityCaseDetailPage() {
           display: inline-flex; align-items: center; gap: 7px;
           padding: 9px 18px; border-radius: 8px;
           background: #2B5CE6; color: #fff;
-          font-size: 12px; font-family: 'Geist', sans-serif; font-weight: 500;
+          font-size: 12px; font-family: system-ui, sans-serif; font-weight: 500;
           text-decoration: none; border: none; cursor: pointer;
           transition: background 0.15s, box-shadow 0.15s;
         }
@@ -363,7 +361,7 @@ export default function AuthorityCaseDetailPage() {
           display: inline-flex; align-items: center; gap: 7px;
           padding: 9px 18px; border-radius: 8px;
           background: #fff; color: #374151;
-          font-size: 12px; font-family: 'Geist', sans-serif; font-weight: 500;
+          font-size: 12px; font-family: system-ui, sans-serif; font-weight: 500;
           text-decoration: none; border: 1px solid #E4E7EC;
           transition: border-color 0.15s, box-shadow 0.15s;
         }
@@ -373,7 +371,7 @@ export default function AuthorityCaseDetailPage() {
           display: inline-flex; align-items: center; gap: 7px;
           padding: 9px 18px; border-radius: 8px;
           background: rgba(5,150,105,0.1); color: #059669;
-          font-size: 12px; font-family: 'Geist', sans-serif; font-weight: 600;
+          font-size: 12px; font-family: system-ui, sans-serif; font-weight: 600;
           border: 1px solid rgba(5,150,105,0.25);
           cursor: pointer; transition: all 0.15s;
         }
@@ -383,7 +381,7 @@ export default function AuthorityCaseDetailPage() {
           display: inline-flex; align-items: center; gap: 7px;
           padding: 9px 18px; border-radius: 8px;
           background: rgba(220,38,38,0.08); color: #DC2626;
-          font-size: 12px; font-family: 'Geist', sans-serif; font-weight: 600;
+          font-size: 12px; font-family: system-ui, sans-serif; font-weight: 600;
           border: 1px solid rgba(220,38,38,0.25);
           cursor: pointer; transition: all 0.15s;
         }
@@ -393,7 +391,7 @@ export default function AuthorityCaseDetailPage() {
           display: inline-flex; align-items: center; gap: 7px;
           padding: 9px 18px; border-radius: 8px;
           background: rgba(2,132,199,0.1); color: #0284C7;
-          font-size: 12px; font-family: 'Geist', sans-serif; font-weight: 600;
+          font-size: 12px; font-family: system-ui, sans-serif; font-weight: 600;
           border: 1px solid rgba(2,132,199,0.25);
           cursor: pointer; transition: all 0.15s;
         }
@@ -403,7 +401,7 @@ export default function AuthorityCaseDetailPage() {
           display: inline-flex; align-items: center; gap: 7px;
           padding: 9px 18px; border-radius: 8px;
           background: #fff; color: #374151;
-          font-size: 12px; font-family: 'Geist', sans-serif; font-weight: 600;
+          font-size: 12px; font-family: system-ui, sans-serif; font-weight: 600;
           border: 1px solid #E4E7EC;
           cursor: pointer; transition: all 0.15s;
         }
@@ -428,11 +426,11 @@ export default function AuthorityCaseDetailPage() {
         .cd-modal-input {
           width: 100%; border: 1px solid #E4E7EC; border-radius: 10px;
           padding: 12px 14px; font-size: 13px;
-          font-family: 'Geist', sans-serif; resize: vertical; min-height: 120px;
+          font-family: system-ui, sans-serif; resize: vertical; min-height: 120px;
         }
         .cd-feedback {
           padding: 12px 16px; border-radius: 10px; border: 1px solid transparent;
-          font-size: 12px; font-family: 'Geist', sans-serif; font-weight: 500;
+          font-size: 12px; font-family: system-ui, sans-serif; font-weight: 500;
         }
         .comment-card {
           border: 1px solid #F1F3F5; border-radius: 8px;
@@ -445,7 +443,7 @@ export default function AuthorityCaseDetailPage() {
           display: inline-flex; align-items: center; gap: 5px;
           padding: 5px 12px; border-radius: 999px;
           background: #F8F9FB; border: 1px solid #E4E7EC;
-          font-size: 11px; font-family: 'Geist', sans-serif; font-weight: 500;
+          font-size: 11px; font-family: system-ui, sans-serif; font-weight: 500;
           color: #6B7280;
         }
       `}</style>
@@ -491,7 +489,7 @@ export default function AuthorityCaseDetailPage() {
             <div className="cd-s1" style={{ display: 'grid', gridTemplateColumns: '320px 1fr' }}>
 
               {/* Photo */}
-              <div style={{ position: 'relative', minHeight: 320, background: '#F2F4F7', overflow: 'hidden' }}>
+              <div style={{ position: 'relative', minHeight: 320, background: 'var(--color-background, #f8fafc)', overflow: 'hidden' }}>
                 {mainPhoto ? (
                   <button
                     type="button"
@@ -508,9 +506,9 @@ export default function AuthorityCaseDetailPage() {
                 ) : (
                   <div style={{ height: '100%', minHeight: 320, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
                     <div style={{ width: 64, height: 64, borderRadius: 16, background: '#E4E7EC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <UserSearch size={28} style={{ color: '#9CA3AF' }} />
+                      <UserSearch size={28} style={{ color: 'var(--color-text-secondary, #475569)' }} />
                     </div>
-                    <p style={{ fontSize: 12, color: '#9CA3AF', fontFamily: "'JetBrains Mono', monospace" }}>Sin fotografía</p>
+                    <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #475569)', fontFamily: 'monospace' }}>Sin fotografía</p>
                   </div>
                 )}
                 {/* Photo overlay gradient */}
@@ -524,14 +522,14 @@ export default function AuthorityCaseDetailPage() {
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
                   <div>
                     <p style={{
-                      fontSize: 10, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500,
-                      letterSpacing: '0.28em', textTransform: 'uppercase', color: '#2B5CE6', marginBottom: 8,
+                      fontSize: 10, fontFamily: 'monospace', fontWeight: 500,
+                      letterSpacing: '0.28em', textTransform: 'uppercase', color: 'var(--color-primary, #3266db)', marginBottom: 8,
                     }}>
                       Caso · {caso.numero_caso}
                     </p>
                     <h1 style={{
-                      fontFamily: "'Instrument Serif', Georgia, serif", fontStyle: 'italic',
-                      fontSize: 34, color: '#111827', fontWeight: 400, letterSpacing: '-0.03em',
+                      fontFamily: 'Georgia, serif', fontStyle: 'italic',
+                      fontSize: 34, color: 'var(--color-text-primary, #0f172a)', fontWeight: 400, letterSpacing: '-0.03em',
                       lineHeight: 1.1, marginBottom: 0,
                     }}>
                       {caso.nombres}<br />{caso.apellidos}
@@ -541,7 +539,7 @@ export default function AuthorityCaseDetailPage() {
                     display: 'inline-flex', alignItems: 'center', gap: 7,
                     padding: '6px 14px', borderRadius: 999,
                     background: statusMeta.bg, border: `1px solid ${statusMeta.border}`,
-                    fontSize: 10, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500,
+                    fontSize: 10, fontFamily: 'monospace', fontWeight: 500,
                     letterSpacing: '0.14em', textTransform: 'uppercase', color: statusMeta.color,
                     flexShrink: 0,
                   }}>
@@ -553,18 +551,18 @@ export default function AuthorityCaseDetailPage() {
                 {/* Quick stats */}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <span className="stat-pill">
-                    <User size={11} style={{ color: '#9CA3AF' }} />
+                    <User size={11} style={{ color: 'var(--color-text-secondary, #475569)' }} />
                     {caso.edad ? `${caso.edad} años` : 'Edad N/D'}
                   </span>
                   <span className="stat-pill">
                     {caso.genero ?? 'Género N/D'}
                   </span>
                   <span className="stat-pill">
-                    <Eye size={11} style={{ color: '#9CA3AF' }} />
+                    <Eye size={11} style={{ color: 'var(--color-text-secondary, #475569)' }} />
                     {caso.vistas ?? 0} vistas
                   </span>
                   <span className="stat-pill">
-                    <MapPin size={11} style={{ color: '#9CA3AF' }} />
+                    <MapPin size={11} style={{ color: 'var(--color-text-secondary, #475569)' }} />
                     {safeLocation}
                   </span>
                 </div>
@@ -587,22 +585,22 @@ export default function AuthorityCaseDetailPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 18 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ width: 28, height: 28, borderRadius: 7, background: 'rgba(43,92,230,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Calendar size={13} style={{ color: '#2B5CE6' }} />
+                      <Calendar size={13} style={{ color: 'var(--color-primary, #3266db)' }} />
                     </div>
                     <div>
-                      <p style={{ fontSize: 9, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF', letterSpacing: '0.2em', textTransform: 'uppercase', margin: '0 0 2px' }}>Fecha desaparición</p>
-                      <p style={{ fontSize: 13, color: '#111827', fontWeight: 500, margin: 0, fontFamily: "'Geist', sans-serif" }}>
+                      <p style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--color-text-secondary, #475569)', letterSpacing: '0.2em', textTransform: 'uppercase', margin: '0 0 2px' }}>Fecha desaparición</p>
+                      <p style={{ fontSize: 13, color: 'var(--color-text-primary, #0f172a)', fontWeight: 500, margin: 0, fontFamily: 'system-ui, sans-serif' }}>
                         {caso.fecha_desaparicion ?? 'Sin fecha'}
                       </p>
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ width: 28, height: 28, borderRadius: 7, background: 'rgba(43,92,230,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Hash size={13} style={{ color: '#2B5CE6' }} />
+                      <Hash size={13} style={{ color: 'var(--color-primary, #3266db)' }} />
                     </div>
                     <div>
-                      <p style={{ fontSize: 9, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF', letterSpacing: '0.2em', textTransform: 'uppercase', margin: '0 0 2px' }}>Hora aproximada</p>
-                      <p style={{ fontSize: 13, color: '#111827', fontWeight: 500, margin: 0, fontFamily: "'Geist', sans-serif" }}>
+                      <p style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--color-text-secondary, #475569)', letterSpacing: '0.2em', textTransform: 'uppercase', margin: '0 0 2px' }}>Hora aproximada</p>
+                      <p style={{ fontSize: 13, color: 'var(--color-text-primary, #0f172a)', fontWeight: 500, margin: 0, fontFamily: 'system-ui, sans-serif' }}>
                         {caso.hora_desaparicion ?? 'No registrada'}
                       </p>
                     </div>
@@ -635,9 +633,9 @@ export default function AuthorityCaseDetailPage() {
               <SectionHeader icon={<Phone size={14} />} title="Contacto" />
               <div style={{ padding: '24px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
-                  <span style={{ fontSize: 11, color: '#9CA3AF', fontFamily: "'JetBrains Mono', monospace" }}>Visibilidad:</span>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-secondary, #475569)', fontFamily: 'monospace' }}>Visibilidad:</span>
                   <span style={{
-                    fontSize: 10, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500,
+                    fontSize: 10, fontFamily: 'monospace', fontWeight: 500,
                     letterSpacing: '0.14em', textTransform: 'uppercase',
                     color: '#059669', background: 'rgba(5,150,105,0.08)',
                     border: '1px solid rgba(5,150,105,0.2)',
@@ -648,25 +646,25 @@ export default function AuthorityCaseDetailPage() {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 9, background: '#F8F9FB', border: '1px solid #F1F3F5' }}>
-                    <div style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(43,92,230,0.08)', border: '1px solid rgba(43,92,230,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Phone size={13} style={{ color: '#2B5CE6' }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 9, background: 'var(--color-background, #f8fafc)', border: '1px solid #F1F3F5' }}>
+                    <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--color-primary-soft, #e8f0ff)', border: '1px solid rgba(43,92,230,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Phone size={13} style={{ color: 'var(--color-primary, #3266db)' }} />
                     </div>
                     <div>
-                      <p style={{ fontSize: 9, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF', letterSpacing: '0.2em', textTransform: 'uppercase', margin: '0 0 3px' }}>Teléfono</p>
-                      <p style={{ fontSize: 13, color: caso.telefono_contacto ? '#111827' : '#C4C9D4', fontWeight: 500, margin: 0, fontFamily: "'Geist', sans-serif" }}>
+                      <p style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--color-text-secondary, #475569)', letterSpacing: '0.2em', textTransform: 'uppercase', margin: '0 0 3px' }}>Teléfono</p>
+                      <p style={{ fontSize: 13, color: caso.telefono_contacto ? '#111827' : '#C4C9D4', fontWeight: 500, margin: 0, fontFamily: 'system-ui, sans-serif' }}>
                         {caso.telefono_contacto ?? 'No disponible'}
                       </p>
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 9, background: '#F8F9FB', border: '1px solid #F1F3F5' }}>
-                    <div style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(43,92,230,0.08)', border: '1px solid rgba(43,92,230,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Mail size={13} style={{ color: '#2B5CE6' }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 9, background: 'var(--color-background, #f8fafc)', border: '1px solid #F1F3F5' }}>
+                    <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--color-primary-soft, #e8f0ff)', border: '1px solid rgba(43,92,230,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Mail size={13} style={{ color: 'var(--color-primary, #3266db)' }} />
                     </div>
                     <div style={{ minWidth: 0 }}>
-                      <p style={{ fontSize: 9, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF', letterSpacing: '0.2em', textTransform: 'uppercase', margin: '0 0 3px' }}>Email</p>
-                      <p style={{ fontSize: 13, color: caso.email_contacto ? '#111827' : '#C4C9D4', fontWeight: 500, margin: 0, fontFamily: "'Geist', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <p style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--color-text-secondary, #475569)', letterSpacing: '0.2em', textTransform: 'uppercase', margin: '0 0 3px' }}>Email</p>
+                      <p style={{ fontSize: 13, color: caso.email_contacto ? '#111827' : '#C4C9D4', fontWeight: 500, margin: 0, fontFamily: 'system-ui, sans-serif', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {caso.email_contacto ?? 'No disponible'}
                       </p>
                     </div>
@@ -681,9 +679,9 @@ export default function AuthorityCaseDetailPage() {
             <SectionHeader icon={<User size={14} />} title="Historial de esta persona" />
             <div style={{ padding: '20px 24px' }}>
               {historyLoading ? (
-                <p style={{ fontSize: 12, color: '#9CA3AF', fontFamily: "'Geist', sans-serif" }}>Cargando historial...</p>
+                <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #475569)', fontFamily: 'system-ui, sans-serif' }}>Cargando historial...</p>
               ) : personHistory.length === 0 ? (
-                <p style={{ fontSize: 12, color: '#9CA3AF', fontFamily: "'Geist', sans-serif" }}>
+                <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #475569)', fontFamily: 'system-ui, sans-serif' }}>
                   No se encontraron casos anteriores asociados a esta persona.
                 </p>
               ) : (
@@ -691,7 +689,7 @@ export default function AuthorityCaseDetailPage() {
                   <div style={{
                     padding: '10px 12px', borderRadius: 8,
                     background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
-                    color: '#B45309', fontSize: 12, fontFamily: "'Geist', sans-serif", fontWeight: 500,
+                    color: '#B45309', fontSize: 12, fontFamily: 'system-ui, sans-serif', fontWeight: 500,
                   }}>
                     Esta persona tiene {personHistory.length} caso{personHistory.length !== 1 ? 's' : ''} anterior{personHistory.length !== 1 ? 'es' : ''}.
                   </div>
@@ -699,17 +697,17 @@ export default function AuthorityCaseDetailPage() {
                     {personHistory.map((item) => (
                       <div key={item.id} style={{
                         display: 'grid', gridTemplateColumns: '1fr 140px 140px', gap: 12,
-                        padding: '12px 14px', borderRadius: 8, border: '1px solid #E4E7EC', background: '#FAFBFC',
+                        padding: '12px 14px', borderRadius: 8, border: '1px solid var(--color-border, #e2e8f0)', background: '#FAFBFC',
                       }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          <span style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#2B5CE6' }}>
+                          <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--color-primary, #3266db)' }}>
                             {item.numero_caso}
                           </span>
-                          <span style={{ fontSize: 12, color: '#6B7280' }}>
+                          <span style={{ fontSize: 12, color: 'var(--color-text-secondary, #475569)' }}>
                             {item.created_at ? new Date(item.created_at).toLocaleDateString('es-DO') : 'Sin fecha'}
                           </span>
                         </div>
-                        <span style={{ fontSize: 12, color: '#374151', fontWeight: 600 }}>
+                        <span style={{ fontSize: 12, color: 'var(--color-text-primary, #0f172a)', fontWeight: 600 }}>
                           {formatWorkflowStatus(item.workflow_status)}
                         </span>
                         <Link to={`/authority/cases/${item.id}`} className="cd-action-secondary" style={{ justifyContent: 'center', padding: '6px 10px', fontSize: 11 }}>
@@ -727,8 +725,8 @@ export default function AuthorityCaseDetailPage() {
           <SectionCard className="cd-s4">
             <div style={{ padding: '22px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
               <div>
-                <p style={{ fontSize: 14, fontWeight: 600, color: '#111827', margin: '0 0 4px', fontFamily: "'Geist', sans-serif" }}>Acciones del caso</p>
-                <p style={{ fontSize: 12, color: '#9CA3AF', margin: 0 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary, #0f172a)', margin: '0 0 4px', fontFamily: 'system-ui, sans-serif' }}>Acciones del caso</p>
+                <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #475569)', margin: 0 }}>
                   Aporta información o reporta contenido relacionado con este caso.
                 </p>
               </div>
@@ -797,7 +795,7 @@ export default function AuthorityCaseDetailPage() {
             <div style={{ padding: '20px 24px' }}>
               {comentarios.length === 0 ? (
                 <div style={{ padding: '24px 0', textAlign: 'center' }}>
-                  <p style={{ fontSize: 13, color: '#9CA3AF', fontFamily: "'Geist', sans-serif" }}>
+                  <p style={{ fontSize: 13, color: 'var(--color-text-secondary, #475569)', fontFamily: 'system-ui, sans-serif' }}>
                     Aún no hay comentarios de la autoridad para este caso.
                   </p>
                 </div>
@@ -811,16 +809,16 @@ export default function AuthorityCaseDetailPage() {
                     >
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{ width: 28, height: 28, borderRadius: 999, background: 'rgba(43,92,230,0.1)', border: '1px solid rgba(43,92,230,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <User size={12} style={{ color: '#2B5CE6' }} />
+                          <div style={{ width: 28, height: 28, borderRadius: 999, background: 'var(--color-primary-soft, #e8f0ff)', border: '1px solid var(--color-primary, #3266db)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <User size={12} style={{ color: 'var(--color-primary, #3266db)' }} />
                           </div>
                           <div>
-                            <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', margin: 0, fontFamily: "'Geist', sans-serif" }}>{comentario.autor}</p>
+                            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary, #0f172a)', margin: 0, fontFamily: 'system-ui, sans-serif' }}>{comentario.autor}</p>
                             {comentario.estado && (
                               <span style={{
-                                fontSize: 9, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500,
+                                fontSize: 9, fontFamily: 'monospace', fontWeight: 500,
                                 letterSpacing: '0.14em', textTransform: 'uppercase',
-                                color: '#2B5CE6', background: 'rgba(43,92,230,0.07)',
+                                color: 'var(--color-primary, #3266db)', background: 'rgba(43,92,230,0.07)',
                                 border: '1px solid rgba(43,92,230,0.15)',
                                 padding: '1px 6px', borderRadius: 999, marginTop: 3, display: 'inline-block',
                               }}>
@@ -829,11 +827,11 @@ export default function AuthorityCaseDetailPage() {
                             )}
                           </div>
                         </div>
-                        <p style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF', flexShrink: 0, marginTop: 3 }}>
+                        <p style={{ fontSize: 10, fontFamily: 'monospace', color: 'var(--color-text-secondary, #475569)', flexShrink: 0, marginTop: 3 }}>
                           {formatDateTime(comentario.created_at)}
                         </p>
                       </div>
-                      <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.65, margin: 0, whiteSpace: 'pre-wrap', fontFamily: "'Geist', sans-serif", paddingLeft: 38 }}>
+                      <p style={{ fontSize: 13, color: 'var(--color-text-primary, #0f172a)', lineHeight: 1.65, margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'system-ui, sans-serif', paddingLeft: 38 }}>
                         {formatCommentContent(comentario.contenido)}
                       </p>
                     </article>
@@ -867,10 +865,10 @@ export default function AuthorityCaseDetailPage() {
                 )}
 
                 {video && (
-                  <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid #E4E7EC', background: '#000' }}>
-                    <div style={{ padding: '12px 16px', background: '#F8F9FB', borderBottom: '1px solid #E4E7EC', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Video size={13} style={{ color: '#2B5CE6' }} />
-                      <p style={{ fontSize: 12, fontWeight: 500, color: '#374151', margin: 0, fontFamily: "'Geist', sans-serif" }}>Video del caso</p>
+                  <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid var(--color-border, #e2e8f0)', background: '#000' }}>
+                    <div style={{ padding: '12px 16px', background: 'var(--color-background, #f8fafc)', borderBottom: '1px solid var(--color-border, #e2e8f0)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Video size={13} style={{ color: 'var(--color-primary, #3266db)' }} />
+                      <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-primary, #0f172a)', margin: 0, fontFamily: 'system-ui, sans-serif' }}>Video del caso</p>
                     </div>
                     <video controls style={{ width: '100%', display: 'block', maxHeight: 400 }}>
                       <source src={video.url} type={video.mime_type ?? 'video/mp4'} />
@@ -884,10 +882,10 @@ export default function AuthorityCaseDetailPage() {
           {photos.length === 0 && !video && (
             <SectionCard className="cd-s5">
               <div style={{ padding: '32px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 11, background: '#F8F9FB', border: '1px solid #E4E7EC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Eye size={18} style={{ color: '#C4C9D4' }} />
+                <div style={{ width: 44, height: 44, borderRadius: 11, background: 'var(--color-background, #f8fafc)', border: '1px solid var(--color-border, #e2e8f0)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Eye size={18} style={{ color: 'var(--color-border, #e2e8f0)' }} />
                 </div>
-                <p style={{ fontSize: 13, color: '#9CA3AF', fontFamily: "'Geist', sans-serif" }}>No hay imágenes o video cargados para este caso.</p>
+                <p style={{ fontSize: 13, color: 'var(--color-text-secondary, #475569)', fontFamily: 'system-ui, sans-serif' }}>No hay imágenes o video cargados para este caso.</p>
               </div>
             </SectionCard>
           )}
@@ -898,12 +896,12 @@ export default function AuthorityCaseDetailPage() {
       {confirmAction && (
         <div className="cd-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setConfirmAction(null) }}>
           <div className="cd-modal-card">
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#111827', fontFamily: "'Geist', sans-serif" }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--color-text-primary, #0f172a)', fontFamily: 'system-ui, sans-serif' }}>
               {confirmAction === 'approve' && 'Confirmar aprobación'}
               {confirmAction === 'reject' && 'Confirmar rechazo'}
               {confirmAction === 'reopen' && 'Confirmar reapertura'}
             </h3>
-            <p style={{ fontSize: 12, color: '#6B7280', marginTop: 6, lineHeight: 1.6 }}>
+            <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #475569)', marginTop: 6, lineHeight: 1.6 }}>
               {confirmAction === 'approve' && 'Este caso pasará a estado aprobado.'}
               {confirmAction === 'reject' && 'El caso quedará rechazado y no podrá aprobarse nuevamente.'}
               {confirmAction === 'reopen' && 'El caso volverá a estado pendiente para revisión.'}
@@ -937,10 +935,10 @@ export default function AuthorityCaseDetailPage() {
       {foundModalOpen && (
         <div className="cd-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setFoundModalOpen(false) }}>
           <div className="cd-modal-card">
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#111827', fontFamily: "'Geist', sans-serif" }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--color-text-primary, #0f172a)', fontFamily: 'system-ui, sans-serif' }}>
               Marcar como encontrado
             </h3>
-            <p style={{ fontSize: 12, color: '#6B7280', marginTop: 6, lineHeight: 1.6 }}>
+            <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #475569)', marginTop: 6, lineHeight: 1.6 }}>
               Describe brevemente cómo fue encontrado el desaparecido. Esta nota quedará en el historial del caso.
             </p>
             <textarea
@@ -979,10 +977,10 @@ export default function AuthorityCaseDetailPage() {
       {noteModalOpen && (
         <div className="cd-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setNoteModalOpen(false) }}>
           <div className="cd-modal-card">
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: '#111827', fontFamily: "'Geist', sans-serif" }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: 'var(--color-text-primary, #0f172a)', fontFamily: 'system-ui, sans-serif' }}>
               Añadir nota interna
             </h3>
-            <p style={{ fontSize: 12, color: '#6B7280', marginTop: 6, lineHeight: 1.6 }}>
+            <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #475569)', marginTop: 6, lineHeight: 1.6 }}>
               Esta nota es privada para la autoridad y quedará registrada en el caso.
             </p>
             <textarea

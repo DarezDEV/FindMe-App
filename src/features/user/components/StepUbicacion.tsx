@@ -29,7 +29,7 @@ export function StepUbicacion({ data, set }: Props) {
       <div className="rounded-xl border border-border bg-primary-soft/30 px-4 py-3">
         <p className="text-sm font-medium text-text-primary inline-flex items-center gap-2">
           <MapPin size={15} className="text-primary" />
-          Ubicacion manual
+          Ubicación manual
         </p>
         <p className="text-xs text-text-secondary mt-1">
           Puedes registrar detalle interno, pero en la publicacion se mostrara solo zona aproximada (ciudad/pais).

@@ -32,7 +32,7 @@ function getAvatarPalette(name: string) {
 export function PendingList({ cases, selectedCaseId, onSelectCase }: PendingListProps) {
   if (cases.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-14 px-6 gap-3 font-['Syne',sans-serif]">
+      <div className="flex flex-col items-center justify-center py-14 px-6 gap-3">
         <div className="w-12 h-12 rounded-2xl bg-emerald-400/10 border border-emerald-400/20 flex items-center justify-center">
           <Clock size={18} className="text-emerald-400" />
         </div>
@@ -45,9 +45,8 @@ export function PendingList({ cases, selectedCaseId, onSelectCase }: PendingList
   }
 
   return (
-    <div className="divide-y divide-slate-200 font-['Syne',sans-serif]">
+    <div className="divide-y divide-slate-200">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap');
         .pending-item { transition: background 0.13s ease; }
         .pending-item-active { background: linear-gradient(90deg, rgba(251,191,36,0.06) 0%, rgba(251,191,36,0.02) 100%); }
         .pending-item-inactive:hover { background: rgba(255,255,255,0.02); }

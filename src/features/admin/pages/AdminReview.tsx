@@ -29,7 +29,7 @@ type CaseComment = {
 function formatDate(dateIso: string) {
   const parsed = new Date(dateIso)
   if (Number.isNaN(parsed.getTime())) return 'Sin fecha'
-  return new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed)
+  return new Intl.DateTimeFormat('es-DO', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed)
 }
 
 function formatLocation(city: string | null, state: string | null, fallback: string | null) {
@@ -62,13 +62,6 @@ function formatWorkflowStatus(status: string | null | undefined) {
     case 'closed': return 'Cerrado'
     default: return 'Pendiente'
   }
-}
-
-const FEEDBACK_META = {
-  success: { color: '#059669', bg: 'rgba(5,150,105,0.06)', border: 'rgba(5,150,105,0.2)', dot: '#059669' },
-  warning: { color: '#D97706', bg: 'rgba(217,119,6,0.06)', border: 'rgba(217,119,6,0.2)', dot: '#D97706' },
-  error:   { color: '#DC2626', bg: 'rgba(220,38,38,0.06)', border: 'rgba(220,38,38,0.2)', dot: '#DC2626' },
-  info:    { color: '#0284C7', bg: 'rgba(2,132,199,0.06)', border: 'rgba(2,132,199,0.2)', dot: '#0284C7' },
 }
 
 export default function AdminReview() {
@@ -305,136 +298,132 @@ export default function AdminReview() {
   }
 
   const selectedCaseComments = selectedCase ? (commentsByCaseId[selectedCase.id] ?? []) : []
-  const feedbackMeta = feedback ? FEEDBACK_META[feedbackType] : null
+
+  const feedbackStyles: Record<string, string> = {
+    success: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
+    warning: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
+    error:   'bg-rose-500/10 border-rose-500/20 text-rose-400',
+    info:    'bg-sky-500/10 border-sky-500/20 text-sky-400',
+  }
 
   return (
     <AdminSidebar>
-      <div style={{ minHeight: '100vh', background: '#F2F4F7', fontFamily: "'Geist', 'Inter', sans-serif" }}>
+      <div className="min-h-screen bg-background">
         <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
-          @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-          @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
-          @keyframes spin { to { transform:rotate(360deg); } }
-          @keyframes dotPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.75)} }
-
-          .p-scroll::-webkit-scrollbar { width: 5px; }
-          .p-scroll::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.2); border-radius:999px; }
-
-          .p-card { background:#fff; border:1px solid #E4E7EC; border-radius:10px; box-shadow:0 1px 2px rgba(0,0,0,0.04),0 1px 4px rgba(0,0,0,0.03); }
-          .p-in { animation: fadeUp 0.4s ease-out both; }
-          .p-in-1 { animation-delay:0.06s; }
-          .p-in-2 { animation-delay:0.12s; }
-
-          .p-ghost {
-            display:inline-flex; align-items:center; gap:7px;
-            padding:7px 14px; border-radius:8px;
-            border:1px solid #E4E7EC; background:#fff;
-            color:#64748B; font-size:12px; font-family:'Geist',sans-serif; font-weight:500;
-            cursor:pointer; transition:all 0.15s;
-          }
-          .p-ghost:hover { border-color:#CBD5E1; color:#334155; }
-
-          .feedback-bar { animation: fadeIn 0.25s ease-out; }
+          ::-webkit-scrollbar { width: 4px; }
+          ::-webkit-scrollbar-track { background: transparent; }
+          ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
+          .fade-in { animation: fadeIn 0.2s ease; }
+          @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         `}</style>
 
-        <main style={{ height: '100%' }}>
-          <div style={{ maxWidth: 1400, margin: '0 auto', padding: '40px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }} className="p-in">
+        <main className="overflow-y-auto">
+          <div className="max-w-[1400px] mx-auto px-6 py-8 space-y-5">
+            <div className="flex items-end justify-between">
               <div>
-                <p style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, color: '#2B5CE6', letterSpacing: '0.28em', textTransform: 'uppercase', marginBottom: 8 }}>
-                  Panel admin · Moderación
+                <p className="text-[11px] font-mono text-amber-400/70 tracking-[0.2em] uppercase mb-1">Módulo de Revisión</p>
+                <h1 className="text-3xl font-bold text-text-primary tracking-tight">Revisión de publicaciones</h1>
+                <p className="text-sm text-text-secondary mt-1">
+                  Flujo de revisión para casos pendientes antes de su publicación pública.
                 </p>
-                <h1 style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 32, color: '#111827', fontWeight: 400, letterSpacing: '-0.03em', marginBottom: 6 }}>
-                  Revisión de publicaciones
-                </h1>
-                <p style={{ fontSize: 13, color: '#6B7280' }}>Flujo de revisión para casos pendientes antes de su publicación pública.</p>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                {!loading && pendingCases.length > 0 && (
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 999, background: 'rgba(43,92,230,0.06)', border: '1px solid rgba(43,92,230,0.2)' }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#2B5CE6', animation: 'dotPulse 2s ease-in-out infinite' }} />
-                    <span style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#2B5CE6' }}>
-                      {pendingCases.length} pendiente{pendingCases.length !== 1 ? 's' : ''}
-                    </span>
+              <div className="flex items-center gap-3">
+                {!loading && (
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-400/8 border border-amber-400/20">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                    <span className="text-xs font-mono text-amber-400">{pendingCases.length} pendiente{pendingCases.length !== 1 ? 's' : ''}</span>
                   </div>
                 )}
-                <button type="button" onClick={() => void loadPendingCases()} className="p-ghost">
+                <button
+                  type="button"
+                  onClick={() => void loadPendingCases()}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-card border border-border text-text-secondary hover:text-text-primary hover:border-border text-xs font-medium transition-all"
+                >
                   Recargar
                 </button>
               </div>
             </div>
 
-            {feedback && feedbackMeta && (
-              <div className="p-card feedback-bar" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, background: feedbackMeta.bg, borderColor: feedbackMeta.border, color: feedbackMeta.color }}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: feedbackMeta.dot, flexShrink: 0 }} />
-                <span style={{ fontSize: 13 }}>{feedback}</span>
+            {feedback && (
+              <div className={`fade-in flex items-center gap-3 px-4 py-3 rounded-xl border text-sm ${feedbackStyles[feedbackType]}`}>
+                <div className="w-1.5 h-1.5 rounded-full bg-current" />
+                {feedback}
               </div>
             )}
 
             {loading ? (
-              <div className="p-card p-in p-in-1" style={{ padding: '64px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 22, height: 22, border: '2px solid rgba(43,92,230,0.2)', borderTopColor: '#2B5CE6', borderRadius: '50%', animation: 'spin 0.9s linear infinite' }} />
-                <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>Cargando casos pendientes...</p>
+              <div className="bg-card border border-border rounded-2xl p-16 flex flex-col items-center justify-center gap-3">
+                <div className="w-6 h-6 border-2 border-amber-400/30 border-t-amber-400 rounded-full animate-spin" />
+                <p className="text-xs text-text-secondary font-mono">Cargando casos pendientes...</p>
               </div>
             ) : pendingCases.length === 0 ? (
-              <div className="p-card p-in p-in-1" style={{ padding: '64px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, textAlign: 'center' }}>
-                <div style={{ width: 54, height: 54, borderRadius: 14, background: 'rgba(5,150,105,0.08)', border: '1px solid rgba(5,150,105,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ fontSize: 26, color: '#059669', lineHeight: 1 }}>✓</span>
+              <div className="bg-card border border-border rounded-2xl p-16 flex flex-col items-center justify-center gap-2">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-400/10 border border-emerald-400/20 flex items-center justify-center mb-2">
+                  <span className="text-2xl">✓</span>
                 </div>
-                <p style={{ fontSize: 14, color: '#111827', fontWeight: 600 }}>Sin casos pendientes</p>
-                <p style={{ fontSize: 12, color: '#9CA3AF', maxWidth: 360 }}>
+                <p className="text-text-secondary text-sm font-semibold">Sin casos pendientes</p>
+                <p className="text-text-secondary text-xs text-center max-w-xs">
                   Todos los casos han sido revisados. El sistema está al día.
                 </p>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: 18, alignItems: 'start' }} className="p-in p-in-2">
-                <div className="p-card" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 200px)' }}>
-                  <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F3F5', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div className="grid grid-cols-1 xl:grid-cols-[380px_1fr] gap-5">
+                <div className="bg-card border border-border rounded-2xl overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 180px)' }}>
+                  <div className="px-5 py-4 border-b border-border flex items-center justify-between">
                     <div>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 }}>Cola de revisión</p>
-                      <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>
-                        {pendingCases.length} casos en espera
-                      </p>
+                      <h2 className="text-sm font-semibold text-text-primary">Cola de revisión</h2>
+                      <p className="text-xs font-mono text-text-secondary mt-0.5">{pendingCases.length} casos en espera</p>
                     </div>
                   </div>
-                  <div className="p-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-                    <PendingList cases={pendingCases} selectedCaseId={selectedCaseId} onSelectCase={setSelectedCaseId} />
+                  <div className="overflow-y-auto flex-1">
+                    <PendingList
+                      cases={pendingCases}
+                      selectedCaseId={selectedCaseId}
+                      onSelectCase={setSelectedCaseId}
+                    />
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  <div className="p-card" style={{ overflow: 'hidden' }}>
-                    <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F3F5' }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 }}>Detalle del caso</p>
-                      {selectedCase && <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#2B5CE6' }}>{selectedCase.caseNumber}</p>}
+                <div className="space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 180px)' }}>
+                  <div className="bg-card border border-border rounded-2xl overflow-hidden">
+                    <div className="px-5 py-4 border-b border-border">
+                      <h2 className="text-sm font-semibold text-text-primary">Detalle del caso</h2>
+                      {selectedCase && (
+                        <p className="text-xs font-mono text-amber-400/70 mt-0.5">{selectedCase.caseNumber}</p>
+                      )}
                     </div>
-                    <div style={{ padding: 20 }}>
+                    <div className="p-5">
                       <CaseDetailPanel selectedCase={selectedCaseWithPhoto} />
                     </div>
                   </div>
 
                   {selectedCase && (
-                    <div className="p-card" style={{ overflow: 'hidden' }}>
-                      <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F3F5', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div className="bg-card border border-border rounded-2xl overflow-hidden">
+                      <div className="px-5 py-4 border-b border-border flex items-center justify-between">
                         <div>
-                          <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 }}>Notas de revisión</p>
-                          <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#9CA3AF' }}>
-                            {selectedCaseComments.length} nota{selectedCaseComments.length !== 1 ? 's' : ''}
-                          </p>
+                          <h3 className="text-sm font-semibold text-text-primary">Notas de revisión</h3>
+                          <p className="text-xs font-mono text-text-secondary mt-0.5">{selectedCaseComments.length} nota{selectedCaseComments.length !== 1 ? 's' : ''}</p>
                         </div>
                         {selectedCaseComments.length > 0 && (
-                          <span style={{ padding: '3px 10px', borderRadius: 6, background: 'rgba(2,132,199,0.08)', border: '1px solid rgba(2,132,199,0.2)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#0284C7', fontWeight: 500 }}>
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono font-medium text-sky-400 bg-sky-400/10 border border-sky-400/20">
                             {selectedCaseComments.length}
                           </span>
                         )}
                       </div>
-                      <div style={{ padding: 20 }}>
+                      <div className="p-5">
                         {selectedCaseComments.length === 0 ? (
-                          <p style={{ fontSize: 12, color: '#9CA3AF', fontFamily: "'JetBrains Mono', monospace" }}>Aún no hay notas registradas para este caso.</p>
+                          <p className="text-xs text-text-secondary font-mono">Aún no hay notas registradas para este caso.</p>
                         ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div className="space-y-3">
                             {selectedCaseComments.map((comment) => (
-                              <CommentItem key={comment.id} comment={comment} currentUserId={user?.id ?? ''} onDelete={() => void handleDeleteComment(comment.id)} onEdit={(newText) => void handleEditComment(comment.id, newText)} disabled={actionLoading} />
+                              <CommentItem
+                                key={comment.id}
+                                comment={comment}
+                                currentUserId={user?.id ?? ''}
+                                onDelete={() => void handleDeleteComment(comment.id)}
+                                onEdit={(newText) => void handleEditComment(comment.id, newText)}
+                                disabled={actionLoading}
+                              />
                             ))}
                           </div>
                         )}
@@ -442,12 +431,12 @@ export default function AdminReview() {
                     </div>
                   )}
 
-                  <div className="p-card" style={{ overflow: 'hidden' }}>
-                    <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F3F5' }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 }}>Acciones de revisión</p>
-                      <p style={{ fontSize: 12, color: '#9CA3AF' }}>Revisa y decide el estado de este caso.</p>
+                  <div className="bg-card border border-border rounded-2xl overflow-hidden">
+                    <div className="px-5 py-4 border-b border-border">
+                      <h3 className="text-sm font-semibold text-text-primary">Acciones de revisión</h3>
+                      <p className="text-xs text-text-secondary mt-0.5">Revisa y decide el estado de este caso.</p>
                     </div>
-                    <div style={{ padding: 20 }}>
+                    <div className="p-5">
                       <ModerationActions
                         disabled={!selectedCase || actionLoading}
                         commentsCount={selectedCaseComments.length}
@@ -464,7 +453,12 @@ export default function AdminReview() {
           </div>
         </main>
 
-        <CommentModal open={commentModalOpen} caseName={selectedCase?.name ?? ''} onClose={() => setCommentModalOpen(false)} onSave={(comment) => void saveComment(comment)} />
+        <CommentModal
+          open={commentModalOpen}
+          caseName={selectedCase?.name ?? ''}
+          onClose={() => setCommentModalOpen(false)}
+          onSave={(comment) => void saveComment(comment)}
+        />
       </div>
     </AdminSidebar>
   )

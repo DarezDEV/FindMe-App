@@ -72,7 +72,7 @@ const parseFunctionError = async (error: FunctionsHttpError) => {
   }
 
   if (status === 401) {
-    return 'Tu sesion expiro o no estas autorizado. Inicia sesion nuevamente.'
+    return 'Tu sesión expiró o no estás autorizado. Inicia sesión nuevamente.'
   }
   if (status === 403) {
     return 'Solo los administradores pueden crear usuarios.'
@@ -139,7 +139,7 @@ export function UserFormModal({ mode, user, onClose, onSuccess }: Props) {
 
         const accessToken = sessionData.session?.access_token
         if (!accessToken) {
-          throw new Error('Tu sesion expiro o no estas autorizado. Inicia sesion nuevamente.')
+          throw new Error('Tu sesión expiró o no estás autorizado. Inicia sesión nuevamente.')
         }
 
         supabase.functions.setAuth(accessToken)

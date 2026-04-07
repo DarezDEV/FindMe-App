@@ -404,8 +404,7 @@ async function updateCaseForUser(
     if (error) {
       const message = error.message.toLowerCase()
       if (message.includes('column') && message.includes('workflow_status')) {
-        const { workflow_status: workflowStatus, ...rest } = payload
-        void workflowStatus
+        const { workflow_status: _, ...rest } = payload
         if (Object.keys(rest).length > 0) {
           const retry = await supabase
             .from('cases')
@@ -481,8 +480,8 @@ function parseSightingRow(row: Record<string, unknown>, source: string, index: n
 
   const fecha = pickText(row, ['fecha_avistamiento', 'fecha', 'date'])
   const hora = pickText(row, ['hora_avistamiento', 'hora', 'time'])
-  const lugar = pickText(row, ['lugar', 'ubicacion', 'direccion', 'location']) ?? 'Sin ubicacion'
-  const descripcion = pickText(row, ['descripcion', 'detalle', 'observacion', 'contenido']) ?? 'Sin descripcion'
+  const lugar = pickText(row, ['lugar', 'ubicacion', 'direccion', 'location']) ?? 'Sin ubicación'
+  const descripcion = pickText(row, ['descripcion', 'detalle', 'observacion', 'contenido']) ?? 'Sin descripción'
 
   const rawStatus =
     row.estado ??
@@ -905,7 +904,7 @@ export default function MisCasosPage() {
     const descripcionGeneral = editForm.descripcionGeneral.trim()
 
     if (!nombres || !apellidos || !lugarDesaparicion || !descripcionGeneral) {
-      setNotice({ type: 'warning', message: 'Completa nombres, apellidos, lugar y descripcion para guardar cambios.' })
+      setNotice({ type: 'warning', message: 'Completa nombres, apellidos, lugar y descripción para guardar cambios.' })
       return
     }
 

@@ -28,7 +28,7 @@ function formatShortDate(value: string | null): string {
   if (!value) return 'Fecha no disponible'
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return 'Fecha no disponible'
-  return new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed)
+  return new Intl.DateTimeFormat('es-DO', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed)
 }
 
 function formatReportedAgo(value: string): string {
@@ -147,7 +147,7 @@ export default function LandingPage() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,300;1,9..144,400&family=DM+Sans:wght@300;400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;1,300;1,400&family=Hind:wght@300;400;500;600&display=swap');
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -168,8 +168,8 @@ export default function LandingPage() {
           --shadow-sm: 0 1px 3px rgba(14,17,23,0.08), 0 1px 2px rgba(14,17,23,0.04);
           --shadow-md: 0 4px 16px rgba(14,17,23,0.08), 0 2px 6px rgba(14,17,23,0.05);
           --shadow-lg: 0 12px 40px rgba(14,17,23,0.1), 0 4px 12px rgba(14,17,23,0.06);
-          --font-display: 'Fraunces', Georgia, serif;
-          --font-body: 'DM Sans', system-ui, sans-serif;
+          --font-display: 'Montserrat', system-ui, sans-serif;
+          --font-body: 'Hind', system-ui, sans-serif;
           --radius: 14px;
           --radius-sm: 8px;
         }
@@ -627,7 +627,7 @@ export default function LandingPage() {
           <div>
             <p className="hero-eyebrow">
               <span className="dot" />
-              {loadingFeaturedCase ? 'Actualizando casos públicos...' : `${publicCaseCount} casos públicos activos`}
+              {loadingFeaturedCase ? 'Actualizando casos publicos...' : `${publicCaseCount} casos publicos activos`}
             </p>
 
             <h1>
@@ -740,8 +740,8 @@ export default function LandingPage() {
                 de <em>lo que más importa</em>
               </h2>
               <p className="section-body">
-                En México y América Latina, miles de familias enfrentan la angustia de no saber
-                dónde está un ser querido. La información se dispersa, las horas pasan,
+                En México y América Latina, miles de familias enfrentan la angustia de no saber 
+                dónde está un ser querido. La información se dispersa, las horas pasan, 
                 y la coordinación entre comunidad y autoridades falla.
               </p>
               <p className="section-body" style={{ marginTop: 16 }}>
@@ -750,7 +750,7 @@ export default function LandingPage() {
                 protegido y cada persona puede contribuir de forma segura y significativa.
               </p>
               <p className="section-body" style={{ marginTop: 16 }}>
-                Creemos que la tecnología, cuando se usa con responsabilidad, puede ser la
+                Creemos que la tecnología, cuando se usa con responsabilidad, puede ser la 
                 diferencia entre encontrar a alguien a tiempo o no encontrarlo nunca.
               </p>
             </div>
@@ -776,10 +776,10 @@ export default function LandingPage() {
           <div>
             <div className="mission-quote">
               <blockquote>
-                "Los primeros momentos son los más críticos. Una hora de difusión organizada
+                "Los primeros momentos son los más críticos. Una hora de difusión organizada 
                 vale más que días de búsqueda descoordinada."
               </blockquote>
-              <cite>— Principio operativo de FindMe</cite>
+              <cite>” Principio operativo de FindMe</cite>
               <div className="mission-stats">
                 <div className="stat-box">
                   <span className="stat-num">+70%</span>
@@ -814,7 +814,7 @@ export default function LandingPage() {
             <span className="section-label">Cómo funciona</span>
             <h2 className="section-title">Simple, claro y <em>trazable</em></h2>
             <p className="section-body">
-              Un flujo diseñado para que cualquier persona pueda actuar rápido,
+              Un flujo diseñado para que cualquier persona pueda actuar rápido, 
               sin perder el control de la información ni la seguridad del proceso.
             </p>
 
@@ -860,7 +860,7 @@ export default function LandingPage() {
             <span className="section-label">Seguridad y verificación</span>
             <h2 className="section-title">No somos una red social.<br />Somos <em>una plataforma responsable.</em></h2>
             <p className="section-body">
-              La información sobre personas desaparecidas es sensible. Un dato erróneo
+              La información sobre personas desaparecidas es sensible. Un dato erróneo 
               puede desviar una búsqueda. Por eso construimos controles reales en cada capa del sistema.
             </p>
 
@@ -906,8 +906,8 @@ export default function LandingPage() {
             <span className="section-label">Impacto social</span>
             <h2 className="section-title">Una persona que actúa<br /><em>puede cambiar todo.</em></h2>
             <p className="section-body">
-              La búsqueda de personas desaparecidas no es solo trabajo de autoridades.
-              Es responsabilidad colectiva. Y cuando la comunidad actúa con orden,
+              La búsqueda de personas desaparecidas no es solo trabajo de autoridades. 
+              Es responsabilidad colectiva. Y cuando la comunidad actúa con orden, 
               los resultados son exponencialmente mejores.
             </p>
 
@@ -956,7 +956,7 @@ export default function LandingPage() {
                 <em>El momento es ahora.</em>
               </h2>
               <p className="cta-sub">
-                Regístrate, publica un caso o apoya a alguien que lo necesita.
+                Regístrate, publica un caso o apoya a alguien que lo necesita. 
                 Tu participación puede marcar la diferencia que una familia lleva semanas esperando.
               </p>
               <div className="cta-actions">

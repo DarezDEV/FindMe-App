@@ -79,9 +79,9 @@ function buildPrompt(caseData: PendingCaseItem, urgency: UrgencyInfo): string {
   const phone = caseData.contactPhone ?? 'No disponible'
   const email = caseData.contactEmail ?? 'No disponible'
   const since =
-    urgency.days === 0 ? 'hoy' : urgency.days === 1 ? 'hace 1 día' : `hace ${urgency.days} días`
+    urgency.days === 0 ? 'hoy' : urgency.days === 1 ? 'hace 1 dia' : `hace ${urgency.days} dias`
 
-  return `Teléfono de contacto: ${phone}. Correo de contacto: ${email}. Urgencia: ${urgency.label} (${since}).`
+  return `Telefono de contacto: ${phone}. Correo de contacto: ${email}. Urgencia: ${urgency.label} (${since}).`
 }
 
 export function CaseDetailPanel({ selectedCase }: CaseDetailPanelProps) {
@@ -168,7 +168,7 @@ export function CaseDetailPanel({ selectedCase }: CaseDetailPanelProps) {
             <div>
               <h2 className="text-lg font-semibold text-slate-900">{selectedCase.name}</h2>
               <p className="text-sm text-slate-500 mt-1">
-                Caso {selectedCase.caseNumber} · {selectedCase.age} años
+                Caso {selectedCase.caseNumber} · {selectedCase.age} anos
               </p>
             </div>
             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium ${urgency.toneClass}`}>
@@ -178,8 +178,8 @@ export function CaseDetailPanel({ selectedCase }: CaseDetailPanelProps) {
           </div>
 
           <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2 text-sm">
-            <MetaRow icon={<Clock4 size={13} />} label="Tiempo" value={urgency.days === 0 ? 'Hoy' : `Hace ${urgency.days} días`} />
-            <MetaRow icon={<UserCircle2 size={13} />} label="Género" value={selectedCase.gender || 'No especificado'} />
+            <MetaRow icon={<Clock4 size={13} />} label="Tiempo" value={urgency.days === 0 ? 'Hoy' : `Hace ${urgency.days} dias`} />
+            <MetaRow icon={<UserCircle2 size={13} />} label="Genero" value={selectedCase.gender || 'No especificado'} />
             <MetaRow icon={<Calendar size={13} />} label="Fecha nacimiento" value={selectedCase.birthDate || 'No disponible'} />
             <MetaRow icon={<MapPin size={13} />} label="Ubicacion" value={selectedCase.location} />
             <MetaRow icon={<MapPin size={13} />} label="Ultima vez visto" value={selectedCase.lastSeenPlace} />

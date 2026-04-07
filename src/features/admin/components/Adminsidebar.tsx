@@ -16,35 +16,7 @@ import {
 import { useAuth } from "../../auth/hooks";
 import { logoutUser } from "../../auth/services";
 import { appToast } from "../../../shared/components/ui";
-
-const navItems = [
-  {
-    section: "General",
-    items: [
-      { label: "Dashboard", icon: LayoutDashboard, href: "/admin/dashboard", badge: null },
-    ],
-  },
-  {
-    section: "Gestión",
-    items: [
-      { label: "Usuarios", icon: Users, href: "/admin/users", badge: null },
-    ],
-  },
-  {
-    section: "Casos",
-    items: [
-      { label: "Casos", icon: FileSearch, href: "/admin/cases", badge: { count: 12, type: "primary" } },
-      { label: "Avistamientos", icon: Eye, href: "/admin/sightings", badge: { count: 3, type: "warning" } },
-      { label: "Revisión", icon: AlertTriangle, href: "/admin/revision", badge: { count: 2, type: "error" } },
-    ],
-  },
-  {
-    section: "Sistema",
-    items: [
-      { label: "Configuracion", icon: Settings, href: "/admin/settings", badge: null },
-    ],
-  },
-];
+import { useAdminDashboardSummary } from "../hooks/useAdminDashboardSummary";
 
 const badgeClass: Record<string, string> = {
   primary: "bg-primary/10 text-primary border border-primary/20",
@@ -61,19 +33,64 @@ export default function AdminSidebar({ children }: AdminSidebarProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { data: summary } = useAdminDashboardSummary();
 
   const initials = user
     ? `${user.name?.[0] ?? ""}${user.last_nmae?.[0] ?? ""}`.toUpperCase()
     : "AD";
 
+  const navItems = [
+    {
+      section: "General",
+      items: [
+        { label: "Dashboard", icon: LayoutDashboard, href: "/admin/dashboard", badge: null },
+      ],
+    },
+    {
+      section: "Gestión",
+      items: [
+        { label: "Usuarios", icon: Users, href: "/admin/users", badge: null },
+      ],
+    },
+    {
+      section: "Casos",
+      items: [
+        {
+          label: "Casos",
+          icon: FileSearch,
+          href: "/admin/cases",
+          badge: summary && summary.total > 0 ? { count: summary.total, type: "primary" } : null,
+        },
+        {
+          label: "Avistamientos",
+          icon: Eye,
+          href: "/admin/sightings",
+          badge: null,
+        },
+        {
+          label: "Revisión",
+          icon: AlertTriangle,
+          href: "/admin/revision",
+          badge: summary && summary.pending > 0 ? { count: summary.pending, type: "error" } : null,
+        },
+      ],
+    },
+    {
+      section: "Sistema",
+      items: [
+        { label: "Configuración", icon: Settings, href: "/admin/settings", badge: null },
+      ],
+    },
+  ];
+
   const handleLogout = async () => {
     try {
       await logoutUser();
-      appToast.success("Sesion cerrada correctamente.");
+      appToast.success("Sesión cerrada correctamente.");
       navigate("/login");
     } catch (err) {
       console.error("Error al cerrar sesión:", err);
-      const message = err instanceof Error ? err.message : "No se pudo cerrar la sesion.";
+      const message = err instanceof Error ? err.message : "No se pudo cerrar la sesión.";
       appToast.error(message);
     }
   };
@@ -201,10 +218,12 @@ export default function AdminSidebar({ children }: AdminSidebarProps) {
           >
             <Bell size={17} className="shrink-0" />
             <span className="flex-1">Notificaciones</span>
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full
-                             bg-error/10 text-error border border-error/20">
-              5
-            </span>
+            {summary && summary.pending > 0 && (
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full
+                               bg-error/10 text-error border border-error/20">
+                {summary.pending}
+              </span>
+            )}
           </a>
 
           {/* User card */}

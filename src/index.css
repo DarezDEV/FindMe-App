@@ -1,4 +1,5 @@
-﻿@import "tailwindcss";
+﻿@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Hind:wght@300;400;500;600&display=swap');
+@import "tailwindcss";
 
 @theme {
   --color-primary: #3266db;
@@ -16,6 +17,9 @@
   --color-warning: #f59e0b;
   --color-error: #dc2626;
   --color-info: #0ea5e9;
+
+  --font-sans: 'Hind', system-ui, sans-serif;
+  --font-display: 'Montserrat', system-ui, sans-serif;
 }
 
 /* ── Sileo variables alineadas con el tema de FindMe ── */
@@ -95,6 +99,11 @@
 @layer base {
   body {
     @apply bg-background text-text-primary;
+    font-family: 'Hind', system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Montserrat', system-ui, sans-serif;
   }
 
   * {
