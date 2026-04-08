@@ -12,6 +12,7 @@ export interface UserRow {
   email: string
   activo: boolean
   created_at: string
+  avatar_url?: string | null
   roles: Role[]
 }
 
@@ -34,7 +35,7 @@ export function UserTableRow({ user, onEdit, onDelete, onToggleStatus }: Props) 
       {/* Usuario */}
       <td className="px-5 py-4">
         <div className="flex items-center gap-3">
-          <UserAvatar name={user.name} lastName={user.last_name} />
+          <UserAvatar name={user.name} lastName={user.last_name} avatarUrl={user.avatar_url} />
           <div>
             <p className="font-medium text-text-primary text-sm">
               {user.name} {user.last_name}

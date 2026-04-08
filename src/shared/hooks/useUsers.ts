@@ -21,6 +21,7 @@ interface ProfileRow {
   email: string
   activo: boolean
   created_at: string
+  avatar_url?: string | null
 }
 
 interface RoleRelationRow {
@@ -45,15 +46,36 @@ const withTimeout = async <T,>(promise: PromiseLike<T>, ms = USERS_TIMEOUT_MS): 
   }
 }
 
-async function fetchUsers(): Promise<UserRow[]> {
-  const { data: profiles, error } = await withTimeout(
+const PROFILE_SELECT_BASE = 'id, name, last_name, email, activo, created_at'
+const PROFILE_SELECT_WITH_AVATAR = `${PROFILE_SELECT_BASE}, avatar_url`
+
+async function fetchProfiles(): Promise<ProfileRow[]> {
+  let response = await withTimeout(
     supabase
       .from('profiles')
-      .select('id, name, last_name, email, activo, created_at')
+      .select(PROFILE_SELECT_WITH_AVATAR)
       .order('created_at', { ascending: false }),
   )
 
-  if (error) throw error
+  if (response.error) {
+    const message = response.error.message.toLowerCase()
+    if (message.includes('avatar_url') && message.includes('does not exist')) {
+      response = await withTimeout(
+        supabase
+          .from('profiles')
+          .select(PROFILE_SELECT_BASE)
+          .order('created_at', { ascending: false }),
+      )
+    }
+  }
+
+  if (response.error) throw response.error
+
+  return (response.data ?? []) as ProfileRow[]
+}
+
+async function fetchUsers(): Promise<UserRow[]> {
+  const profiles = await fetchProfiles()
 
   const { data: userRoles, error: userRolesError } = await withTimeout(
     supabase
@@ -74,7 +96,7 @@ async function fetchUsers(): Promise<UserRow[]> {
     }
   })
 
-  return ((profiles ?? []) as ProfileRow[]).map((profile) => ({
+  return (profiles ?? []).map((profile) => ({
     ...profile,
     roles: rolesMap[profile.id] ?? [],
   }))

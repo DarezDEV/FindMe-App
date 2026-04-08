@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -60,10 +60,17 @@ export default function AdminSidebar({ children }: AdminSidebarProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
   const initials = user
     ? `${user.name?.[0] ?? ""}${user.last_nmae?.[0] ?? ""}`.toUpperCase()
     : "AD";
+  const avatarUrl = user?.avatar_url ?? "";
+  const showAvatar = Boolean(avatarUrl) && !avatarFailed;
+
+  useEffect(() => {
+    setAvatarFailed(false);
+  }, [avatarUrl]);
 
   const handleLogout = async () => {
     try {
@@ -207,8 +214,17 @@ export default function AdminSidebar({ children }: AdminSidebarProps) {
           <div className="mt-2 flex items-center gap-3 px-2.5 py-2.5 rounded-lg
                           bg-background border border-border">
             <div className="w-8 h-8 rounded-full bg-primary-soft border border-primary/20
-                            flex items-center justify-center shrink-0">
-              <span className="text-xs font-bold text-primary">{initials}</span>
+                            flex items-center justify-center shrink-0 overflow-hidden">
+              {showAvatar ? (
+                <img
+                  src={avatarUrl}
+                  alt="Avatar"
+                  className="w-full h-full object-cover"
+                  onError={() => setAvatarFailed(true)}
+                />
+              ) : (
+                <span className="text-xs font-bold text-primary">{initials}</span>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-text-primary truncate">

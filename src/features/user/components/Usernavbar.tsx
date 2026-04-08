@@ -175,6 +175,7 @@ export default function UserNavbar() {
   const [scrolled, setScrolled] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [avatarFailed, setAvatarFailed] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const location = useLocation()
 
@@ -187,6 +188,8 @@ export default function UserNavbar() {
   const userLastName = user?.last_nmae ?? ''
   const userEmail = user?.email ?? 'sin-correo'
   const userInitials = getInitials(userName, userLastName)
+  const userAvatar = user?.avatar_url ?? ''
+  const showAvatar = Boolean(userAvatar) && !avatarFailed
 
   const toggle = (key: DropdownKey) => setOpen(prev => (prev === key ? null : key))
 
@@ -232,6 +235,10 @@ export default function UserNavbar() {
     window.addEventListener('scroll', handler)
     return () => window.removeEventListener('scroll', handler)
   }, [])
+
+  useEffect(() => {
+    setAvatarFailed(false)
+  }, [userAvatar])
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -407,8 +414,17 @@ export default function UserNavbar() {
                     open === 'user' ? 'bg-background' : ''
                   }`}
                 >
-                  <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
-                    <span className="text-white text-xs font-bold select-none">{userInitials}</span>
+                  <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0 overflow-hidden">
+                    {showAvatar ? (
+                      <img
+                        src={userAvatar}
+                        alt="Avatar"
+                        className="w-full h-full object-cover"
+                        onError={() => setAvatarFailed(true)}
+                      />
+                    ) : (
+                      <span className="text-white text-xs font-bold select-none">{userInitials}</span>
+                    )}
                   </div>
                   <ChevronDown
                     size={14}

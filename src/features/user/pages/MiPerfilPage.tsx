@@ -93,6 +93,68 @@ async function updateProfileBasics(userId: string, form: ProfileFormState) {
   throw new Error('No se pudo actualizar el perfil. Verifica las columnas de la tabla profiles.')
 }
 
+async function updateProfileAvatar(userId: string, avatarUrl: string | null) {
+  const now = new Date().toISOString()
+  const avatarKeys = ['avatar_url', 'avatar', 'foto', 'photo_url']
+  const updatedAtKeys = ['updated_at', 'updatedAt']
+
+  const { data: profileRow, error: profileError } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle()
+
+  if (profileError) {
+    const lowered = profileError.message.toLowerCase()
+    if (lowered.includes('row-level security policy') || lowered.includes('permission denied')) {
+      throw new Error('No tienes permisos para actualizar tu perfil. Revisa las politicas RLS de profiles.')
+    }
+  }
+
+  const existingColumns = new Set<string>(profileRow ? Object.keys(profileRow as Record<string, unknown>) : [])
+  const pickExisting = (keys: string[]) => keys.find((key) => existingColumns.has(key)) ?? null
+
+  const payloads: Array<Record<string, string | null>> = []
+
+  if (existingColumns.size > 0) {
+    const avatarKey = pickExisting(avatarKeys)
+    const updatedKey = pickExisting(updatedAtKeys)
+
+    const payload: Record<string, string | null> = {}
+    if (avatarKey) payload[avatarKey] = avatarUrl
+    if (updatedKey) payload[updatedKey] = now
+
+    if (Object.keys(payload).length > 0) {
+      payloads.push(payload)
+    }
+  } else {
+    for (const avatarKey of avatarKeys) {
+      payloads.push({ [avatarKey]: avatarUrl })
+      payloads.push({ [avatarKey]: avatarUrl, updated_at: now })
+    }
+  }
+
+  for (const payload of payloads) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(payload)
+      .eq('id', userId)
+      .select('id')
+      .maybeSingle()
+
+    if (!error && data) return
+
+    if (error) {
+      const message = error.message.toLowerCase()
+      if (message.includes('column') && message.includes('does not exist')) {
+        continue
+      }
+      if (message.includes('row-level security policy') || message.includes('permission denied')) {
+        throw new Error('No tienes permisos para actualizar tu perfil. Revisa las politicas RLS de profiles.')
+      }
+      throw error
+    }
+  }
+
+  throw new Error('No se pudo actualizar la foto de perfil. Verifica las columnas de la tabla profiles.')
+}
+
 function formatDate(value: string) {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
@@ -172,6 +234,30 @@ export default function MiPerfilPage() {
     setForm((prev) => ({ ...prev, avatarUrl: '' }))
     setRemoveAvatar(true)
     setAvatarModalOpen(false)
+  }
+
+  const handleRemoveAvatarAndSave = async () => {
+    if (!user?.id || saving) {
+      handleRemoveAvatar()
+      return
+    }
+
+    handleRemoveAvatar()
+    setSaving(true)
+    setNotice(null)
+
+    try {
+      await updateProfileAvatar(user.id, null)
+      await refreshUser()
+      setNotice({ type: 'success', message: 'Foto eliminada correctamente.' })
+      setRemoveAvatar(false)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo eliminar la foto.'
+      setNotice({ type: 'error', message })
+      await refreshUser()
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleSubmit = async (event: FormEvent) => {
@@ -454,7 +540,7 @@ export default function MiPerfilPage() {
               {currentAvatar && (
                 <button
                   type="button"
-                  onClick={handleRemoveAvatar}
+                  onClick={handleRemoveAvatarAndSave}
                   className="btn-secondary text-error border-error/30 hover:bg-error/5"
                 >
                   Quitar foto

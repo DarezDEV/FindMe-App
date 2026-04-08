@@ -28,7 +28,8 @@ export async function uploadAvatar(userId: string, file: File): Promise<string> 
   }
 
   const { data } = supabase.storage.from(AVATARS_BUCKET).getPublicUrl(path)
-  return data.publicUrl
+  const cacheBuster = Date.now()
+  return `${data.publicUrl}${data.publicUrl.includes('?') ? '&' : '?'}v=${cacheBuster}`
 }
 
 /** Sube una foto de caso y retorna la URL pública */
