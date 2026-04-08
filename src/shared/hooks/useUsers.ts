@@ -15,14 +15,7 @@ import type { UserRow } from '../../features/admin/components/UserTableRow'
 const PAGE_SIZE = 8
 const USERS_TIMEOUT_MS = 15000
 
-interface ProfileRow {
-  id: string
-  name: string
-  last_name: string
-  email: string
-  activo: boolean
-  created_at: string
-}
+type ProfileRow = Record<string, unknown>
 
 interface RoleRelationRow {
   user_id: string
@@ -47,14 +40,64 @@ const withTimeout = async <T,>(promise: PromiseLike<T>, ms = USERS_TIMEOUT_MS): 
 }
 
 async function fetchUsers(): Promise<UserRow[]> {
-  const { data: profiles, error } = await withTimeout(
-    supabase
-      .from('profiles')
-      .select('id, name, last_name, email, activo, created_at')
-      .order('created_at', { ascending: false }),
-  )
+  const baseColumns = 'id, name, email, activo, created_at'
+  const lastNameCandidates = ['last_name', 'last_nmae', 'apellido', 'apellidos'] as const
+  const selectCandidates = lastNameCandidates.flatMap((lastNameColumn) => [
+    `${baseColumns}, ${lastNameColumn}, avatar_url`,
+    `${baseColumns}, ${lastNameColumn}`,
+  ])
 
-  if (error) throw error
+  const pickString = (row: ProfileRow, keys: string[]): string | null => {
+    for (const key of keys) {
+      const value = row[key]
+      if (typeof value !== 'string') continue
+      const trimmed = value.trim()
+      if (trimmed) return trimmed
+    }
+    return null
+  }
+
+  const pickBoolean = (row: ProfileRow, key: string): boolean | null => {
+    const value = row[key]
+    return typeof value === 'boolean' ? value : null
+  }
+
+  const pickId = (row: ProfileRow): string => {
+    const value = row.id
+    if (typeof value === 'string') return value
+    if (typeof value === 'number') return String(value)
+    return ''
+  }
+
+  let profiles: ProfileRow[] | null = null
+  let lastProfilesError: unknown = null
+
+  for (const selectColumns of selectCandidates) {
+    const response = await withTimeout(
+      supabase
+        .from('profiles')
+        .select(selectColumns)
+        .order('created_at', { ascending: false }),
+    )
+
+    if (!response.error) {
+      profiles = (response.data ?? []) as unknown as ProfileRow[]
+      break
+    }
+
+    const lowered = response.error.message.toLowerCase()
+    if (lowered.includes('column') && lowered.includes('does not exist')) {
+      lastProfilesError = response.error
+      continue
+    }
+
+    throw response.error
+  }
+
+  if (!profiles) {
+    if (lastProfilesError) throw lastProfilesError
+    return []
+  }
 
   const { data: userRoles, error: userRolesError } = await withTimeout(
     supabase
@@ -75,10 +118,26 @@ async function fetchUsers(): Promise<UserRow[]> {
     }
   })
 
-  return ((profiles ?? []) as ProfileRow[]).map((profile) => ({
-    ...profile,
-    roles: rolesMap[profile.id] ?? [],
-  }))
+  return profiles.map((profile) => {
+    const id = pickId(profile)
+    const name = pickString(profile, ['name', 'nombre', 'nombres']) ?? ''
+    const lastName = pickString(profile, ['last_name', 'last_nmae', 'apellido', 'apellidos']) ?? ''
+    const email = pickString(profile, ['email']) ?? ''
+    const createdAt = pickString(profile, ['created_at']) ?? new Date().toISOString()
+    const activo = pickBoolean(profile, 'activo') ?? true
+    const avatarUrl = pickString(profile, ['avatar_url', 'avatar', 'foto', 'photo_url'])
+
+    return {
+      id,
+      name,
+      last_name: lastName,
+      email,
+      activo,
+      created_at: createdAt,
+      avatar_url: avatarUrl,
+      roles: rolesMap[id] ?? [],
+    }
+  })
 }
 
 export function useUsers() {

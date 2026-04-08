@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { Bell, FileSearch, LayoutDashboard, LogOut, Menu, ShieldCheck, X, Eye } from 'lucide-react'
 import { logoutUser } from '../../auth/services'
-import { appToast } from '../../../shared/components/ui'
+import { appToast, ProfileAvatar } from '../../../shared/components/ui'
 import { useAuth } from '../../auth/hooks'
 
 const authorityNavItems = [
@@ -22,9 +22,7 @@ interface SidebarBodyProps {
 function SidebarBody({ onNavigate, onLogout, logoutLoading, onClose }: SidebarBodyProps) {
   const { user } = useAuth()
 
-  const initials = user
-    ? `${user.name?.[0] ?? ''}${user.last_nmae?.[0] ?? ''}`.toUpperCase()
-    : 'AU'
+  const displayName = user ? [user.name, user.last_nmae].filter(Boolean).join(' ').trim() : ''
 
   return (
     <div className="flex flex-col h-full bg-card border-r border-border">
@@ -97,17 +95,26 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading, onClose }: SidebarBo
       {/* User + Logout */}
       <div className="px-3 py-4 border-t border-border space-y-1">
         {user && (
-          <div className="flex items-center gap-2.5 px-2.5 py-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-warning/10 border border-warning/20 flex items-center justify-center shrink-0">
-              <span className="text-xs font-semibold text-warning">{initials}</span>
-            </div>
+          <NavLink
+            to="/authority/perfil"
+            onClick={onNavigate}
+            className="flex items-center gap-2.5 px-2.5 py-2 mb-2 rounded-lg hover:bg-background transition-colors"
+          >
+            <ProfileAvatar
+              name={user.name ?? null}
+              lastName={user.last_nmae ?? null}
+              src={user.avatar_url ?? null}
+              size={32}
+              rounded="full"
+              className="shrink-0"
+            />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-text-primary truncate">
-                {user.name} {user.last_nmae}
+                {displayName || 'Autoridad'}
               </p>
               <p className="text-[11px] text-text-secondary truncate">{user.email}</p>
             </div>
-          </div>
+          </NavLink>
         )}
         <button
           onClick={onLogout}

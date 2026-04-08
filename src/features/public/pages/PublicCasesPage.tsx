@@ -358,7 +358,7 @@ export default function PublicCasesPage() {
         setSubmittingCommentCaseId(null)
       }
     },
-    [commentDraftByCaseId, user?.id]
+    [commentDraftByCaseId, user?.id, user?.name, user?.last_nmae]
   )
 
   const reportPublicComment = useCallback(

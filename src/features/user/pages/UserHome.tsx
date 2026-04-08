@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, Calendar, MapPin, MoreVertical, Plus, RefreshCw, UserSearch } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
@@ -84,37 +84,27 @@ export default function UserHome() {
     return unsubscribe
   }, [refetchCasos])
 
-  const filteredCasos = useMemo(() => {
-    if (!normalizedQuery) return casosGenerales
-    return casosGenerales.filter((caso) => {
-      const fullName = `${caso.nombres} ${caso.apellidos}`.toLowerCase()
-      const city = (caso.ciudad ?? '').toLowerCase()
-      const caseNumber = caso.numero_caso.toLowerCase()
-      return (
-        fullName.includes(normalizedQuery) ||
-        city.includes(normalizedQuery) ||
-        caseNumber.includes(normalizedQuery)
-      )
-    })
-  }, [casosGenerales, normalizedQuery])
+  const filteredCasos = !normalizedQuery
+    ? casosGenerales
+    : casosGenerales.filter((caso) => {
+        const fullName = `${caso.nombres} ${caso.apellidos}`.toLowerCase()
+        const city = (caso.ciudad ?? '').toLowerCase()
+        const caseNumber = caso.numero_caso.toLowerCase()
+        return (
+          fullName.includes(normalizedQuery) ||
+          city.includes(normalizedQuery) ||
+          caseNumber.includes(normalizedQuery)
+        )
+      })
 
-  const missingCases = useMemo(
-    () =>
-      filteredCasos.filter(
-        (caso) =>
-          !(caso.workflow_status === 'found' || caso.workflow_status === 'closed' || caso.status === 'encontrado'),
-      ),
-    [filteredCasos],
+  const displayCases = filteredCasos.filter(
+    (caso) =>
+      !(caso.workflow_status === 'found' || caso.workflow_status === 'closed' || caso.status === 'encontrado'),
   )
-
-  const displayCases = missingCases
   const [featuredIndex, setFeaturedIndex] = useState(0)
-  const featuredCase = displayCases[featuredIndex]
-
-  useEffect(() => {
-    setFeaturedIndex(0)
-    setIsTransitioning(false)
-  }, [displayCases.length, normalizedQuery])
+  const safeFeaturedIndex = displayCases.length > 0 ? featuredIndex % displayCases.length : 0
+  const featuredCase = displayCases[safeFeaturedIndex]
+  const featuredTransitioning = displayCases.length > 1 && isTransitioning
 
   useEffect(() => {
     if (displayCases.length <= 1) return
@@ -193,13 +183,15 @@ export default function UserHome() {
                   </div>
                 </div>
                 <span className="text-[11px] text-text-secondary">
-                  {featuredIndex + 1} / {displayCases.length}
+                  {safeFeaturedIndex + 1} / {displayCases.length}
                 </span>
               </div>
 
               <div
                 className={`grid grid-cols-1 md:grid-cols-[280px_1fr] gap-5 p-5 transition-all duration-500 ${
-                  isTransitioning ? 'opacity-0 translate-y-2 scale-[0.985]' : 'opacity-100 translate-y-0 scale-100'
+                  featuredTransitioning
+                    ? 'opacity-0 translate-y-2 scale-[0.985]'
+                    : 'opacity-100 translate-y-0 scale-100'
                 }`}
               >
                 <div className="relative border border-border/70 rounded-2xl overflow-hidden aspect-[3/4] flex items-center justify-center bg-background shadow-sm">

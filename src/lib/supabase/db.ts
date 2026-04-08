@@ -219,7 +219,22 @@ export async function getProfileWithRoles(userId: string): Promise<UserProfile> 
     getProfile(userId),
     getUserRoles(userId),
   ])
-  return { ...profile, roles } as UserProfile
+
+  const row = (profile ?? {}) as Record<string, unknown>
+
+  const normalized: UserProfile = {
+    ...(row as Record<string, unknown>),
+    id: pickString(row, ['id']) ?? userId,
+    name: pickString(row, ['name', 'nombre', 'nombres']) ?? '',
+    last_nmae: pickString(row, ['last_nmae', 'last_name', 'apellido', 'apellidos']) ?? '',
+    email: pickString(row, ['email']) ?? '',
+    activo: typeof row.activo === 'boolean' ? row.activo : true,
+    created_at: pickString(row, ['created_at']) ?? new Date().toISOString(),
+    avatar_url: pickString(row, ['avatar_url', 'avatar', 'foto', 'photo_url']),
+    roles: roles as UserProfile['roles'],
+  } as UserProfile
+
+  return normalized
 }
 
 export async function getUserRolesByIds(userIds: string[]): Promise<Record<string, string[]>> {
@@ -597,19 +612,43 @@ export async function getProfilesBasicByIds(userIds: string[]): Promise<ProfileB
   const uniqueIds = [...new Set(userIds.filter(Boolean))]
   if (uniqueIds.length === 0) return []
 
-  const { data, error } = await withRetry(() =>
-    supabase
-      .from('profiles')
-      .select('id, name, last_name, email')
-      .in('id', uniqueIds),
-  )
+  const attempts = ['id, name, last_name, email', 'id, name, last_nmae, email']
 
-  if (error) {
-    console.error('[getProfilesBasicByIds] Error:', error)
-    throw error
+  let lastError: unknown = null
+
+  for (const selectColumns of attempts) {
+    const { data, error } = await withRetry(() =>
+      supabase
+        .from('profiles')
+        .select(selectColumns)
+        .in('id', uniqueIds),
+    )
+
+    if (error) {
+      if (isColumnMissingError(error)) {
+        lastError = error
+        continue
+      }
+      console.error('[getProfilesBasicByIds] Error:', error)
+      throw error
+    }
+
+    const rows = (data ?? []) as Array<Record<string, unknown>>
+
+    return rows.map((row) => ({
+      id: pickString(row, ['id']) ?? '',
+      name: pickString(row, ['name', 'nombre', 'nombres']),
+      last_name: pickString(row, ['last_name', 'last_nmae', 'apellido', 'apellidos']),
+      email: pickString(row, ['email']),
+    }))
   }
 
-  return (data ?? []) as ProfileBasicRow[]
+  if (lastError) {
+    console.error('[getProfilesBasicByIds] Error:', lastError)
+    throw lastError
+  }
+
+  return []
 }
 
 export async function updateCaseWorkflowStatus(caseId: string, status: CaseWorkflowStatus): Promise<void> {

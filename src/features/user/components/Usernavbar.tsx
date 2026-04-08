@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
 import { logoutUser } from '../../auth/services'
-import { appToast } from '../../../shared/components/ui'
+import { appToast, ProfileAvatar } from '../../../shared/components/ui'
 import { type CasoReciente, useMisCasos } from '../hooks/useMisCasos'
 
 type DropdownKey = 'notifications' | 'user' | 'publish' | null
@@ -51,12 +51,6 @@ const publishOptions: PublishOption[] = [
     icon: <UserSearch size={16} />,
   },
 ]
-
-function getInitials(name: string, lastName: string) {
-  const first = name.trim().charAt(0).toUpperCase()
-  const second = lastName.trim().charAt(0).toUpperCase()
-  return `${first}${second}`.trim() || 'U'
-}
 
 function formatTime(value: string | null) {
   if (!value) return 'Reciente'
@@ -187,7 +181,6 @@ export default function UserNavbar() {
   const userName = user?.name ?? 'Usuario'
   const userLastName = user?.last_nmae ?? ''
   const userEmail = user?.email ?? 'sin-correo'
-  const userInitials = getInitials(userName, userLastName)
 
   const toggle = (key: DropdownKey) => setOpen(prev => (prev === key ? null : key))
 
@@ -412,9 +405,14 @@ export default function UserNavbar() {
                     open === 'user' ? 'bg-background' : ''
                   }`}
                 >
-                  <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
-                    <span className="text-white text-xs font-bold select-none">{userInitials}</span>
-                  </div>
+                  <ProfileAvatar
+                    name={userName}
+                    lastName={userLastName}
+                    src={user?.avatar_url ?? null}
+                    size={32}
+                    rounded="full"
+                    className="shrink-0"
+                  />
                   <ChevronDown
                     size={14}
                     className={`text-text-secondary hidden sm:block transition-transform duration-200 ${

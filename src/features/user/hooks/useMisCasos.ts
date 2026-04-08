@@ -571,7 +571,7 @@ export function useCasoDetalle(caseId: string) {
       const safeMedia = (mediaResponse.data ?? []) as CasoMedia[]
 
       // Intentar primero con la vista enriquecida, luego con fallback directo a `cases`
-      let caseResponse = await supabase
+      const caseResponse = await supabase
         .from('cases')
         .select(CASO_DETALLE_FALLBACK_SELECT)
         .eq('id', caseId)

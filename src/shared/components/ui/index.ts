@@ -1,5 +1,6 @@
 export { Spinner } from './Spinner'
 export { Alert } from './Alert'
+export { ProfileAvatar } from './ProfileAvatar'
 export { RoleBadge } from './Rolebadge'
 export { StatusBadge, type WorkflowStatus } from './StatusBadge'
 export { appToast } from './toast'

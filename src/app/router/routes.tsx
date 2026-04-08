@@ -19,12 +19,14 @@ import AdminUsers from '../../features/admin/pages/AdminUsers'
 import AdminCases from '../../features/admin/pages/AdminCases'
 import AdminSightings from '../../features/admin/pages/AdminSightings'
 import AdminReview from '../../features/admin/pages/AdminReview'
+import AdminProfilePage from '../../features/admin/pages/AdminProfilePage'
 import AdminSettings from '../../features/admin/pages/AdminSettings'
 import AuthorityCases from '../../features/authority/pages/AuthorityCases'
 import AuthorityCaseDetailPage from '../../features/authority/pages/AuthorityCaseDetailPage'
 import AuthorityCreateCasePage from '../../features/authority/pages/AuthorityCreateCasePage'
 import PendingCasesPage from '../../features/authority/pages/PendingCasesPage'
 import AuthoritySightings from '../../features/authority/pages/AuthoritySightings'
+import AuthorityProfilePage from '../../features/authority/pages/AuthorityProfilePage'
 import LandingPage from '../../features/public/pages/LandingPage'
 import PublicCasesPage from '../../features/public/pages/PublicCasesPage'
 import PublishCaseGatePage from '../../features/public/pages/PublishCaseGatePage'
@@ -97,6 +99,7 @@ const router = createBrowserRouter([
       { path: '/admin/cases', element: <AdminCases /> },
       { path: '/admin/sightings', element: <AdminSightings /> },
       { path: '/admin/revision', element: <AdminReview /> },
+      { path: '/admin/perfil', element: <AdminProfilePage /> },
       { path: '/admin/settings', element: <AdminSettings /> },
     ],
   },
@@ -111,6 +114,7 @@ const router = createBrowserRouter([
       { path: '/authority/cases/:id', element: <AuthorityCaseDetailPage /> },
       { path: '/authority/sightings', element: <AuthoritySightings /> },
       { path: '/authority/cases/pending', element: <PendingCasesPage /> },
+      { path: '/authority/perfil', element: <AuthorityProfilePage /> },
     ],
   },
 
