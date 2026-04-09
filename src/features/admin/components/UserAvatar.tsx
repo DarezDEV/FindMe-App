@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 interface Props {
   name: string
@@ -14,14 +14,10 @@ const sizes = {
 }
 
 export function UserAvatar({ name, lastName, avatarUrl, size = 'md' }: Props) {
-  const [imageFailed, setImageFailed] = useState(false)
-
-  useEffect(() => {
-    setImageFailed(false)
-  }, [avatarUrl])
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
 
   const initials = `${name?.[0] ?? ''}${lastName?.[0] ?? ''}`.trim().toUpperCase() || 'U'
-  const showImage = Boolean(avatarUrl) && !imageFailed
+  const showImage = Boolean(avatarUrl) && failedUrl !== avatarUrl
 
   return (
     <div className={`${sizes[size]} rounded-xl bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden`}>
@@ -30,7 +26,7 @@ export function UserAvatar({ name, lastName, avatarUrl, size = 'md' }: Props) {
           src={avatarUrl ?? ''}
           alt="Avatar"
           className="w-full h-full object-cover"
-          onError={() => setImageFailed(true)}
+          onError={() => setFailedUrl(avatarUrl ?? null)}
         />
       ) : (
         <span className="text-primary font-bold">

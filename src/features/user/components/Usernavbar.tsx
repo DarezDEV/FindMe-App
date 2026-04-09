@@ -175,7 +175,7 @@ export default function UserNavbar() {
   const [scrolled, setScrolled] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [avatarFailed, setAvatarFailed] = useState(false)
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
   const location = useLocation()
 
@@ -189,7 +189,7 @@ export default function UserNavbar() {
   const userEmail = user?.email ?? 'sin-correo'
   const userInitials = getInitials(userName, userLastName)
   const userAvatar = user?.avatar_url ?? ''
-  const showAvatar = Boolean(userAvatar) && !avatarFailed
+  const showAvatar = Boolean(userAvatar) && failedAvatarUrl !== userAvatar
 
   const toggle = (key: DropdownKey) => setOpen(prev => (prev === key ? null : key))
 
@@ -235,10 +235,6 @@ export default function UserNavbar() {
     window.addEventListener('scroll', handler)
     return () => window.removeEventListener('scroll', handler)
   }, [])
-
-  useEffect(() => {
-    setAvatarFailed(false)
-  }, [userAvatar])
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -420,7 +416,7 @@ export default function UserNavbar() {
                         src={userAvatar}
                         alt="Avatar"
                         className="w-full h-full object-cover"
-                        onError={() => setAvatarFailed(true)}
+                        onError={() => setFailedAvatarUrl(userAvatar || null)}
                       />
                     ) : (
                       <span className="text-white text-xs font-bold select-none">{userInitials}</span>

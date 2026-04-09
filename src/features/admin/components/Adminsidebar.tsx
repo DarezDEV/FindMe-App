@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -60,17 +60,13 @@ export default function AdminSidebar({ children }: AdminSidebarProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [avatarFailed, setAvatarFailed] = useState(false);
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
 
   const initials = user
     ? `${user.name?.[0] ?? ""}${user.last_nmae?.[0] ?? ""}`.toUpperCase()
     : "AD";
   const avatarUrl = user?.avatar_url ?? "";
-  const showAvatar = Boolean(avatarUrl) && !avatarFailed;
-
-  useEffect(() => {
-    setAvatarFailed(false);
-  }, [avatarUrl]);
+  const showAvatar = Boolean(avatarUrl) && failedAvatarUrl !== avatarUrl;
 
   const handleLogout = async () => {
     try {
@@ -220,7 +216,7 @@ export default function AdminSidebar({ children }: AdminSidebarProps) {
                   src={avatarUrl}
                   alt="Avatar"
                   className="w-full h-full object-cover"
-                  onError={() => setAvatarFailed(true)}
+                  onError={() => setFailedAvatarUrl(avatarUrl || null)}
                 />
               ) : (
                 <span className="text-xs font-bold text-primary">{initials}</span>

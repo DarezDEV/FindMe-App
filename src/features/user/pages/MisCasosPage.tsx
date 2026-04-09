@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, Calendar, ChevronLeft, Clock3, Edit3, Eye, MapPin, Trash2 } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
@@ -405,7 +405,8 @@ async function updateCaseForUser(
     if (error) {
       const message = error.message.toLowerCase()
       if (message.includes('column') && message.includes('workflow_status')) {
-        const { workflow_status: _, ...rest } = payload
+        const rest = { ...payload }
+        delete rest.workflow_status
         if (Object.keys(rest).length > 0) {
           const retry = await supabase
             .from('cases')
