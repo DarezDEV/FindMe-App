@@ -1,5 +1,6 @@
 import { supabase } from './client'
 import type { UserProfile } from '../../features/auth/types'
+import { logError, toAppError } from '../../shared/utils/errors'
 
 interface UserRoleRow {
   role_id: string
@@ -55,6 +56,34 @@ export interface AuthorityDashboardSummary {
 
 export interface CaseRealtimeRow {
   id: string
+  numero_caso: string | null
+  publicado_por: string | null
+  nombres: string | null
+  apellidos: string | null
+  edad: number | null
+  genero: string | null
+  telefono_contacto: string | null
+  email_contacto: string | null
+  fecha_nacimiento: string | null
+  ciudad: string | null
+  estado_provincia: string | null
+  lugar_desaparicion: string | null
+  lugar_ultima_vez: string | null
+  descripcion_general: string | null
+  fecha_desaparicion: string | null
+  hora_desaparicion: string | null
+  person_id: string | null
+  pais: string | null
+  color_piel: string | null
+  color_cabello: string | null
+  color_ojos: string | null
+  senas_particulares: string | null
+  circunstancias: string | null
+  ropa_descripcion: string | null
+  idioma: string | null
+  visibilidad_contacto: 'publico' | 'autoridades' | 'privado' | null
+  vistas: number | null
+  created_at: string | null
   workflow_status: CaseWorkflowStatus | null
   status: string | null
   eliminado: boolean | null
@@ -82,7 +111,92 @@ export interface AuthoritySightingRow {
 
 export type SightingModerationStatus = 'pending' | 'approved' | 'rejected'
 
+export interface CaseCommentRealtimeRow {
+  id: string
+  caso_id: string | null
+  autor_id: string | null
+  comentario: string | null
+  created_at: string | null
+}
+
+export interface CaseCommentRealtimePayload {
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE'
+  new: Partial<CaseCommentRealtimeRow>
+  old: Partial<CaseCommentRealtimeRow>
+}
+
+export interface CaseMediaRealtimeRow {
+  id: string
+  caso_id: string | null
+  tipo: 'foto' | 'video' | null
+  url: string | null
+  es_principal: boolean | null
+  orden: number | null
+  mime_type: string | null
+  created_at: string | null
+}
+
+export interface CaseMediaRealtimePayload {
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE'
+  new: Partial<CaseMediaRealtimeRow>
+  old: Partial<CaseMediaRealtimeRow>
+}
+
+export interface SightingRealtimeRow {
+  id: string | null
+  avistamiento_id: string | null
+  caso_id: string | null
+  missing_caso_id: string | null
+  numero_caso: string | null
+  case_number: string | null
+  nombre_persona: string | null
+  persona_nombre: string | null
+  missing_person_name: string | null
+  nombre: string | null
+  reportado_por: string | null
+  reporter_id: string | null
+  autor_id: string | null
+  user_id: string | null
+  created_by: string | null
+  fecha_avistamiento: string | null
+  fecha_reporte: string | null
+  reported_at: string | null
+  fecha: string | null
+  hora_avistamiento: string | null
+  hora: string | null
+  time: string | null
+  lugar: string | null
+  ubicacion: string | null
+  direccion: string | null
+  location: string | null
+  descripcion: string | null
+  detalle: string | null
+  comentario: string | null
+  note: string | null
+  contenido: string | null
+  texto: string | null
+  estado: string | null
+  status: string | null
+  workflow_status: string | null
+  validado: boolean | null
+  aprobado: boolean | null
+  eliminado: boolean | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface SightingRealtimePayload {
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE'
+  new: Partial<SightingRealtimeRow>
+  old: Partial<SightingRealtimeRow>
+}
+
 const SIGHTING_TABLE = 'case_sightings'
+
+function throwDbError(context: string, error: unknown, fallbackMessage: string): never {
+  logError(context, error)
+  throw toAppError(error, fallbackMessage, context)
+}
 
 function withTimeout<T>(promise: PromiseLike<T>, ms = 12000): Promise<T> {
   const timeout = new Promise<never>((_, reject) => {
@@ -124,6 +238,15 @@ function getBooleanValue(value: unknown): boolean | null {
   return null
 }
 
+function getNumberValue(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return null
+}
+
 function pickString(row: Record<string, unknown>, keys: string[]): string | null {
   for (const key of keys) {
     const value = getStringValue(row[key])
@@ -139,6 +262,11 @@ function normalizeCaseWorkflowStatus(value: unknown): CaseWorkflowStatus | null 
   if (value === 'rejected') return 'rejected'
   if (value === 'found') return 'found'
   if (value === 'closed') return 'closed'
+  return null
+}
+
+function normalizeContactVisibility(value: unknown): 'publico' | 'autoridades' | 'privado' | null {
+  if (value === 'publico' || value === 'autoridades' || value === 'privado') return value
   return null
 }
 
@@ -180,8 +308,7 @@ export async function getProfile(userId: string) {
   )
 
   if (error) {
-    console.error('[getProfile] Error:', error)
-    throw error
+    throwDbError('getProfile', error, 'No se pudo cargar el perfil. Inténtalo nuevamente.')
   }
   return data
 }
@@ -194,7 +321,9 @@ export async function getUserRoles(userId: string): Promise<string[]> {
       .eq('user_id', userId),
   )
 
-  if (urError) throw urError
+  if (urError) {
+    throwDbError('getUserRoles', urError, 'No se pudieron cargar los roles del usuario. Inténtalo nuevamente.')
+  }
   if (!userRoles || userRoles.length === 0) return []
 
   const roleIds = userRoles.map((r: UserRoleRow) => r.role_id)
@@ -208,7 +337,9 @@ export async function getUserRoles(userId: string): Promise<string[]> {
       .in('id', roleIds),
   )
 
-  if (rError) throw rError
+  if (rError) {
+    throwDbError('getUserRoles', rError, 'No se pudieron cargar los roles del usuario. Inténtalo nuevamente.')
+  }
 
   const names = (roles ?? []).map((r: RoleRow) => r.name)
   return names
@@ -251,8 +382,7 @@ export async function getUserRolesByIds(userIds: string[]): Promise<Record<strin
   )
 
   if (relationError) {
-    console.error('[getUserRolesByIds] Error:', relationError)
-    throw relationError
+    throwDbError('getUserRolesByIds', relationError, 'Error al cargar los roles. Inténtalo nuevamente.')
   }
 
   const roleIdsByUser = new Map<string, string[]>()
@@ -286,8 +416,7 @@ export async function getUserRolesByIds(userIds: string[]): Promise<Record<strin
   )
 
   if (rolesError) {
-    console.error('[getUserRolesByIds] Roles error:', rolesError)
-    throw rolesError
+    throwDbError('getUserRolesByIds', rolesError, 'Error al cargar los roles. Inténtalo nuevamente.')
   }
 
   const roleNameById = new Map<string, string>()
@@ -338,11 +467,41 @@ export async function getAuthorityCases(params: GetCasesParams = {}): Promise<Au
   const { data, error } = await withRetry(() => query, { timeoutMs: 30000, retries: 1 })
 
   if (error) {
-    console.error('[getAuthorityCases] Error:', error)
-    throw error
+    throwDbError('getAuthorityCases', error, 'Error al cargar los casos. Inténtalo nuevamente.')
   }
 
   return (data ?? []) as AuthorityCaseRow[]
+}
+
+export function normalizeAuthorityCaseRow(row: Partial<CaseRealtimeRow>): AuthorityCaseRow | null {
+  const id = getStringValue(row.id) ?? null
+  const numeroCaso = getStringValue(row.numero_caso) ?? null
+  const nombres = getStringValue(row.nombres) ?? null
+  const apellidos = getStringValue(row.apellidos) ?? null
+  const createdAt = getStringValue(row.created_at) ?? null
+
+  if (!id || !numeroCaso || !nombres || !apellidos || !createdAt) return null
+
+  return {
+    id,
+    numero_caso: numeroCaso,
+    status: getStringValue(row.status) ?? 'activo',
+    workflow_status: normalizeCaseWorkflowStatus(row.workflow_status),
+    publicado_por: getStringValue(row.publicado_por),
+    nombres,
+    apellidos,
+    edad: getNumberValue(row.edad),
+    genero: getStringValue(row.genero),
+    telefono_contacto: getStringValue(row.telefono_contacto),
+    email_contacto: getStringValue(row.email_contacto),
+    fecha_nacimiento: getStringValue(row.fecha_nacimiento),
+    ciudad: getStringValue(row.ciudad),
+    estado_provincia: getStringValue(row.estado_provincia),
+    lugar_ultima_vez: getStringValue(row.lugar_ultima_vez),
+    descripcion_general: getStringValue(row.descripcion_general),
+    fecha_desaparicion: getStringValue(row.fecha_desaparicion),
+    created_at: createdAt,
+  }
 }
 
 export function subscribeToCasesRealtime(
@@ -361,12 +520,68 @@ export function subscribeToCasesRealtime(
           eventType: payload.eventType as CaseRealtimePayload['eventType'],
           new: {
             id: pickString(newRowRaw, ['id']) ?? '',
+            numero_caso: pickString(newRowRaw, ['numero_caso']),
+            publicado_por: pickString(newRowRaw, ['publicado_por']),
+            nombres: pickString(newRowRaw, ['nombres']),
+            apellidos: pickString(newRowRaw, ['apellidos']),
+            edad: getNumberValue(newRowRaw.edad),
+            genero: pickString(newRowRaw, ['genero']),
+            telefono_contacto: pickString(newRowRaw, ['telefono_contacto']),
+            email_contacto: pickString(newRowRaw, ['email_contacto']),
+            fecha_nacimiento: pickString(newRowRaw, ['fecha_nacimiento']),
+            ciudad: pickString(newRowRaw, ['ciudad']),
+            estado_provincia: pickString(newRowRaw, ['estado_provincia']),
+            lugar_desaparicion: pickString(newRowRaw, ['lugar_desaparicion']),
+            lugar_ultima_vez: pickString(newRowRaw, ['lugar_ultima_vez']),
+            descripcion_general: pickString(newRowRaw, ['descripcion_general']),
+            fecha_desaparicion: pickString(newRowRaw, ['fecha_desaparicion']),
+            hora_desaparicion: pickString(newRowRaw, ['hora_desaparicion']),
+            person_id: pickString(newRowRaw, ['person_id']),
+            pais: pickString(newRowRaw, ['pais']),
+            color_piel: pickString(newRowRaw, ['color_piel']),
+            color_cabello: pickString(newRowRaw, ['color_cabello']),
+            color_ojos: pickString(newRowRaw, ['color_ojos']),
+            senas_particulares: pickString(newRowRaw, ['senas_particulares']),
+            circunstancias: pickString(newRowRaw, ['circunstancias']),
+            ropa_descripcion: pickString(newRowRaw, ['ropa_descripcion']),
+            idioma: pickString(newRowRaw, ['idioma']),
+            visibilidad_contacto: normalizeContactVisibility(newRowRaw.visibilidad_contacto),
+            vistas: getNumberValue(newRowRaw.vistas),
+            created_at: pickString(newRowRaw, ['created_at']),
             workflow_status: normalizeCaseWorkflowStatus(newRowRaw.workflow_status),
             status: pickString(newRowRaw, ['status']),
             eliminado: getBooleanValue(newRowRaw.eliminado),
           },
           old: {
             id: pickString(oldRowRaw, ['id']) ?? '',
+            numero_caso: pickString(oldRowRaw, ['numero_caso']),
+            publicado_por: pickString(oldRowRaw, ['publicado_por']),
+            nombres: pickString(oldRowRaw, ['nombres']),
+            apellidos: pickString(oldRowRaw, ['apellidos']),
+            edad: getNumberValue(oldRowRaw.edad),
+            genero: pickString(oldRowRaw, ['genero']),
+            telefono_contacto: pickString(oldRowRaw, ['telefono_contacto']),
+            email_contacto: pickString(oldRowRaw, ['email_contacto']),
+            fecha_nacimiento: pickString(oldRowRaw, ['fecha_nacimiento']),
+            ciudad: pickString(oldRowRaw, ['ciudad']),
+            estado_provincia: pickString(oldRowRaw, ['estado_provincia']),
+            lugar_desaparicion: pickString(oldRowRaw, ['lugar_desaparicion']),
+            lugar_ultima_vez: pickString(oldRowRaw, ['lugar_ultima_vez']),
+            descripcion_general: pickString(oldRowRaw, ['descripcion_general']),
+            fecha_desaparicion: pickString(oldRowRaw, ['fecha_desaparicion']),
+            hora_desaparicion: pickString(oldRowRaw, ['hora_desaparicion']),
+            person_id: pickString(oldRowRaw, ['person_id']),
+            pais: pickString(oldRowRaw, ['pais']),
+            color_piel: pickString(oldRowRaw, ['color_piel']),
+            color_cabello: pickString(oldRowRaw, ['color_cabello']),
+            color_ojos: pickString(oldRowRaw, ['color_ojos']),
+            senas_particulares: pickString(oldRowRaw, ['senas_particulares']),
+            circunstancias: pickString(oldRowRaw, ['circunstancias']),
+            ropa_descripcion: pickString(oldRowRaw, ['ropa_descripcion']),
+            idioma: pickString(oldRowRaw, ['idioma']),
+            visibilidad_contacto: normalizeContactVisibility(oldRowRaw.visibilidad_contacto),
+            vistas: getNumberValue(oldRowRaw.vistas),
+            created_at: pickString(oldRowRaw, ['created_at']),
             workflow_status: normalizeCaseWorkflowStatus(oldRowRaw.workflow_status),
             status: pickString(oldRowRaw, ['status']),
             eliminado: getBooleanValue(oldRowRaw.eliminado),
@@ -382,6 +597,43 @@ export function subscribeToCasesRealtime(
 
   return () => {
     void supabase.removeChannel(channel)
+  }
+}
+
+export function normalizeAuthoritySightingRow(
+  row: Record<string, unknown>,
+  lookups: {
+    caseMap?: Map<string, { numeroCaso: string | null; fullName: string | null }>
+    profileMap?: Map<string, string>
+  } = {},
+): AuthoritySightingRow {
+  const id = pickString(row, ['id', 'avistamiento_id']) ?? crypto.randomUUID()
+  const caseId = pickString(row, ['caso_id', 'missing_caso_id'])
+  const caseFromLookup = caseId ? lookups.caseMap?.get(caseId) ?? null : null
+  const reporterId = pickString(row, ['reportado_por', 'reporter_id', 'autor_id', 'user_id', 'created_by'])
+  const reporterName = reporterId ? (lookups.profileMap?.get(reporterId) ?? null) : null
+  const rawStatus = pickString(row, ['estado', 'status', 'workflow_status'])
+  const details =
+    pickString(row, ['descripcion', 'detalle', 'comentario', 'note', 'contenido', 'texto'])
+    ?? 'Sin detalles del avistamiento.'
+
+  return {
+    id,
+    caseId,
+    caseNumber: pickString(row, ['numero_caso', 'case_number']) ?? caseFromLookup?.numeroCaso ?? null,
+    missingPersonName:
+      pickString(row, ['nombre_persona', 'persona_nombre', 'missing_person_name', 'nombre'])
+      ?? caseFromLookup?.fullName
+      ?? null,
+    reporterId,
+    reporterName,
+    details,
+    location: pickString(row, ['ubicacion', 'location', 'lugar', 'direccion', 'ciudad']),
+    status: rawStatus,
+    created_at:
+      pickString(row, ['created_at', 'fecha_reporte', 'reported_at', 'fecha', 'updated_at'])
+      ?? new Date().toISOString(),
+    sourceTable: SIGHTING_TABLE,
   }
 }
 
@@ -424,8 +676,7 @@ export async function getAuthoritySightings(limit = 200): Promise<AuthoritySight
 
   if (error) {
     if (isTableMissingError(error)) return []
-    console.error(`[getAuthoritySightings] Error en tabla ${SIGHTING_TABLE}:`, error)
-    throw error
+    throwDbError('getAuthoritySightings', error, 'Error al cargar los avistamientos. Inténtalo nuevamente.')
   }
 
   const rawRows = (data ?? []) as Record<string, unknown>[]
@@ -485,41 +736,125 @@ export async function getAuthoritySightings(limit = 200): Promise<AuthoritySight
         const fullName = `${profile.name ?? ''} ${profile.last_name ?? ''}`.trim()
         if (fullName) profileMap.set(profile.id, fullName)
       })
-    } catch {
+    } catch (error) {
       // If profiles fail, we still return sightings without reporter names.
+      logError('getAuthoritySightings.getProfilesBasicByIds', error)
     }
   }
 
-  return rows.map((row) => {
-    const id = pickString(row, ['id', 'avistamiento_id']) ?? crypto.randomUUID()
-    const caseId = pickString(row, ['caso_id', 'missing_caso_id'])
-    const caseFromLookup = caseId ? caseMap.get(caseId) : null
-    const reporterId = pickString(row, ['reportado_por', 'reporter_id', 'autor_id', 'user_id', 'created_by'])
-    const reporterName = reporterId ? (profileMap.get(reporterId) ?? null) : null
-    const rawStatus = pickString(row, ['estado', 'status', 'workflow_status'])
-    const details =
-      pickString(row, ['descripcion', 'detalle', 'comentario', 'note', 'contenido', 'texto'])
-      ?? 'Sin detalles del avistamiento.'
+  return rows.map((row) => normalizeAuthoritySightingRow(row, { caseMap, profileMap }))
+}
 
-    return {
-      id,
-      caseId,
-      caseNumber: pickString(row, ['numero_caso', 'case_number']) ?? caseFromLookup?.numeroCaso ?? null,
-      missingPersonName:
-        pickString(row, ['nombre_persona', 'persona_nombre', 'missing_person_name', 'nombre'])
-        ?? caseFromLookup?.fullName
-        ?? null,
-      reporterId,
-      reporterName,
-      details,
-      location: pickString(row, ['ubicacion', 'location', 'lugar', 'direccion', 'ciudad']),
-      status: rawStatus,
-      created_at:
-        pickString(row, ['created_at', 'fecha_reporte', 'reported_at', 'fecha', 'updated_at'])
-        ?? new Date().toISOString(),
-      sourceTable: SIGHTING_TABLE,
-    }
-  })
+export function subscribeToSightingsRealtime(
+  onChange: (payload: SightingRealtimePayload) => void,
+): () => void {
+  const channel = supabase
+    .channel('case-sightings-realtime')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: SIGHTING_TABLE },
+      (payload) => {
+        const newRowRaw = (payload.new ?? {}) as Record<string, unknown>
+        const oldRowRaw = (payload.old ?? {}) as Record<string, unknown>
+
+        onChange({
+          eventType: payload.eventType as SightingRealtimePayload['eventType'],
+          new: {
+            id: pickString(newRowRaw, ['id']),
+            avistamiento_id: pickString(newRowRaw, ['avistamiento_id']),
+            caso_id: pickString(newRowRaw, ['caso_id']),
+            missing_caso_id: pickString(newRowRaw, ['missing_caso_id']),
+            numero_caso: pickString(newRowRaw, ['numero_caso']),
+            case_number: pickString(newRowRaw, ['case_number']),
+            nombre_persona: pickString(newRowRaw, ['nombre_persona']),
+            persona_nombre: pickString(newRowRaw, ['persona_nombre']),
+            missing_person_name: pickString(newRowRaw, ['missing_person_name']),
+            nombre: pickString(newRowRaw, ['nombre']),
+            reportado_por: pickString(newRowRaw, ['reportado_por']),
+            reporter_id: pickString(newRowRaw, ['reporter_id']),
+            autor_id: pickString(newRowRaw, ['autor_id']),
+            user_id: pickString(newRowRaw, ['user_id']),
+            created_by: pickString(newRowRaw, ['created_by']),
+            fecha_avistamiento: pickString(newRowRaw, ['fecha_avistamiento']),
+            fecha_reporte: pickString(newRowRaw, ['fecha_reporte']),
+            reported_at: pickString(newRowRaw, ['reported_at']),
+            fecha: pickString(newRowRaw, ['fecha']),
+            hora_avistamiento: pickString(newRowRaw, ['hora_avistamiento']),
+            hora: pickString(newRowRaw, ['hora']),
+            time: pickString(newRowRaw, ['time']),
+            lugar: pickString(newRowRaw, ['lugar']),
+            ubicacion: pickString(newRowRaw, ['ubicacion']),
+            direccion: pickString(newRowRaw, ['direccion']),
+            location: pickString(newRowRaw, ['location']),
+            descripcion: pickString(newRowRaw, ['descripcion']),
+            detalle: pickString(newRowRaw, ['detalle']),
+            comentario: pickString(newRowRaw, ['comentario']),
+            note: pickString(newRowRaw, ['note']),
+            contenido: pickString(newRowRaw, ['contenido']),
+            texto: pickString(newRowRaw, ['texto']),
+            estado: pickString(newRowRaw, ['estado']),
+            status: pickString(newRowRaw, ['status']),
+            workflow_status: pickString(newRowRaw, ['workflow_status']),
+            validado: getBooleanValue(newRowRaw.validado),
+            aprobado: getBooleanValue(newRowRaw.aprobado),
+            eliminado: getBooleanValue(newRowRaw.eliminado),
+            created_at: pickString(newRowRaw, ['created_at']),
+            updated_at: pickString(newRowRaw, ['updated_at']),
+          },
+          old: {
+            id: pickString(oldRowRaw, ['id']),
+            avistamiento_id: pickString(oldRowRaw, ['avistamiento_id']),
+            caso_id: pickString(oldRowRaw, ['caso_id']),
+            missing_caso_id: pickString(oldRowRaw, ['missing_caso_id']),
+            numero_caso: pickString(oldRowRaw, ['numero_caso']),
+            case_number: pickString(oldRowRaw, ['case_number']),
+            nombre_persona: pickString(oldRowRaw, ['nombre_persona']),
+            persona_nombre: pickString(oldRowRaw, ['persona_nombre']),
+            missing_person_name: pickString(oldRowRaw, ['missing_person_name']),
+            nombre: pickString(oldRowRaw, ['nombre']),
+            reportado_por: pickString(oldRowRaw, ['reportado_por']),
+            reporter_id: pickString(oldRowRaw, ['reporter_id']),
+            autor_id: pickString(oldRowRaw, ['autor_id']),
+            user_id: pickString(oldRowRaw, ['user_id']),
+            created_by: pickString(oldRowRaw, ['created_by']),
+            fecha_avistamiento: pickString(oldRowRaw, ['fecha_avistamiento']),
+            fecha_reporte: pickString(oldRowRaw, ['fecha_reporte']),
+            reported_at: pickString(oldRowRaw, ['reported_at']),
+            fecha: pickString(oldRowRaw, ['fecha']),
+            hora_avistamiento: pickString(oldRowRaw, ['hora_avistamiento']),
+            hora: pickString(oldRowRaw, ['hora']),
+            time: pickString(oldRowRaw, ['time']),
+            lugar: pickString(oldRowRaw, ['lugar']),
+            ubicacion: pickString(oldRowRaw, ['ubicacion']),
+            direccion: pickString(oldRowRaw, ['direccion']),
+            location: pickString(oldRowRaw, ['location']),
+            descripcion: pickString(oldRowRaw, ['descripcion']),
+            detalle: pickString(oldRowRaw, ['detalle']),
+            comentario: pickString(oldRowRaw, ['comentario']),
+            note: pickString(oldRowRaw, ['note']),
+            contenido: pickString(oldRowRaw, ['contenido']),
+            texto: pickString(oldRowRaw, ['texto']),
+            estado: pickString(oldRowRaw, ['estado']),
+            status: pickString(oldRowRaw, ['status']),
+            workflow_status: pickString(oldRowRaw, ['workflow_status']),
+            validado: getBooleanValue(oldRowRaw.validado),
+            aprobado: getBooleanValue(oldRowRaw.aprobado),
+            eliminado: getBooleanValue(oldRowRaw.eliminado),
+            created_at: pickString(oldRowRaw, ['created_at']),
+            updated_at: pickString(oldRowRaw, ['updated_at']),
+          },
+        })
+      },
+    )
+    .subscribe((status) => {
+      if (status === 'CHANNEL_ERROR') {
+        console.error('[subscribeToSightingsRealtime] Error en canal realtime de avistamientos.')
+      }
+    })
+
+  return () => {
+    void supabase.removeChannel(channel)
+  }
 }
 
 export async function updateAuthoritySightingStatus(
@@ -556,8 +891,7 @@ export async function updateAuthoritySightingStatus(
 
     if (error) {
       if (isColumnMissingError(error)) continue
-      console.error('[updateAuthoritySightingStatus] Error:', error)
-      throw error
+      throwDbError('updateAuthoritySightingStatus', error, 'No se pudo actualizar el avistamiento. Inténtalo nuevamente.')
     }
 
     if (data) return
@@ -578,8 +912,7 @@ export async function softDeleteCase(caseId: string): Promise<void> {
   )
 
   if (error) {
-    console.error('[softDeleteCase] Error:', error)
-    throw error
+    throwDbError('softDeleteCase', error, 'No se pudo eliminar el caso. Inténtalo nuevamente.')
   }
 }
 
@@ -599,8 +932,7 @@ export async function getPendingModerationCases(limit = 200): Promise<AuthorityC
   )
 
   if (error) {
-    console.error('[getPendingModerationCases] Error:', error)
-    throw error
+    throwDbError('getPendingModerationCases', error, 'Error al cargar los casos pendientes. Inténtalo nuevamente.')
   }
 
   return (data ?? []) as AuthorityCaseRow[]
@@ -629,11 +961,10 @@ export async function getProfilesBasicByIds(userIds: string[]): Promise<ProfileB
         lastError = error
         continue
       }
-      console.error('[getProfilesBasicByIds] Error:', error)
-      throw error
+      throwDbError('getProfilesBasicByIds', error, 'Error al cargar perfiles. Inténtalo nuevamente.')
     }
 
-    const rows = (data ?? []) as Array<Record<string, unknown>>
+    const rows = (data ?? []) as unknown as Array<Record<string, unknown>>
 
     return rows.map((row) => ({
       id: pickString(row, ['id']) ?? '',
@@ -644,8 +975,7 @@ export async function getProfilesBasicByIds(userIds: string[]): Promise<ProfileB
   }
 
   if (lastError) {
-    console.error('[getProfilesBasicByIds] Error:', lastError)
-    throw lastError
+    throwDbError('getProfilesBasicByIds', lastError, 'Error al cargar perfiles. Inténtalo nuevamente.')
   }
 
   return []
@@ -663,8 +993,7 @@ export async function updateCaseWorkflowStatus(caseId: string, status: CaseWorkf
   )
 
   if (error) {
-    console.error('[updateCaseWorkflowStatus] Error:', error)
-    throw error
+    throwDbError('updateCaseWorkflowStatus', error, 'No se pudo actualizar el caso. Inténtalo nuevamente.')
   }
 }
 
@@ -693,8 +1022,7 @@ export async function getCasesByPersonId(
 
   const { data, error } = await withRetry(() => query, { timeoutMs: 20000, retries: 1 })
   if (error) {
-    console.error('[getCasesByPersonId] Error:', error)
-    throw error
+    throwDbError('getCasesByPersonId', error, 'Error al cargar el historial de casos. Inténtalo nuevamente.')
   }
 
   return (data ?? []) as PersonCaseHistoryRow[]
@@ -716,8 +1044,7 @@ export async function createCaseClosure(caseId: string, userId: string, note: st
   )
 
   if (error) {
-    console.error('[createCaseClosure] Error:', error)
-    throw error
+    throwDbError('createCaseClosure', error, 'No se pudo cerrar el caso. Inténtalo nuevamente.')
   }
 }
 
@@ -729,7 +1056,7 @@ export interface CaseCommentRow {
   created_at: string
 }
 
-function normalizeCaseCommentRow(row: Record<string, unknown>): CaseCommentRow {
+export function normalizeCaseCommentRow(row: Record<string, unknown>): CaseCommentRow {
   return {
     id: pickString(row, ['id']) ?? String(row.id ?? ''),
     caso_id: pickString(row, ['caso_id', 'case_id']) ?? String(row.caso_id ?? row.case_id ?? ''),
@@ -740,6 +1067,94 @@ function normalizeCaseCommentRow(row: Record<string, unknown>): CaseCommentRow {
     created_at:
       pickString(row, ['created_at', 'fecha', 'updated_at'])
       ?? String(row.created_at ?? row.fecha ?? row.updated_at ?? ''),
+  }
+}
+
+export function subscribeToCaseCommentsRealtime(
+  onChange: (payload: CaseCommentRealtimePayload) => void,
+): () => void {
+  const channel = supabase
+    .channel('case-comments-realtime')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'case_comments' },
+      (payload) => {
+        const newRowRaw = (payload.new ?? {}) as Record<string, unknown>
+        const oldRowRaw = (payload.old ?? {}) as Record<string, unknown>
+
+        onChange({
+          eventType: payload.eventType as CaseCommentRealtimePayload['eventType'],
+          new: {
+            id: pickString(newRowRaw, ['id']) ?? String(newRowRaw.id ?? ''),
+            caso_id: pickString(newRowRaw, ['caso_id', 'case_id']),
+            autor_id: pickString(newRowRaw, ['autor_id', 'author_id', 'user_id']),
+            comentario: pickString(newRowRaw, ['comentario', 'comment', 'texto', 'text']),
+            created_at: pickString(newRowRaw, ['created_at', 'fecha', 'updated_at']),
+          },
+          old: {
+            id: pickString(oldRowRaw, ['id']) ?? String(oldRowRaw.id ?? ''),
+            caso_id: pickString(oldRowRaw, ['caso_id', 'case_id']),
+            autor_id: pickString(oldRowRaw, ['autor_id', 'author_id', 'user_id']),
+            comentario: pickString(oldRowRaw, ['comentario', 'comment', 'texto', 'text']),
+            created_at: pickString(oldRowRaw, ['created_at', 'fecha', 'updated_at']),
+          },
+        })
+      },
+    )
+    .subscribe((status) => {
+      if (status === 'CHANNEL_ERROR') {
+        console.error('[subscribeToCaseCommentsRealtime] Error en canal realtime de comentarios.')
+      }
+    })
+
+  return () => {
+    void supabase.removeChannel(channel)
+  }
+}
+
+export function subscribeToCaseMediaRealtime(
+  onChange: (payload: CaseMediaRealtimePayload) => void,
+): () => void {
+  const channel = supabase
+    .channel('case-media-realtime')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'media_case' },
+      (payload) => {
+        const newRowRaw = (payload.new ?? {}) as Record<string, unknown>
+        const oldRowRaw = (payload.old ?? {}) as Record<string, unknown>
+
+        onChange({
+          eventType: payload.eventType as CaseMediaRealtimePayload['eventType'],
+          new: normalizeCaseMediaRow(newRowRaw),
+          old: normalizeCaseMediaRow(oldRowRaw),
+        })
+      },
+    )
+    .subscribe((status) => {
+      if (status === 'CHANNEL_ERROR') {
+        console.error('[subscribeToCaseMediaRealtime] Error en canal realtime de media.')
+      }
+    })
+
+  return () => {
+    void supabase.removeChannel(channel)
+  }
+}
+
+export function normalizeCaseMediaRow(row: Record<string, unknown>): CaseMediaRealtimeRow {
+  return {
+    id: pickString(row, ['id']) ?? String(row.id ?? ''),
+    caso_id: pickString(row, ['caso_id', 'case_id']),
+    tipo: (() => {
+      const tipo = pickString(row, ['tipo'])
+      return tipo === 'foto' || tipo === 'video' ? tipo : null
+    })(),
+    url: pickString(row, ['url']),
+    es_principal: getBooleanValue(row.es_principal),
+    orden: getNumberValue(row.orden),
+    mime_type: pickString(row, ['mime_type']),
+    created_at: pickString(row, ['created_at']),
   }
 }
 
@@ -755,8 +1170,7 @@ export async function getCaseComments(caseIds: string[]): Promise<CaseCommentRow
   )
 
   if (error) {
-    console.error('[getCaseComments] Error:', error)
-    throw error
+    throwDbError('getCaseComments', error, 'Error al cargar los comentarios. Inténtalo nuevamente.')
   }
 
   const rows = (data ?? []) as Array<Record<string, unknown>>
@@ -781,8 +1195,7 @@ export async function createCaseComment(
   )
 
   if (error) {
-    console.error('[createCaseComment] Error:', error)
-    throw error
+    throwDbError('createCaseComment', error, 'No se pudo guardar el comentario. Inténtalo nuevamente.')
   }
 
   const id = pickString((data ?? {}) as Record<string, unknown>, ['id']) ?? String((data as { id?: unknown } | null)?.id ?? '')
@@ -805,8 +1218,7 @@ export async function updateCaseComment(commentId: string, newText: string): Pro
   )
 
   if (error) {
-    console.error('[updateCaseComment] Error:', error)
-    throw error
+    throwDbError('updateCaseComment', error, 'No se pudo actualizar el comentario. Inténtalo nuevamente.')
   }
 
   if (!data) {
@@ -826,8 +1238,7 @@ export async function deleteCaseComment(commentId: string): Promise<void> {
   )
 
   if (error) {
-    console.error('[deleteCaseComment] Error:', error)
-    throw error
+    throwDbError('deleteCaseComment', error, 'No se pudo eliminar el comentario. Inténtalo nuevamente.')
   }
 
   if (!data) {
@@ -943,8 +1354,7 @@ export async function getAuthorityDashboardSummary(): Promise<AuthorityDashboard
   )
 
   if (error) {
-    console.error('[getAuthorityDashboardSummary] Error:', error)
-    throw error
+    throwDbError('getAuthorityDashboardSummary', error, 'Error al cargar el dashboard. Inténtalo nuevamente.')
   }
 
   const rows = (data ?? []) as AuthorityCaseRow[]

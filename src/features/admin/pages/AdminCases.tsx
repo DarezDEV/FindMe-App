@@ -19,12 +19,15 @@ import {
   deleteCaseComment,
   getAuthorityCases,
   getCaseComments,
+  normalizeAuthorityCaseRow,
+  normalizeCaseCommentRow,
   softDeleteCase,
-  subscribeToCasesRealtime,
   updateCaseComment,
   updateCaseWorkflowStatus,
   type AuthorityCaseRow,
 } from '../../../lib/supabase/db'
+import { useRealtimeCaseComments } from '../../cases/hooks/useRealtimeCaseComments'
+import { useRealtimeCases } from '../../cases/hooks/useRealtimeCases'
 import { useAuth } from '../../auth/hooks'
 import { appToast, type WorkflowStatus } from '../../../shared/components/ui'
 import { CommentItem } from '../../authority/components/moderation/CommentItem'
@@ -131,22 +134,71 @@ export default function AdminCases() {
 
   useEffect(() => { void loadCases() }, [loadCases])
 
-  useEffect(() => {
-    return subscribeToCasesRealtime((payload) => {
+  useRealtimeCases({
+    onEvent: (payload) => {
       const caseId = payload.new.id || payload.old.id
       if (!caseId) return
-      if (payload.new.eliminado === true) {
+
+      if (payload.eventType === 'DELETE' || payload.new.eliminado === true) {
         setCases((prev) => prev.filter((item) => item.id !== caseId))
-        setStatusByCaseId((prev) => { const next = { ...prev }; delete next[caseId]; return next })
+        setStatusByCaseId((prev) => {
+          const next = { ...prev }
+          delete next[caseId]
+          return next
+        })
+        setCommentsByCaseId((prev) => {
+          const next = { ...prev }
+          delete next[caseId]
+          return next
+        })
         return
       }
-      const next = deriveWorkflowStatus(payload.new.workflow_status, payload.new.status)
-      if (next) setStatusByCaseId((prev) => ({ ...prev, [caseId]: next }))
-      setCases((prev) => prev.map((item) =>
-        item.id === caseId ? { ...item, status: payload.new.status ?? item.status, workflow_status: payload.new.workflow_status ?? item.workflow_status } : item
-      ))
-    })
-  }, [])
+
+      const nextRow = normalizeAuthorityCaseRow(payload.new)
+      if (!nextRow) return
+
+      const nextStatus = deriveWorkflowStatus(nextRow.workflow_status, nextRow.status)
+      if (nextStatus) setStatusByCaseId((prev) => ({ ...prev, [caseId]: nextStatus }))
+      setCases((prev) =>
+        [...prev.filter((item) => item.id !== caseId), nextRow].sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        ),
+      )
+    },
+  })
+
+  useRealtimeCaseComments({
+    onEvent: (payload) => {
+      const caseId = payload.new.caso_id || payload.old.caso_id
+      if (!caseId) return
+
+      if (payload.eventType === 'DELETE') {
+        setCommentsByCaseId((prev) => ({
+          ...prev,
+          [caseId]: (prev[caseId] ?? []).filter((item) => item.id !== payload.old.id),
+        }))
+        return
+      }
+
+      const normalized = normalizeCaseCommentRow({
+        id: payload.new.id,
+        caso_id: payload.new.caso_id,
+        autor_id: payload.new.autor_id,
+        comentario: payload.new.comentario,
+        created_at: payload.new.created_at,
+      })
+
+      setCommentsByCaseId((prev) => ({
+        ...prev,
+        [caseId]: [...(prev[caseId] ?? []).filter((item) => item.id !== normalized.id), {
+          id: normalized.id,
+          text: normalized.comentario,
+          authorId: normalized.autor_id,
+          createdAt: normalized.created_at,
+        }].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
+      }))
+    },
+  })
 
   const filteredCases = useMemo(() => {
     const term = search.trim().toLowerCase()

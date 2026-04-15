@@ -1,11 +1,23 @@
 import { StrictMode } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot } from 'react-dom/client'
 import 'sileo/styles.css'
 import './index.css'
+import { logError } from './shared/utils/errors'
 
 const rootElement = document.getElementById('root')
-const queryClient = new QueryClient()
+const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      logError('ReactQuery.query', error, { queryKey: query.queryKey })
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      logError('ReactQuery.mutation', error, { mutationKey: mutation.options.mutationKey ?? null })
+    },
+  }),
+})
 
 if (!rootElement) {
   throw new Error('Root element not found.')

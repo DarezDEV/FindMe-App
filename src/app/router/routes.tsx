@@ -1,4 +1,4 @@
-import { Link, Navigate, createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { Link, createBrowserRouter, RouterProvider } from 'react-router-dom'
 import { GuestRoute } from './GuestRoute'
 import { RoleRoute } from './RoleRoute'
 import { ROLES } from '../../shared/constants/roles'
@@ -13,6 +13,7 @@ import ReportarAvistamientoPage from '../../features/user/pages/ReportarAvistami
 import ReportarContenidoPage from '../../features/user/pages/ReportarContenidoPage'
 import MisCasosPage from '../../features/user/pages/MisCasosPage'
 import MiPerfilPage from '../../features/user/pages/MiPerfilPage'
+import UserNotificationsPage from '../../features/notifications/pages/UserNotificationsPage'
 import AdminHome from '../../features/admin/pages/AdminHome'
 import AuthorityHome from '../../features/authority/pages/AuthorityHome'
 import AdminUsers from '../../features/admin/pages/AdminUsers'
@@ -21,15 +22,18 @@ import AdminSightings from '../../features/admin/pages/AdminSightings'
 import AdminReview from '../../features/admin/pages/AdminReview'
 import AdminProfilePage from '../../features/admin/pages/AdminProfilePage'
 import AdminSettings from '../../features/admin/pages/AdminSettings'
+import AdminNotificationsPage from '../../features/notifications/pages/AdminNotificationsPage'
 import AuthorityCases from '../../features/authority/pages/AuthorityCases'
 import AuthorityCaseDetailPage from '../../features/authority/pages/AuthorityCaseDetailPage'
 import AuthorityCreateCasePage from '../../features/authority/pages/AuthorityCreateCasePage'
 import PendingCasesPage from '../../features/authority/pages/PendingCasesPage'
 import AuthoritySightings from '../../features/authority/pages/AuthoritySightings'
 import AuthorityProfilePage from '../../features/authority/pages/AuthorityProfilePage'
+import AuthorityNotificationsPage from '../../features/notifications/pages/AuthorityNotificationsPage'
 import LandingPage from '../../features/public/pages/LandingPage'
 import PublicCasesPage from '../../features/public/pages/PublicCasesPage'
 import PublishCaseGatePage from '../../features/public/pages/PublishCaseGatePage'
+import NotFoundPage from '../../features/public/pages/NotFoundPage'
 
 function UnauthorizedPage() {
   return (
@@ -82,6 +86,7 @@ const router = createBrowserRouter([
       { path: '/publicar', element: <PublicarPersonaPerdidaPage /> },
       { path: '/perfil', element: <MiPerfilPage /> },
       { path: '/mis-casos', element: <MisCasosPage /> },
+      { path: '/notificaciones', element: <UserNotificationsPage /> },
       { path: '/caso/:id', element: <CasoDetallePage /> },
       { path: '/avistamiento', element: <ReportarAvistamientoPage /> },
       { path: '/caso/:id/avistamiento', element: <ReportarAvistamientoPage /> },
@@ -99,6 +104,7 @@ const router = createBrowserRouter([
       { path: '/admin/cases', element: <AdminCases /> },
       { path: '/admin/sightings', element: <AdminSightings /> },
       { path: '/admin/revision', element: <AdminReview /> },
+      { path: '/admin/notificaciones', element: <AdminNotificationsPage /> },
       { path: '/admin/perfil', element: <AdminProfilePage /> },
       { path: '/admin/settings', element: <AdminSettings /> },
     ],
@@ -114,12 +120,13 @@ const router = createBrowserRouter([
       { path: '/authority/cases/:id', element: <AuthorityCaseDetailPage /> },
       { path: '/authority/sightings', element: <AuthoritySightings /> },
       { path: '/authority/cases/pending', element: <PendingCasesPage /> },
+      { path: '/authority/notificaciones', element: <AuthorityNotificationsPage /> },
       { path: '/authority/perfil', element: <AuthorityProfilePage /> },
     ],
   },
 
-  // Fallback
-  { path: '*', element: <Navigate to="/" replace /> },
+  // 404
+  { path: '*', element: <NotFoundPage /> },
 ])
 
 export function AppRouter() {

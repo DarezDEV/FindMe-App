@@ -7,10 +7,11 @@ import {
 import { useAuth } from '../../auth/hooks'
 import {
   getAuthorityDashboardSummary,
-  subscribeToCasesRealtime,
   type AuthorityCaseRow,
   type AuthorityDashboardSummary,
 } from '../../../lib/supabase/db'
+import { useRealtimeCases } from '../../cases/hooks/useRealtimeCases'
+import { applyCaseSummaryRealtime, shouldReloadCaseSummary } from '../../cases/utils/summaryRealtime'
 
 interface StatCardProps {
   label: string
@@ -81,15 +82,40 @@ export function AuthorityDashboard() {
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
-  const loadSummary = useCallback(async () => {
-    setLoading(true); setError(null)
-    try { setSummary(await getAuthorityDashboardSummary()); setLastUpdated(new Date()) }
-    catch (err) { setError(err instanceof Error ? err.message : 'No se pudo cargar el dashboard.') }
-    finally { setLoading(false) }
+  const loadSummary = useCallback(async (options: { quiet?: boolean } = {}) => {
+    const quiet = options.quiet ?? false
+
+    if (!quiet) {
+      setLoading(true)
+    }
+
+    setError(null)
+
+    try {
+      setSummary(await getAuthorityDashboardSummary())
+      setLastUpdated(new Date())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo cargar el dashboard.')
+    } finally {
+      if (!quiet) {
+        setLoading(false)
+      }
+    }
   }, [])
 
   useEffect(() => { void loadSummary() }, [loadSummary])
-  useEffect(() => { const u = subscribeToCasesRealtime(() => void loadSummary()); return u }, [loadSummary])
+
+  useRealtimeCases({
+    onEvent: (payload) => {
+      if (shouldReloadCaseSummary(payload)) {
+        void loadSummary({ quiet: true })
+        return
+      }
+
+      setSummary((current) => applyCaseSummaryRealtime(current, payload))
+      setLastUpdated(new Date())
+    },
+  })
 
   const resolutionRate = summary.total > 0 ? Math.round(((summary.resolved + summary.found) / summary.total) * 100) : 0
 
@@ -158,7 +184,7 @@ export function AuthorityDashboard() {
               </p>
             </div>
           </div>
-          <button type="button" onClick={loadSummary} disabled={loading} className="d-ghost" style={{ marginTop: 6 }}>
+          <button type="button" onClick={() => void loadSummary()} disabled={loading} className="d-ghost" style={{ marginTop: 6 }}>
             <RefreshCw size={12} style={{ animation: loading ? 'spin 0.8s linear infinite' : 'none' }} />
             Actualizar
           </button>

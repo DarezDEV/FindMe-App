@@ -16,7 +16,9 @@ import {
 import { useAuth } from "../../auth/hooks";
 import { logoutUser } from "../../auth/services";
 import { appToast, ProfileAvatar } from "../../../shared/components/ui";
+import { handleError } from "../../../shared/utils/handleError";
 import { useAdminDashboardSummary } from "../hooks/useAdminDashboardSummary";
+import { useNotifications } from "../../notifications/hooks/useNotifications";
 
 const badgeClass: Record<string, string> = {
   primary: "bg-primary/10 text-primary border border-primary/20",
@@ -35,6 +37,7 @@ export default function AdminSidebar({ children }: AdminSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { data: summary } = useAdminDashboardSummary();
+  const { unreadCount } = useNotifications({ includeList: false });
 
   const navItems = [
     {
@@ -89,9 +92,7 @@ export default function AdminSidebar({ children }: AdminSidebarProps) {
       setOpen(false)
       navigate("/login");
     } catch (err) {
-      console.error("Error al cerrar sesión:", err);
-      const message = err instanceof Error ? err.message : "No se pudo cerrar la sesión.";
-      appToast.error(message);
+      handleError("AdminSidebar.logout", err, { fallbackMessage: "No se pudo cerrar la sesión." });
     } finally {
       setLoggingOut(false)
     }
@@ -212,18 +213,18 @@ export default function AdminSidebar({ children }: AdminSidebarProps) {
         {/* Footer */}
         <div className="px-3 py-4 border-t border-border space-y-1">
           <a
-            href="/admin/revision"
-            onClick={(e) => { e.preventDefault(); navigate("/admin/revision"); }}
+            href="/admin/notificaciones"
+            onClick={(e) => { e.preventDefault(); navigate("/admin/notificaciones"); setOpen(false); }}
             className="flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm
                        text-text-secondary hover:bg-background hover:text-text-primary
                        transition-all group"
           >
             <Bell size={17} className="shrink-0" />
             <span className="flex-1">Notificaciones</span>
-            {summary && summary.pending > 0 && (
+            {unreadCount > 0 && (
               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full
                                bg-error/10 text-error border border-error/20">
-                {summary.pending}
+                {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}
           </a>

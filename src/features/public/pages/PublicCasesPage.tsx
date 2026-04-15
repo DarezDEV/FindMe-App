@@ -2,15 +2,19 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { MapPin, Calendar, Search, RefreshCw, Link2, Share2 } from 'lucide-react'
 import { Alert, Spinner, StatusBadge, type WorkflowStatus } from '../../../shared/components/ui'
+import { handleError } from '../../../shared/utils/handleError'
 import {
   createCaseComment,
   getAuthorityCases,
   getCaseComments,
   getProfilesBasicByIds,
-  subscribeToCasesRealtime,
+  normalizeAuthorityCaseRow,
+  normalizeCaseCommentRow,
   type AuthorityCaseRow,
   type CaseCommentRow,
 } from '../../../lib/supabase/db'
+import { useRealtimeCaseComments } from '../../cases/hooks/useRealtimeCaseComments'
+import { useRealtimeCases } from '../../cases/hooks/useRealtimeCases'
 import { useAuth } from '../../auth/hooks'
 import { reportarComentarioPublico } from '../../user/services/reportes'
 
@@ -161,7 +165,11 @@ export default function PublicCasesPage() {
         try {
           const comments = await getCaseComments(publicRows.map((item) => item.id))
           commentMap = groupPublicComments(comments)
-        } catch {
+        } catch (error) {
+          handleError('PublicCasesPage.getCaseComments', error, {
+            fallbackMessage: 'No se pudieron cargar los comentarios del caso.',
+            toast: false,
+          })
           commentMap = {}
         }
       }
@@ -182,7 +190,11 @@ export default function PublicCasesPage() {
             mapped[profile.id] = fullName || profile.email || `Usuario ${profile.id.slice(0, 8)}`
           })
           setCommentAuthorById(mapped)
-        } catch {
+        } catch (error) {
+          handleError('PublicCasesPage.getProfilesBasicByIds', error, {
+            fallbackMessage: 'No se pudieron cargar los autores de comentarios.',
+            toast: false,
+          })
           setCommentAuthorById({})
         }
       } else {
@@ -203,14 +215,75 @@ export default function PublicCasesPage() {
     void loadCases()
   }, [loadCases])
 
-  // Suscripción en tiempo real — recarga casos cuando hay cambios en la BD
-  useEffect(() => {
-    const unsubscribe = subscribeToCasesRealtime(() => {
-      void loadCases()
-    })
+  useRealtimeCases({
+    onEvent: (payload) => {
+      const caseId = payload.new.id || payload.old.id
+      if (!caseId) return
 
-    return unsubscribe
-  }, [loadCases])
+      const nextRow = normalizeAuthorityCaseRow(payload.new)
+      const nextStatus = nextRow ? getWorkflowStatus(nextRow) : null
+      const shouldShow =
+        payload.eventType !== 'DELETE' &&
+        payload.new.eliminado !== true &&
+        nextRow !== null &&
+        Boolean(nextStatus) &&
+        (nextStatus === 'approved' || nextStatus === 'found' || nextStatus === 'closed')
+
+      setRows((prev) => {
+        if (!shouldShow || !nextRow) {
+          return prev.filter((item) => item.id !== caseId)
+        }
+
+        return [...prev.filter((item) => item.id !== caseId), nextRow].sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        )
+      })
+    },
+  })
+
+  useRealtimeCaseComments({
+    onEvent: (payload) => {
+      const caseId = payload.new.caso_id || payload.old.caso_id
+      if (!caseId) return
+      if (!rows.some((item) => item.id === caseId)) return
+
+      if (payload.eventType === 'DELETE') {
+        setCommentsByCaseId((prev) => ({
+          ...prev,
+          [caseId]: (prev[caseId] ?? []).filter((item) => item.id !== payload.old.id),
+        }))
+        return
+      }
+
+      const normalized = normalizeCaseCommentRow({
+        id: payload.new.id,
+        caso_id: payload.new.caso_id,
+        autor_id: payload.new.autor_id,
+        comentario: payload.new.comentario,
+        created_at: payload.new.created_at,
+      })
+      const nextComment = toPublicComment(normalized)
+
+      setCommentsByCaseId((prev) => {
+        if (!nextComment) {
+          return {
+            ...prev,
+            [caseId]: (prev[caseId] ?? []).filter((item) => item.id !== normalized.id),
+          }
+        }
+
+        const currentList = prev[caseId] ?? []
+        const nextList = [...currentList.filter((item) => item.id !== nextComment.id), nextComment].sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        )
+
+        return {
+          ...prev,
+          [caseId]: nextList,
+        }
+      })
+    },
+  })
 
   // Scroll y resaltado del caso compartido por URL (?caseId=...)
   useEffect(() => {
@@ -268,7 +341,11 @@ export default function PublicCasesPage() {
     try {
       await navigator.clipboard.writeText(shareUrl)
       setNotice({ type: 'success', message: 'Enlace copiado al portapapeles.' })
-    } catch {
+    } catch (error) {
+      handleError('PublicCasesPage.copyShareLink', error, {
+        fallbackMessage: 'No se pudo copiar el enlace. Intenta de nuevo.',
+        toast: false,
+      })
       setNotice({ type: 'warning', message: 'No se pudo copiar automaticamente. Intenta de nuevo.' })
     }
   }, [])

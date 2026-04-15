@@ -1,8 +1,10 @@
 // src/features/admin/hooks/useUsers.ts
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase/client'
 import { appToast } from '../components/ui'
+import { handleError } from '../utils/handleError'
+import { getErrorMessage, toAppError } from '../utils/errors'
 import {
   ADMIN_DASHBOARD_SUMMARY_QUERY_KEY,
   ADMIN_QUERY_GC_TIME,
@@ -91,11 +93,13 @@ async function fetchUsers(): Promise<UserRow[]> {
       continue
     }
 
-    throw response.error
+    throw toAppError(response.error, 'Error al cargar usuarios. Inténtalo nuevamente.', 'useUsers.fetchUsers')
   }
 
   if (!profiles) {
-    if (lastProfilesError) throw lastProfilesError
+    if (lastProfilesError) {
+      throw toAppError(lastProfilesError, 'Error al cargar usuarios. Inténtalo nuevamente.', 'useUsers.fetchUsers')
+    }
     return []
   }
 
@@ -105,7 +109,9 @@ async function fetchUsers(): Promise<UserRow[]> {
       .select('user_id, roles(name)'),
   )
 
-  if (userRolesError) throw userRolesError
+  if (userRolesError) {
+    throw toAppError(userRolesError, 'Error al cargar usuarios. Inténtalo nuevamente.', 'useUsers.fetchUsers')
+  }
 
   const rolesMap: Record<string, Role[]> = {}
   ;((userRoles ?? []) as RoleRelationRow[]).forEach((ur) => {
@@ -151,6 +157,7 @@ export function useUsers() {
     data: users = [],
     isLoading,
     isFetching,
+    error,
     refetch,
   } = useQuery({
     queryKey: ADMIN_USERS_QUERY_KEY,
@@ -159,6 +166,13 @@ export function useUsers() {
     gcTime: ADMIN_QUERY_GC_TIME,
     refetchOnWindowFocus: false,
   })
+
+  const loadError = error ? getErrorMessage(error, 'Error al cargar usuarios. Inténtalo nuevamente.') : null
+
+  useEffect(() => {
+    if (!error) return
+    handleError('useUsers.query', error, { fallbackMessage: 'Error al cargar usuarios. Inténtalo nuevamente.', toast: false })
+  }, [error])
 
   const filtered = users.filter((u) => {
     const matchSearch = `${u.name} ${u.last_name} ${u.email}`
@@ -217,14 +231,18 @@ export function useUsers() {
           : `Usuario ${user.name} ${user.last_name} desactivado correctamente.`,
       )
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudo actualizar el estado del usuario.'
-      appToast.error(message)
+      handleError('useUsers.toggleActivo', err, { fallbackMessage: 'No se pudo actualizar el estado del usuario.' })
     }
   }
 
   const deleteUser = async (userId: string) => {
-    await supabase.from('profiles').delete().eq('id', userId)
-    await syncAdminQueries()
+    try {
+      const { error } = await supabase.from('profiles').delete().eq('id', userId)
+      if (error) throw error
+      await syncAdminQueries()
+    } catch (error) {
+      throw toAppError(error, 'No se pudo eliminar el usuario. Inténtalo nuevamente.', 'useUsers.deleteUser')
+    }
   }
 
   const stats = {
@@ -238,6 +256,7 @@ export function useUsers() {
     users: paginated,
     loading: isLoading,
     refreshing: isFetching,
+    error: loadError,
     stats,
     page,
     totalPages,

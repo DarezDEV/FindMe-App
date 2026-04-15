@@ -1,4 +1,5 @@
 import { supabase } from './client'
+import { logError, toAppError } from '../../shared/utils/errors'
 
 export interface ProfileBasicsInput {
   name: string
@@ -26,6 +27,10 @@ export async function updateProfileBasics(userId: string, input: ProfileBasicsIn
   const profileErrorMessage = profileError?.message?.toLowerCase() ?? ''
   const shouldSkipIntrospection =
     profileErrorMessage.includes('row-level security policy') || profileErrorMessage.includes('permission denied')
+
+  if (profileError) {
+    logError('updateProfileBasics.profileLookup', profileError, { shouldSkipIntrospection })
+  }
 
   const existingColumns = new Set<string>(
     profileRow && !shouldSkipIntrospection ? Object.keys(profileRow as Record<string, unknown>) : [],
@@ -105,9 +110,9 @@ export async function updateProfileBasics(userId: string, input: ProfileBasicsIn
         continue
       }
       if (message.includes('row-level security policy') || message.includes('permission denied')) {
-        throw new Error('No tienes permisos para actualizar tu perfil. Revisa las politicas RLS de profiles.')
+        throw toAppError(error, 'No tienes permisos para actualizar tu perfil.', 'updateProfileBasics')
       }
-      throw error
+      throw toAppError(error, 'No se pudo actualizar tu perfil. Inténtalo nuevamente.', 'updateProfileBasics')
     }
   }
 

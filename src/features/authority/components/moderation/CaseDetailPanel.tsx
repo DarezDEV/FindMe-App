@@ -14,6 +14,7 @@ import {
   ZoomIn,
 } from 'lucide-react'
 import type { PendingCaseItem } from './types'
+import { handleError } from '../../../../shared/utils/handleError'
 
 interface CaseDetailPanelProps {
   selectedCase: PendingCaseItem | null
@@ -107,7 +108,11 @@ export function CaseDetailPanel({ selectedCase }: CaseDetailPanelProps) {
       await navigator.clipboard.writeText(promptText)
       setCopied(true)
       setTimeout(() => setCopied(false), 1200)
-    } catch {
+    } catch (error) {
+      handleError('CaseDetailPanel.copyPrompt', error, {
+        fallbackMessage: 'No se pudo copiar al portapapeles. Intenta nuevamente.',
+        toastType: 'warning',
+      })
       setCopied(false)
     }
   }

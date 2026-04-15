@@ -3,13 +3,16 @@ import { Link, useParams } from 'react-router-dom'
 import { ChevronLeft, Eye, Link2, Mail, MapPin, MessageSquare, MoreVertical, Phone, Share2, UserSearch, Video } from 'lucide-react'
 import UserNavbar from '../components/Usernavbar'
 import { Alert, Spinner } from '../../../shared/components/ui'
+import { handleError } from '../../../shared/utils/handleError'
 import {
   createCaseComment,
   getCaseComments,
+  normalizeCaseCommentRow,
   getProfilesBasicByIds,
   getUserRolesByIds,
   type CaseCommentRow,
 } from '../../../lib/supabase/db'
+import { useRealtimeCaseComments } from '../../cases/hooks/useRealtimeCaseComments'
 import { useAuth } from '../../auth/hooks'
 import { useCasoDetalle } from '../hooks/useMisCasos'
 import { reportarComentarioPublico } from '../services/reportes'
@@ -201,7 +204,11 @@ export default function CasoDetallePage() {
             })
             setCommentAuthorById(profileMap)
             setCommentRolesById(roles)
-          } catch {
+          } catch (error) {
+            handleError('CasoDetallePage.getCommentAuthors', error, {
+              fallbackMessage: 'No se pudieron cargar los datos de autores.',
+              toast: false,
+            })
             setCommentAuthorById({})
             setCommentRolesById({})
           }
@@ -239,10 +246,45 @@ export default function CasoDetallePage() {
         })
         setCommentAuthorById((prev) => ({ ...prev, ...profileMap }))
       })
-      .catch(() => {
-        return
+      .catch((error) => {
+        handleError('CasoDetallePage.getProfilesBasicByIds', error, {
+          fallbackMessage: 'No se pudieron cargar los datos de autores.',
+          toast: false,
+        })
       })
   }, [data?.comentarios])
+
+  useRealtimeCaseComments({
+    enabled: !!id,
+    onEvent: (payload) => {
+      const caseId = payload.new.caso_id || payload.old.caso_id
+      if (!caseId || caseId !== id) return
+
+      if (payload.eventType === 'DELETE') {
+        setPublicComments((prev) => prev.filter((item) => item.id !== payload.old.id))
+        return
+      }
+
+      const normalized = normalizeCaseCommentRow({
+        id: payload.new.id,
+        caso_id: payload.new.caso_id,
+        autor_id: payload.new.autor_id,
+        comentario: payload.new.comentario,
+        created_at: payload.new.created_at,
+      })
+      const nextComment = toPublicComment(normalized)
+
+      setPublicComments((prev) => {
+        if (!nextComment) {
+          return prev.filter((item) => item.id !== normalized.id)
+        }
+
+        return [...prev.filter((item) => item.id !== nextComment.id), nextComment].sort(
+          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        )
+      })
+    },
+  })
 
   if (isLoading) {
     return (

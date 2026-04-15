@@ -3,7 +3,6 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, Calendar, MapPin, MoreVertical, Plus, RefreshCw, UserSearch } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
 import { Spinner } from '../../../shared/components/ui'
-import { subscribeToCasesRealtime } from '../../../lib/supabase/db'
 import { useCasosGenerales, type CasoReciente } from '../hooks/useMisCasos'
 import UserNavbar from '../components/Usernavbar'
 
@@ -77,13 +76,6 @@ export default function UserHome() {
   } = useCasosGenerales(24, { hideResolved: false, hideRejected: true, approvedOnly: true })
 
   // Suscripción en tiempo real via helper compartido
-  useEffect(() => {
-    const unsubscribe = subscribeToCasesRealtime(() => {
-      void refetchCasos()
-    })
-    return unsubscribe
-  }, [refetchCasos])
-
   const filteredCasos = !normalizedQuery
     ? casosGenerales
     : casosGenerales.filter((caso) => {

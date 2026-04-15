@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../../lib/supabase/client'
+import { toAppError } from '../../../shared/utils/errors'
 
 type CasoStatus = 'activo' | 'en_revision' | 'avistado' | 'encontrado'
 type CasoWorkflowStatus = 'pending' | 'approved' | 'rejected' | 'found' | 'closed'
@@ -203,9 +204,19 @@ const CASO_DETALLE_FALLBACK_SELECT_NO_WORKFLOW = `
 
 const MEDIA_SELECT = 'id, caso_id, tipo, url, es_principal, orden, mime_type, created_at'
 
-const QUERY_STALE_TIME = 1000 * 60 * 2
+export const CASES_QUERY_STALE_TIME = 1000 * 60 * 2
 
-function normalizeStatus(value: string | null): CasoStatus {
+export const MIS_CASOS_QUERY_KEY = (userId: string, limit: number) => ['mis-casos', userId, limit] as const
+export const CASOS_GENERALES_QUERY_KEY = (
+  limit: number,
+  hideResolved: boolean,
+  hideRejected: boolean,
+  approvedOnly: boolean,
+) => ['casos-generales', limit, hideResolved, hideRejected, approvedOnly] as const
+export const CASO_DETALLE_QUERY_KEY = (caseId: string) => ['caso-detalle', caseId] as const
+export const MIS_ESTADISTICAS_QUERY_KEY = (userId: string) => ['mis-estadisticas', userId] as const
+
+export function normalizeStatus(value: string | null): CasoStatus {
   const normalized = value?.trim().toLowerCase() ?? ''
   if (normalized === 'activo' || normalized === 'en_revision' || normalized === 'avistado' || normalized === 'encontrado') {
     return normalized
@@ -216,7 +227,7 @@ function normalizeStatus(value: string | null): CasoStatus {
   return 'activo'
 }
 
-function normalizeWorkflowStatus(value: string | null): CasoWorkflowStatus | null {
+export function normalizeWorkflowStatus(value: string | null): CasoWorkflowStatus | null {
   const normalized = value?.trim().toLowerCase() ?? null
   if (
     normalized === 'pending' ||
@@ -242,7 +253,7 @@ function isResolvedCase(status: string | null, workflowStatus: string | null) {
   )
 }
 
-function shouldIncludeCase(status: string | null, workflowStatus: string | null, options: FetchCaseOptions) {
+export function shouldIncludeCase(status: string | null, workflowStatus: string | null, options: FetchCaseOptions) {
   const normalizedStatus = status?.trim().toLowerCase() ?? ''
   const normalizedWorkflowStatus = workflowStatus?.trim().toLowerCase() ?? ''
 
@@ -357,7 +368,11 @@ function isCommentListRecoverableError(message: string) {
 async function fetchRowsByCaseId(table: string, caseId: string) {
   const response = await supabase.from(table).select('*').eq('caso_id', caseId)
   if (!response.error) return response.data ?? []
-  throw response.error
+  throw toAppError(
+    response.error,
+    'Error al cargar información del caso. Inténtalo nuevamente.',
+    `useMisCasos.fetchRowsByCaseId:${table}`,
+  )
 }
 
 async function fetchCaseComments(caseId: string) {
@@ -400,7 +415,11 @@ async function fetchCaseComments(caseId: string) {
       return [] as CasoComentario[]
     }
 
-    throw response.error
+    throw toAppError(
+      response.error,
+      'Error al cargar los comentarios. Inténtalo nuevamente.',
+      'useMisCasos.fetchCaseComments',
+    )
   }
 
   // Último recurso: helper genérico
@@ -412,7 +431,7 @@ async function fetchCaseComments(caseId: string) {
   } catch (error) {
     const message = error instanceof Error ? error.message : ''
     if (isCommentListRecoverableError(message)) return [] as CasoComentario[]
-    throw error
+    throw toAppError(error, 'Error al cargar los comentarios. Inténtalo nuevamente.', 'useMisCasos.fetchCaseComments')
   }
 }
 
@@ -430,7 +449,7 @@ async function fetchMediaForCases(caseIds: string[]) {
     if (message.includes('row-level security policy') || message.includes('permission denied')) {
       return [] as CasoMedia[]
     }
-    throw error
+    throw toAppError(error, 'Error al cargar la multimedia del caso. Inténtalo nuevamente.', 'useMisCasos.fetchMediaForCases')
   }
 
   const rows = (data ?? []) as Array<Record<string, unknown>>
@@ -513,7 +532,9 @@ async function fetchCasosFallback(limit?: number, userId?: string, options: Fetc
       error = retry.error
     }
   }
-  if (error) throw error
+  if (error) {
+    throw toAppError(error, 'Error al cargar los casos. Inténtalo nuevamente.', 'useMisCasos.fetchCasosFallback')
+  }
 
   const rows = (data ?? []) as unknown as CasoFallbackRow[]
   const visibleRows = rows.filter(row =>
@@ -531,10 +552,10 @@ async function fetchCasos(limit?: number, userId?: string, options: FetchCaseOpt
 
 export function useMisCasos(userId: string, limit = 3) {
   return useQuery({
-    queryKey: ['mis-casos', userId, limit],
+    queryKey: MIS_CASOS_QUERY_KEY(userId, limit),
     queryFn: () => fetchCasos(limit, userId),
     enabled: !!userId,
-    staleTime: QUERY_STALE_TIME,
+    staleTime: CASES_QUERY_STALE_TIME,
   })
 }
 
@@ -547,17 +568,17 @@ export function useCasosGenerales(
   const approvedOnly = options.approvedOnly ?? false
 
   return useQuery({
-    queryKey: ['casos-generales', limit, hideResolved, hideRejected, approvedOnly],
+    queryKey: CASOS_GENERALES_QUERY_KEY(limit, hideResolved, hideRejected, approvedOnly),
     queryFn: () => fetchCasos(limit, undefined, { hideResolved, hideRejected, approvedOnly }),
-    staleTime: QUERY_STALE_TIME,
+    staleTime: CASES_QUERY_STALE_TIME,
   })
 }
 
 export function useCasoDetalle(caseId: string) {
   return useQuery({
-    queryKey: ['caso-detalle', caseId],
+    queryKey: CASO_DETALLE_QUERY_KEY(caseId),
     enabled: !!caseId,
-    staleTime: QUERY_STALE_TIME,
+    staleTime: CASES_QUERY_STALE_TIME,
     queryFn: async () => {
       const [mediaResponse, comentarios] = await Promise.all([
         supabase
@@ -575,6 +596,7 @@ export function useCasoDetalle(caseId: string) {
         .from('cases')
         .select(CASO_DETALLE_FALLBACK_SELECT)
         .eq('id', caseId)
+        .eq('eliminado', false)
         .single()
 
       if (caseResponse.error) {
@@ -586,9 +608,12 @@ export function useCasoDetalle(caseId: string) {
             .from('cases')
             .select(CASO_DETALLE_FALLBACK_SELECT_NO_WORKFLOW)
             .eq('id', caseId)
+            .eq('eliminado', false)
             .single()
 
-          if (retry.error) throw retry.error
+          if (retry.error) {
+            throw toAppError(retry.error, 'Error al cargar el caso. Inténtalo nuevamente.', 'useMisCasos.useCasoDetalle')
+          }
 
           const fallbackCase = retry.data as CasoDetalleFallbackRow
           const photoMedia = safeMedia.filter(item => item.tipo === 'foto')
@@ -632,10 +657,10 @@ export function useCasoDetalle(caseId: string) {
 
         // Si el error es recuperable (permisos, relación inexistente) pero no de columna, propagar
         if (!isViewErrorRecoverable(caseResponse.error.message)) {
-          throw caseResponse.error
+          throw toAppError(caseResponse.error, 'Error al cargar el caso. Inténtalo nuevamente.', 'useMisCasos.useCasoDetalle')
         }
 
-        throw caseResponse.error
+        throw toAppError(caseResponse.error, 'Error al cargar el caso. Inténtalo nuevamente.', 'useMisCasos.useCasoDetalle')
       }
 
       const fallbackCase = caseResponse.data as CasoDetalleFallbackRow
@@ -683,7 +708,7 @@ export function useCasoDetalle(caseId: string) {
 // Hook para estadisticas del usuario (conteos)
 export function useMisEstadisticas(userId: string) {
   return useQuery({
-    queryKey: ['mis-estadisticas', userId],
+    queryKey: MIS_ESTADISTICAS_QUERY_KEY(userId),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('cases')
@@ -691,7 +716,9 @@ export function useMisEstadisticas(userId: string) {
         .eq('publicado_por', userId)
         .eq('eliminado', false)
 
-      if (error) throw error
+      if (error) {
+        throw toAppError(error, 'Error al cargar tus estadísticas. Inténtalo nuevamente.', 'useMisCasos.useMisEstadisticas')
+      }
 
       const casos = (data ?? []) as CasoStatsRow[]
       return {
@@ -702,6 +729,6 @@ export function useMisEstadisticas(userId: string) {
       }
     },
     enabled: !!userId,
-    staleTime: QUERY_STALE_TIME,
+    staleTime: CASES_QUERY_STALE_TIME,
   })
 }

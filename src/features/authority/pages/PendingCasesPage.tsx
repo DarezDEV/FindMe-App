@@ -15,11 +15,15 @@ import {
   getCasePhotoUrlFromStorage,
   getPendingModerationCases,
   getProfilesBasicByIds,
+  normalizeAuthorityCaseRow,
+  normalizeCaseCommentRow,
   softDeleteCase,
-  subscribeToCasesRealtime,
   updateCaseComment,
   updateCaseWorkflowStatus,
 } from '../../../lib/supabase/db'
+import { useRealtimeCaseComments } from '../../cases/hooks/useRealtimeCaseComments'
+import { useRealtimeCases } from '../../cases/hooks/useRealtimeCases'
+import { handleError } from '../../../shared/utils/handleError'
 import { logCaseAction } from '../utils/case-history'
 
 type CaseComment = { id: string; text: string; authorId: string }
@@ -48,6 +52,35 @@ function formatWorkflowStatus(status: string | null | undefined) {
   switch (status) {
     case 'pending': return 'Pendiente'; case 'approved': return 'Aprobado'
     case 'rejected': return 'Rechazado'; case 'found': return 'Encontrado'; case 'closed': return 'Cerrado'; default: return 'Pendiente'
+  }
+}
+
+function toSortTime(value: string | null | undefined) {
+  if (!value) return 0
+  const parsed = new Date(value).getTime()
+  return Number.isNaN(parsed) ? 0 : parsed
+}
+
+function toPendingCaseItemFromRealtime(row: NonNullable<ReturnType<typeof normalizeAuthorityCaseRow>>): PendingCaseItem {
+  return {
+    id: row.id,
+    caseNumber: row.numero_caso,
+    name: `${row.nombres} ${row.apellidos}`.trim(),
+    age: row.edad ?? 0,
+    gender: row.genero ?? null,
+    location: formatLocation(row.ciudad, row.estado_provincia, row.lugar_ultima_vez),
+    lastSeenPlace: row.lugar_ultima_vez || 'Sin dato',
+    description: row.descripcion_general || 'Sin descripción registrada.',
+    createdBy: formatCreatedBy(row.publicado_por),
+    createdAt: formatDate(row.created_at),
+    missingDate: row.fecha_desaparicion ? formatDate(row.fecha_desaparicion) : 'Sin fecha',
+    birthDate: row.fecha_nacimiento ? formatDate(row.fecha_nacimiento) : null,
+    missingDateIso: row.fecha_desaparicion || row.created_at,
+    contactPhone: row.telefono_contacto ?? null,
+    contactEmail: row.email_contacto ?? null,
+    caseStatusLabel: formatCaseStatus(row.status),
+    workflowStatusLabel: formatWorkflowStatus(row.workflow_status),
+    status: 'pending',
   }
 }
 
@@ -82,7 +115,13 @@ export default function PendingCasesPage() {
       try {
         const profiles = await getProfilesBasicByIds(userIds)
         profileMap = profiles.reduce<typeof profileMap>((acc, p) => { acc[p.id] = { name: p.name, lastName: p.last_name, email: p.email }; return acc }, {})
-      } catch { profileMap = {} }
+      } catch (error) {
+        handleError('PendingCasesPage.getProfilesBasicByIds', error, {
+          fallbackMessage: 'No se pudieron cargar los datos de los usuarios.',
+          toast: false,
+        })
+        profileMap = {}
+      }
 
       const mapped: PendingCaseItem[] = data.map((item) => {
         const profile = item.publicado_por ? profileMap[item.publicado_por] : undefined
@@ -118,6 +157,10 @@ export default function PendingCasesPage() {
       else { setSelectedCaseId(mapped[0]?.id ?? null) }
       if (requestedCaseId && !mapped.some((item) => item.id === requestedCaseId)) { setFeedbackType('warning'); setFeedback('El caso seleccionado desde "Casos" ya no está pendiente de revisión.') }
     } catch (err) {
+      handleError('PendingCasesPage.loadPendingCases', err, {
+        fallbackMessage: 'No se pudieron cargar los casos pendientes.',
+        toast: false,
+      })
       setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudieron cargar los casos pendientes.')
       setPendingCases([]); setSelectedCaseId(null)
     } finally { setLoading(false) }
@@ -130,7 +173,13 @@ export default function PendingCasesPage() {
     let cancelled = false
     const loadPhoto = async () => {
       try { const url = await getCasePhotoUrlFromStorage(selectedCaseId); if (!cancelled) setPhotoUrlByCaseId((prev) => ({ ...prev, [selectedCaseId]: url })) }
-      catch { if (!cancelled) setPhotoUrlByCaseId((prev) => ({ ...prev, [selectedCaseId]: null })) }
+      catch (error) {
+        handleError('PendingCasesPage.getCasePhotoUrlFromStorage', error, {
+          fallbackMessage: 'No se pudo cargar la foto del caso.',
+          toast: false,
+        })
+        if (!cancelled) setPhotoUrlByCaseId((prev) => ({ ...prev, [selectedCaseId]: null }))
+      }
     }
     void loadPhoto()
     return () => { cancelled = true }
@@ -143,14 +192,59 @@ export default function PendingCasesPage() {
     setPendingCases((prev) => { const next = prev.filter((item) => item.id !== caseId); setSelectedCaseId(next[0]?.id ?? null); return next })
   }, [])
 
-  useEffect(() => {
-    const unsubscribe = subscribeToCasesRealtime((payload) => {
-      const caseId = payload.new.id || payload.old.id; if (!caseId) return
-      if (payload.new.eliminado === true || (payload.new.workflow_status && payload.new.workflow_status !== 'pending')) { removeFromPending(caseId); return }
-      if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') void loadPendingCases()
-    })
-    return unsubscribe
-  }, [loadPendingCases, removeFromPending])
+  useRealtimeCases({
+    onEvent: (payload) => {
+      const caseId = payload.new.id || payload.old.id
+      if (!caseId) return
+
+      if (payload.eventType === 'DELETE' || payload.new.eliminado === true || (payload.new.workflow_status && payload.new.workflow_status !== 'pending')) {
+        removeFromPending(caseId)
+        return
+      }
+
+      const nextRow = normalizeAuthorityCaseRow(payload.new)
+      if (!nextRow) return
+
+      const nextItem = toPendingCaseItemFromRealtime(nextRow)
+      setPendingCases((prev) =>
+        [...prev.filter((item) => item.id !== caseId), nextItem].sort(
+          (a, b) => toSortTime(b.missingDateIso) - toSortTime(a.missingDateIso),
+        ),
+      )
+    },
+  })
+
+  useRealtimeCaseComments({
+    onEvent: (payload) => {
+      const caseId = payload.new.caso_id || payload.old.caso_id
+      if (!caseId) return
+
+      if (payload.eventType === 'DELETE') {
+        setCommentsByCaseId((prev) => ({
+          ...prev,
+          [caseId]: (prev[caseId] ?? []).filter((item) => item.id !== payload.old.id),
+        }))
+        return
+      }
+
+      const normalized = normalizeCaseCommentRow({
+        id: payload.new.id,
+        caso_id: payload.new.caso_id,
+        autor_id: payload.new.autor_id,
+        comentario: payload.new.comentario,
+        created_at: payload.new.created_at,
+      })
+
+      setCommentsByCaseId((prev) => ({
+        ...prev,
+        [caseId]: [...(prev[caseId] ?? []).filter((item) => item.id !== normalized.id), {
+          id: normalized.id,
+          text: normalized.comentario,
+          authorId: normalized.autor_id,
+        }],
+      }))
+    },
+  })
 
   const approveCase = async () => {
     if (!selectedCase) return; setActionLoading(true)
@@ -159,7 +253,10 @@ export default function PendingCasesPage() {
       if (user?.id) await logCaseAction(selectedCase.id, user.id, 'approved')
       removeFromPending(selectedCase.id); setFeedbackType('success'); setFeedback(`Caso de ${selectedCase.name} aprobado exitosamente.`)
     }
-    catch (err) { setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo aprobar el caso.') }
+    catch (err) {
+      handleError('PendingCasesPage.approveCase', err, { fallbackMessage: 'No se pudo aprobar el caso.', toast: false })
+      setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo aprobar el caso.')
+    }
     finally { setActionLoading(false) }
   }
   const rejectCase = async () => {
@@ -169,13 +266,19 @@ export default function PendingCasesPage() {
       if (user?.id) await logCaseAction(selectedCase.id, user.id, 'rejected')
       removeFromPending(selectedCase.id); setFeedbackType('warning'); setFeedback(`Caso de ${selectedCase.name} rechazado.`)
     }
-    catch (err) { setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo rechazar el caso.') }
+    catch (err) {
+      handleError('PendingCasesPage.rejectCase', err, { fallbackMessage: 'No se pudo rechazar el caso.', toast: false })
+      setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo rechazar el caso.')
+    }
     finally { setActionLoading(false) }
   }
   const markAsFalse = async () => {
     if (!selectedCase) return; setActionLoading(true)
     try { await softDeleteCase(selectedCase.id); removeFromPending(selectedCase.id); setFeedbackType('error'); setFeedback(`Caso de ${selectedCase.name} marcado como falso y eliminado.`) }
-    catch (err) { setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo marcar como falso.') }
+    catch (err) {
+      handleError('PendingCasesPage.markAsFalse', err, { fallbackMessage: 'No se pudo marcar como falso.', toast: false })
+      setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo marcar como falso.')
+    }
     finally { setActionLoading(false) }
   }
   const saveComment = async (comment: string) => {
@@ -184,19 +287,28 @@ export default function PendingCasesPage() {
       const created = await createCaseComment(selectedCase.id, user.id, comment)
       setCommentsByCaseId((prev) => ({ ...prev, [selectedCase.id]: [...(prev[selectedCase.id] ?? []), { id: created.id, text: comment, authorId: user.id }] }))
       setCommentModalOpen(false); setFeedbackType('info'); setFeedback('Nota agregada correctamente.')
-    } catch (err) { setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo guardar la nota.') }
+    } catch (err) {
+      handleError('PendingCasesPage.saveComment', err, { fallbackMessage: 'No se pudo guardar la nota.', toast: false })
+      setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo guardar la nota.')
+    }
     finally { setActionLoading(false) }
   }
   const handleDeleteComment = async (commentId: string) => {
     if (!selectedCase) return; setActionLoading(true)
     try { await deleteCaseComment(commentId); setCommentsByCaseId((prev) => ({ ...prev, [selectedCase.id]: (prev[selectedCase.id] ?? []).filter((c) => c.id !== commentId) })); setFeedbackType('info'); setFeedback('Nota eliminada.') }
-    catch (err) { setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo eliminar la nota.') }
+    catch (err) {
+      handleError('PendingCasesPage.deleteCaseComment', err, { fallbackMessage: 'No se pudo eliminar la nota.', toast: false })
+      setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo eliminar la nota.')
+    }
     finally { setActionLoading(false) }
   }
   const handleEditComment = async (commentId: string, newText: string) => {
     if (!selectedCase) return; setActionLoading(true)
     try { await updateCaseComment(commentId, newText); setCommentsByCaseId((prev) => ({ ...prev, [selectedCase.id]: (prev[selectedCase.id] ?? []).map((c) => c.id === commentId ? { ...c, text: newText } : c) })); setFeedbackType('info'); setFeedback('Nota actualizada.') }
-    catch (err) { setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo editar la nota.') }
+    catch (err) {
+      handleError('PendingCasesPage.updateCaseComment', err, { fallbackMessage: 'No se pudo editar la nota.', toast: false })
+      setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo editar la nota.')
+    }
     finally { setActionLoading(false) }
   }
 
@@ -231,7 +343,7 @@ export default function PendingCasesPage() {
 
       <AuthoritySidebar />
 
-      <main className="p-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+      <main className="p-scroll" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
         <div style={{ maxWidth: 1400, margin: '0 auto', padding: '40px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
           {/* ─── HEADER ─── */}
@@ -297,13 +409,13 @@ export default function PendingCasesPage() {
                     {pendingCases.length} casos en espera
                   </p>
                 </div>
-                <div className="p-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+                <div className="p-scroll" style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
                   <PendingList cases={pendingCases} selectedCaseId={selectedCaseId} onSelectCase={setSelectedCaseId} />
                 </div>
               </div>
 
               {/* ─── DETAIL COLUMN ─── */}
-              <div className="p-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto', maxHeight: 'calc(100vh - 200px)' }}>
+              <div className="p-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto', maxHeight: 'calc(100vh - 200px)', minHeight: 0 }}>
 
                 {/* Case Detail */}
                 <div className="p-card" style={{ overflow: 'hidden' }}>

@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { ChevronLeft, Eye, Mail, MapPin, MessageSquare, Phone, UserSearch, Video, Calendar, User, Hash, AlertCircle, X } from 'lucide-react'
 import { AuthoritySidebar } from '../components/AuthoritySidebar'
 import { Spinner } from '../../../shared/components/ui'
+import { handleError } from '../../../shared/utils/handleError'
 import { useCasoDetalle } from '../../user/hooks/useMisCasos'
 import { useAuth } from '../../auth/hooks'
 import { createCaseClosure, createCaseComment, getCasesByPersonId, updateCaseWorkflowStatus, type PersonCaseHistoryRow } from '../../../lib/supabase/db'
@@ -143,7 +144,11 @@ export default function AuthorityCaseDetailPage() {
     try {
       const rows = await getCasesByPersonId(personId, currentCaseId)
       setPersonHistory(rows)
-    } catch {
+    } catch (error) {
+      handleError('AuthorityCaseDetailPage.getCasesByPersonId', error, {
+        fallbackMessage: 'No se pudo cargar el historial de la persona.',
+        toast: false,
+      })
       setPersonHistory([])
     } finally {
       setHistoryLoading(false)

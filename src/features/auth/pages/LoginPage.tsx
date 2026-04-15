@@ -1,4 +1,4 @@
-﻿import { useState, type FormEvent, type MouseEvent } from 'react'
+import { useState, type FormEvent, type MouseEvent } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { loginUser } from '../services'
 import { useAuth } from '../hooks'

@@ -1,7 +1,9 @@
-﻿import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BadgeCheck, HeartHandshake, LockKeyhole, ShieldCheck, Users, Zap, Search, MapPin, Clock, Eye, ArrowRight, CheckCircle } from 'lucide-react'
-import { getAuthorityCases, subscribeToCasesRealtime, type AuthorityCaseRow } from '../../../lib/supabase/db'
+import { getAuthorityCases, normalizeAuthorityCaseRow, type AuthorityCaseRow } from '../../../lib/supabase/db'
+import { handleError } from '../../../shared/utils/handleError'
+import { useRealtimeCases } from '../../cases/hooks/useRealtimeCases'
 
 type PublicWorkflowStatus = 'approved' | 'found' | 'closed'
 
@@ -57,7 +59,7 @@ export default function LandingPage() {
   const [featuredStatus, setFeaturedStatus] = useState<PublicWorkflowStatus | null>(null)
   const [publicCaseCount, setPublicCaseCount] = useState(0)
   const observerRef = useRef<IntersectionObserver | null>(null)
-  const refreshTimerRef = useRef<number | null>(null)
+  const publicCasesRef = useRef<AuthorityCaseRow[]>([])
 
   useEffect(() => {
     document.title = 'FindMe | Plataforma de búsqueda de personas'
@@ -106,11 +108,17 @@ export default function LandingPage() {
 
         if (!active) return
 
+        publicCasesRef.current = publicRows
         setFeaturedCase(firstCase)
         setFeaturedStatus(status)
         setPublicCaseCount(publicRows.length)
-      } catch {
+      } catch (error) {
+        handleError('LandingPage.loadPublicCases', error, {
+          fallbackMessage: 'No se pudieron cargar los casos públicos.',
+          toast: false,
+        })
         if (!active) return
+        publicCasesRef.current = []
         setFeaturedCase(null)
         setFeaturedStatus(null)
         setPublicCaseCount(0)
@@ -123,24 +131,38 @@ export default function LandingPage() {
 
     void loadPublicCases()
 
-    const unsubscribe = subscribeToCasesRealtime(() => {
-      if (!active) return
-      if (refreshTimerRef.current) {
-        window.clearTimeout(refreshTimerRef.current)
-      }
-      refreshTimerRef.current = window.setTimeout(() => {
-        void loadPublicCases()
-      }, 250)
-    })
-
     return () => {
       active = false
-      if (refreshTimerRef.current) {
-        window.clearTimeout(refreshTimerRef.current)
-      }
-      unsubscribe()
     }
   }, [])
+
+  useRealtimeCases({
+    onEvent: (payload) => {
+      const caseId = payload.new.id || payload.old.id
+      if (!caseId) return
+
+      const nextRow = normalizeAuthorityCaseRow(payload.new)
+      const shouldShow =
+        payload.eventType !== 'DELETE' &&
+        payload.new.eliminado !== true &&
+        nextRow !== null &&
+        Boolean(getPublicWorkflowStatus(nextRow))
+
+      const currentList = publicCasesRef.current
+      const nextList = !shouldShow || !nextRow
+        ? currentList.filter((item) => item.id !== caseId)
+        : [...currentList.filter((item) => item.id !== caseId), nextRow].sort(
+            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+          )
+
+      publicCasesRef.current = nextList
+      const nextFeaturedCase = nextList[0] ?? null
+      setFeaturedCase(nextFeaturedCase)
+      setFeaturedStatus(nextFeaturedCase ? getPublicWorkflowStatus(nextFeaturedCase) : null)
+      setPublicCaseCount(nextList.length)
+      setLoadingFeaturedCase(false)
+    },
+  })
 
   const isVisible = (id: string) => visibleSections.has(id)
 
@@ -993,4 +1015,5 @@ export default function LandingPage() {
     </>
   )
 }
+
 

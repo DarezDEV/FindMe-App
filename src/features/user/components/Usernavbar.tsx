@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
-  AlertTriangle,
   Bell,
   CheckCircle,
   ChevronDown,
@@ -18,19 +17,11 @@ import {
 import { useAuth } from '../../auth/hooks'
 import { logoutUser } from '../../auth/services'
 import { appToast, ProfileAvatar } from '../../../shared/components/ui'
-import { type CasoReciente, useMisCasos } from '../hooks/useMisCasos'
+import { handleError } from '../../../shared/utils/handleError'
+import { NotificationsDropdown } from '../../notifications/components/NotificationsDropdown'
+import { useNotifications } from '../../notifications/hooks/useNotifications'
 
 type DropdownKey = 'notifications' | 'user' | 'publish' | null
-
-type NotificationType = 'info' | 'warning' | 'success'
-
-interface NavbarNotification {
-  id: string
-  text: string
-  time: string
-  unread: boolean
-  type: NotificationType
-}
 
 interface PublishOption {
   key: string
@@ -51,70 +42,6 @@ const publishOptions: PublishOption[] = [
     icon: <UserSearch size={16} />,
   },
 ]
-
-function formatTime(value: string | null) {
-  if (!value) return 'Reciente'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Reciente'
-
-  const diff = Date.now() - date.getTime()
-  const minute = 60 * 1000
-  const hour = 60 * minute
-  const day = 24 * hour
-
-  if (diff < minute) return 'Hace un momento'
-  if (diff < hour) return `Hace ${Math.max(1, Math.floor(diff / minute))} min`
-  if (diff < day) return `Hace ${Math.max(1, Math.floor(diff / hour))} h`
-  return date.toLocaleDateString()
-}
-
-function buildNotifications(cases: CasoReciente[]): NavbarNotification[] {
-  return cases.slice(0, 5).map(caso => {
-    if (caso.status === 'avistado') {
-      return {
-        id: `notif-${caso.id}`,
-        text: `Nuevo avistamiento en ${caso.numero_caso}.`,
-        time: formatTime(caso.created_at),
-        unread: true,
-        type: 'warning' as const,
-      }
-    }
-
-    if (caso.status === 'encontrado') {
-      return {
-        id: `notif-${caso.id}`,
-        text: `El caso ${caso.numero_caso} fue marcado como encontrado.`,
-        time: formatTime(caso.created_at),
-        unread: false,
-        type: 'success' as const,
-      }
-    }
-
-    if (caso.status === 'en_revision') {
-      return {
-        id: `notif-${caso.id}`,
-        text: `El caso ${caso.numero_caso} esta en revision de autoridad.`,
-        time: formatTime(caso.created_at),
-        unread: true,
-        type: 'info' as const,
-      }
-    }
-
-    return {
-      id: `notif-${caso.id}`,
-      text: `Caso ${caso.numero_caso} activo.`,
-      time: formatTime(caso.created_at),
-      unread: false,
-      type: 'info' as const,
-    }
-  })
-}
-
-function notifIcon(type: NotificationType) {
-  if (type === 'warning') return <AlertTriangle size={14} className="text-warning" />
-  if (type === 'success') return <CheckCircle size={14} className="text-success" />
-  return <MapPin size={14} className="text-primary" />
-}
 
 function Badge({ count }: { count: number }) {
   if (!count) return null
@@ -173,10 +100,7 @@ export default function UserNavbar() {
   const ref = useRef<HTMLDivElement>(null)
   const location = useLocation()
 
-  const { data: myCases = [], isLoading: casesLoading } = useMisCasos(user?.id ?? '', 6)
-
-  const notifications = useMemo(() => buildNotifications(myCases), [myCases])
-  const unreadNotifs = notifications.filter(item => item.unread).length
+  const { unreadCount: unreadNotifs } = useNotifications({ includeList: false })
 
   const userName = user?.name ?? 'Usuario'
   const userLastName = user?.last_nmae ?? ''
@@ -209,8 +133,7 @@ export default function UserNavbar() {
       closeAll()
       navigate('/login', { replace: true })
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudo cerrar la sesión.'
-      appToast.error(message)
+      handleError('UserNavbar.logout', err, { fallbackMessage: 'No se pudo cerrar la sesión.' })
     } finally {
       setLoggingOut(false)
     }
@@ -350,44 +273,7 @@ export default function UserNavbar() {
 
                 {open === 'notifications' && (
                   <DropdownPanel className="right-0 w-80">
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                      <span className="font-semibold text-sm text-text-primary">Notificaciones</span>
-                      <Link
-                        to="/notificaciones"
-                        onClick={closeAll}
-                        className="text-xs text-primary hover:text-primary-hover font-medium transition-colors"
-                      >
-                        Ver todas
-                      </Link>
-                    </div>
-                    <div className="max-h-72 overflow-y-auto divide-y divide-border">
-                      {casesLoading && <p className="px-4 py-3 text-xs text-text-secondary">Cargando...</p>}
-                      {!casesLoading && notifications.length === 0 && (
-                        <p className="px-4 py-3 text-xs text-text-secondary">No hay notificaciones recientes.</p>
-                      )}
-                      {!casesLoading &&
-                        notifications.map(item => (
-                          <div
-                            key={item.id}
-                            className={`flex items-start gap-3 px-4 py-3 hover:bg-background transition-colors ${
-                              item.unread ? 'bg-primary-soft/40' : ''
-                            }`}
-                          >
-                            <div className="mt-0.5 shrink-0">{notifIcon(item.type)}</div>
-                            <div className="flex-1 min-w-0">
-                              <p
-                                className={`text-xs leading-snug ${
-                                  item.unread ? 'font-medium text-text-primary' : 'text-text-secondary'
-                                }`}
-                              >
-                                {item.text}
-                              </p>
-                              <p className="text-[11px] text-text-secondary mt-1">{item.time}</p>
-                            </div>
-                            {item.unread && <div className="w-2 h-2 rounded-full bg-primary mt-1 shrink-0" />}
-                          </div>
-                        ))}
-                    </div>
+                    <NotificationsDropdown onNavigate={closeAll} />
                   </DropdownPanel>
                 )}
               </div>
@@ -500,7 +386,12 @@ export default function UserNavbar() {
                 className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-secondary hover:bg-background hover:text-text-primary transition-colors duration-150"
               >
                 {item.icon}
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.to === '/notificaciones' && unreadNotifs > 0 && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-error/10 text-error border border-error/20">
+                    {unreadNotifs > 99 ? '99+' : unreadNotifs}
+                  </span>
+                )}
               </Link>
             ))}
           </div>

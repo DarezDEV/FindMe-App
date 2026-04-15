@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Traduce errores de Supabase Auth al español para mostrarlos al usuario.
  */
 export function translateAuthError(message: string): string {

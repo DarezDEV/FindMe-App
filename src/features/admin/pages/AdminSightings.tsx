@@ -3,10 +3,12 @@ import { AlertCircle, Calendar, Eye, MapPin, RefreshCw, Search, UserRound, Check
 import AdminSidebar from '../components/Adminsidebar'
 import {
   getAuthoritySightings,
+  normalizeAuthoritySightingRow,
   updateAuthoritySightingStatus,
   type AuthoritySightingRow,
   type SightingModerationStatus,
 } from '../../../lib/supabase/db'
+import { useRealtimeSightings } from '../../sightings/hooks/useRealtimeSightings'
 
 type SightingStatus = 'all' | 'pending' | 'approved' | 'rejected'
 
@@ -61,6 +63,25 @@ export default function AdminSightings() {
   }, [])
 
   useEffect(() => { void loadSightings() }, [loadSightings])
+
+  useRealtimeSightings({
+    onEvent: (payload) => {
+      const sightingId = payload.new.id || payload.new.avistamiento_id || payload.old.id || payload.old.avistamiento_id
+      if (!sightingId) return
+
+      if (payload.eventType === 'DELETE' || payload.new.eliminado === true) {
+        setSightings((prev) => prev.filter((item) => item.id !== sightingId))
+        return
+      }
+
+      const nextRow = normalizeAuthoritySightingRow(payload.new as Record<string, unknown>)
+      setSightings((prev) =>
+        [...prev.filter((item) => item.id !== sightingId), nextRow].sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        ),
+      )
+    },
+  })
 
   const filteredSightings = useMemo(() => {
     const term = search.trim().toLowerCase()

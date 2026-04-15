@@ -1,4 +1,5 @@
 import { supabase } from '../../../lib/supabase/client'
+import { getErrorMessage } from '../../../shared/utils/errors'
 
 export interface AvistamientoInput {
   casoId: string
@@ -37,7 +38,7 @@ function normalizeOptionalUrl(value: string | undefined) {
     const parsed = new URL(normalized)
     return parsed.toString()
   } catch {
-    throw new Error('La URL de evidencia no es valida.')
+    throw new Error('La URL de evidencia no es válida.')
   }
 }
 
@@ -86,7 +87,7 @@ async function ensureCaseExists(casoId: string) {
     }
 
     if (lower.includes('no rows')) {
-      throw new Error('El caso seleccionado no existe o no esta disponible.')
+      throw new Error('El caso seleccionado no existe o no está disponible.')
     }
 
     throw new Error('No se pudo validar el caso seleccionado.')
@@ -97,9 +98,13 @@ async function runInsertAttempts(attempts: Array<() => Promise<string | null>>) 
   const errors: string[] = []
 
   for (const attempt of attempts) {
-    const errorMessage = await attempt()
-    if (!errorMessage) return
-    errors.push(errorMessage)
+    try {
+      const errorMessage = await attempt()
+      if (!errorMessage) return
+      errors.push(errorMessage)
+    } catch (error) {
+      errors.push(getErrorMessage(error, 'No se pudo registrar la información. Inténtalo nuevamente.'))
+    }
   }
 
   const lastError = errors[errors.length - 1]

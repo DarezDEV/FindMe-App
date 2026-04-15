@@ -1,16 +1,27 @@
 import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Bell, FileSearch, LayoutDashboard, LogOut, Menu, ShieldCheck, X, Eye } from 'lucide-react'
+import { Bell, BellDot, FileSearch, LayoutDashboard, LogOut, Menu, ShieldCheck, X, Eye, type LucideIcon } from 'lucide-react'
 import { logoutUser } from '../../auth/services'
 import { appToast, ProfileAvatar } from '../../../shared/components/ui'
 import { useAuth } from '../../auth/hooks'
+import { useNotifications } from '../../notifications/hooks/useNotifications'
+import { handleError } from '../../../shared/utils/handleError'
+
+type AuthorityNavItem = {
+  to: string
+  label: string
+  icon: LucideIcon
+  exact: boolean
+  showBadge?: boolean
+}
 
 const authorityNavItems = [
   { to: '/authority',               label: 'Dashboard',     icon: LayoutDashboard, exact: true },
   { to: '/authority/cases',         label: 'Casos',         icon: FileSearch,      exact: true },
   { to: '/authority/sightings',     label: 'Avistamientos', icon: Eye,             exact: true },
   { to: '/authority/cases/pending', label: 'Revisión',      icon: Bell,            exact: true },
-] as const
+  { to: '/authority/notificaciones', label: 'Notificaciones', icon: BellDot, exact: true, showBadge: true },
+] satisfies ReadonlyArray<AuthorityNavItem>
 
 interface SidebarBodyProps {
   onNavigate?: () => void
@@ -21,6 +32,7 @@ interface SidebarBodyProps {
 
 function SidebarBody({ onNavigate, onLogout, logoutLoading, onClose }: SidebarBodyProps) {
   const { user } = useAuth()
+  const { unreadCount } = useNotifications({ includeList: false })
 
   const displayName = user ? [user.name, user.last_nmae].filter(Boolean).join(' ').trim() : ''
 
@@ -57,7 +69,7 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading, onClose }: SidebarBo
           Navegación
         </p>
         <ul className="space-y-0.5">
-          {authorityNavItems.map(({ to, label, icon: Icon, exact }) => (
+          {authorityNavItems.map(({ to, label, icon: Icon, exact, showBadge }) => (
             <li key={to}>
               <NavLink
                 to={to}
@@ -81,6 +93,11 @@ function SidebarBody({ onNavigate, onLogout, logoutLoading, onClose }: SidebarBo
                       className={`shrink-0 transition-colors ${isActive ? 'text-primary' : 'text-text-secondary group-hover:text-text-primary'}`}
                     />
                     <span className="flex-1 leading-none">{label}</span>
+                    {showBadge && unreadCount > 0 && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-error/10 text-error border border-error/20">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
                     {isActive && (
                       <ShieldCheck size={13} className="text-primary opacity-50" />
                     )}
@@ -144,8 +161,7 @@ export function AuthoritySidebar() {
       setMobileOpen(false)
       navigate('/login', { replace: true })
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudo cerrar la sesión.'
-      appToast.error(message)
+      handleError('AuthoritySidebar.logout', err, { fallbackMessage: 'No se pudo cerrar la sesión.' })
     } finally {
       setLogoutLoading(false)
     }

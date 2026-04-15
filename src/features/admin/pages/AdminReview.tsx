@@ -15,10 +15,15 @@ import {
   getCasePhotoUrlFromStorage,
   getPendingModerationCases,
   getProfilesBasicByIds,
+  normalizeAuthorityCaseRow,
+  normalizeCaseCommentRow,
   softDeleteCase,
   updateCaseComment,
   updateCaseWorkflowStatus,
 } from '../../../lib/supabase/db'
+import { handleError } from '../../../shared/utils/handleError'
+import { useRealtimeCaseComments } from '../../cases/hooks/useRealtimeCaseComments'
+import { useRealtimeCases } from '../../cases/hooks/useRealtimeCases'
 import {
   AlertCircle,
   CheckCircle,
@@ -54,6 +59,35 @@ function formatWorkflowStatus(status: string | null | undefined) {
   return map[status ?? ''] ?? 'Pendiente'
 }
 
+function toSortTime(value: string | null | undefined) {
+  if (!value) return 0
+  const parsed = new Date(value).getTime()
+  return Number.isNaN(parsed) ? 0 : parsed
+}
+
+function toPendingCaseItemFromRealtime(row: NonNullable<ReturnType<typeof normalizeAuthorityCaseRow>>): PendingCaseItem {
+  return {
+    id: row.id,
+    caseNumber: row.numero_caso,
+    name: `${row.nombres} ${row.apellidos}`.trim(),
+    age: row.edad ?? 0,
+    gender: row.genero ?? null,
+    location: formatLocation(row.ciudad, row.estado_provincia, row.lugar_ultima_vez),
+    lastSeenPlace: row.lugar_ultima_vez || 'Sin dato',
+    description: row.descripcion_general || 'Sin descripción registrada.',
+    createdBy: formatCreatedBy(row.publicado_por),
+    createdAt: formatDate(row.created_at),
+    missingDate: row.fecha_desaparicion ? formatDate(row.fecha_desaparicion) : 'Sin fecha',
+    birthDate: row.fecha_nacimiento ? formatDate(row.fecha_nacimiento) : null,
+    missingDateIso: row.fecha_desaparicion || row.created_at,
+    contactPhone: row.telefono_contacto ?? null,
+    contactEmail: row.email_contacto ?? null,
+    caseStatusLabel: formatCaseStatus(row.status),
+    workflowStatusLabel: formatWorkflowStatus(row.workflow_status),
+    status: 'pending',
+  }
+}
+
 const FEEDBACK_STYLES: Record<string, string> = {
   success: 'bg-emerald-50 border-emerald-200 text-emerald-700',
   warning: 'bg-amber-50 border-amber-200 text-amber-700',
@@ -87,7 +121,13 @@ export default function AdminReview() {
         profileMap = profiles.reduce<Record<string, { name: string | null; lastName: string | null; email: string | null }>>((acc, p) => {
           acc[p.id] = { name: p.name, lastName: p.last_name, email: p.email }; return acc
         }, {})
-      } catch { profileMap = {} }
+      } catch (error) {
+        handleError('AdminReview.getProfilesBasicByIds', error, {
+          fallbackMessage: 'No se pudieron cargar los datos de los usuarios.',
+          toast: false,
+        })
+        profileMap = {}
+      }
 
       const mapped: PendingCaseItem[] = data.map((item) => {
         const profile = item.publicado_por ? profileMap[item.publicado_por] : undefined
@@ -131,6 +171,10 @@ export default function AdminReview() {
         setFeedback('El caso seleccionado ya no está pendiente de revisión.')
       }
     } catch (err) {
+      handleError('AdminReview.loadPendingCases', err, {
+        fallbackMessage: 'No se pudieron cargar los casos pendientes.',
+        toast: false,
+      })
       setFeedbackType('error')
       setFeedback(err instanceof Error ? err.message : 'No se pudieron cargar los casos pendientes.')
       setPendingCases([]); setSelectedCaseId(null)
@@ -146,7 +190,11 @@ export default function AdminReview() {
       try {
         const url = await getCasePhotoUrlFromStorage(selectedCaseId)
         if (!cancelled) setPhotoUrlByCaseId((prev) => ({ ...prev, [selectedCaseId]: url }))
-      } catch {
+      } catch (error) {
+        handleError('AdminReview.getCasePhotoUrlFromStorage', error, {
+          fallbackMessage: 'No se pudo cargar la foto del caso.',
+          toast: false,
+        })
         if (!cancelled) setPhotoUrlByCaseId((prev) => ({ ...prev, [selectedCaseId]: null }))
       }
     }
@@ -169,6 +217,60 @@ export default function AdminReview() {
     })
   }
 
+  useRealtimeCases({
+    onEvent: (payload) => {
+      const caseId = payload.new.id || payload.old.id
+      if (!caseId) return
+
+      if (payload.eventType === 'DELETE' || payload.new.eliminado === true || (payload.new.workflow_status && payload.new.workflow_status !== 'pending')) {
+        removeFromPending(caseId)
+        return
+      }
+
+      const nextRow = normalizeAuthorityCaseRow(payload.new)
+      if (!nextRow) return
+
+      const nextItem = toPendingCaseItemFromRealtime(nextRow)
+      setPendingCases((prev) =>
+        [...prev.filter((item) => item.id !== caseId), nextItem].sort(
+          (a, b) => toSortTime(b.missingDateIso) - toSortTime(a.missingDateIso),
+        ),
+      )
+    },
+  })
+
+  useRealtimeCaseComments({
+    onEvent: (payload) => {
+      const caseId = payload.new.caso_id || payload.old.caso_id
+      if (!caseId) return
+
+      if (payload.eventType === 'DELETE') {
+        setCommentsByCaseId((prev) => ({
+          ...prev,
+          [caseId]: (prev[caseId] ?? []).filter((item) => item.id !== payload.old.id),
+        }))
+        return
+      }
+
+      const normalized = normalizeCaseCommentRow({
+        id: payload.new.id,
+        caso_id: payload.new.caso_id,
+        autor_id: payload.new.autor_id,
+        comentario: payload.new.comentario,
+        created_at: payload.new.created_at,
+      })
+
+      setCommentsByCaseId((prev) => ({
+        ...prev,
+        [caseId]: [...(prev[caseId] ?? []).filter((item) => item.id !== normalized.id), {
+          id: normalized.id,
+          text: normalized.comentario,
+          authorId: normalized.autor_id,
+        }],
+      }))
+    },
+  })
+
   const approveCase = async () => {
     if (!selectedCase) return
     setActionLoading(true)
@@ -176,7 +278,10 @@ export default function AdminReview() {
       await updateCaseWorkflowStatus(selectedCase.id, 'approved')
       removeFromPending(selectedCase.id)
       setFeedbackType('success'); setFeedback(`Caso de ${selectedCase.name} aprobado y publicado.`)
-    } catch (err) { setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo aprobar el caso.') }
+    } catch (err) {
+      handleError('AdminReview.approveCase', err, { fallbackMessage: 'No se pudo aprobar el caso.', toast: false })
+      setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo aprobar el caso.')
+    }
     finally { setActionLoading(false) }
   }
 
@@ -187,7 +292,10 @@ export default function AdminReview() {
       await updateCaseWorkflowStatus(selectedCase.id, 'rejected')
       removeFromPending(selectedCase.id)
       setFeedbackType('warning'); setFeedback(`Caso de ${selectedCase.name} rechazado.`)
-    } catch (err) { setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo rechazar el caso.') }
+    } catch (err) {
+      handleError('AdminReview.rejectCase', err, { fallbackMessage: 'No se pudo rechazar el caso.', toast: false })
+      setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo rechazar el caso.')
+    }
     finally { setActionLoading(false) }
   }
 
@@ -198,7 +306,10 @@ export default function AdminReview() {
       await softDeleteCase(selectedCase.id)
       removeFromPending(selectedCase.id)
       setFeedbackType('error'); setFeedback(`Caso de ${selectedCase.name} marcado como falso y eliminado.`)
-    } catch (err) { setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo marcar como falso.') }
+    } catch (err) {
+      handleError('AdminReview.markAsFalse', err, { fallbackMessage: 'No se pudo marcar como falso.', toast: false })
+      setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo marcar como falso.')
+    }
     finally { setActionLoading(false) }
   }
 
@@ -212,7 +323,10 @@ export default function AdminReview() {
         [selectedCase.id]: [...(prev[selectedCase.id] ?? []), { id: created.id, text: comment, authorId: user.id }],
       }))
       setCommentModalOpen(false); setFeedbackType('info'); setFeedback('Nota agregada correctamente.')
-    } catch (err) { setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo guardar la nota.') }
+    } catch (err) {
+      handleError('AdminReview.saveComment', err, { fallbackMessage: 'No se pudo guardar la nota.', toast: false })
+      setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo guardar la nota.')
+    }
     finally { setActionLoading(false) }
   }
 
@@ -223,7 +337,10 @@ export default function AdminReview() {
       await deleteCaseComment(commentId)
       setCommentsByCaseId((prev) => ({ ...prev, [selectedCase.id]: (prev[selectedCase.id] ?? []).filter((c) => c.id !== commentId) }))
       setFeedbackType('info'); setFeedback('Nota eliminada.')
-    } catch (err) { setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo eliminar la nota.') }
+    } catch (err) {
+      handleError('AdminReview.deleteCaseComment', err, { fallbackMessage: 'No se pudo eliminar la nota.', toast: false })
+      setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo eliminar la nota.')
+    }
     finally { setActionLoading(false) }
   }
 
@@ -234,13 +351,16 @@ export default function AdminReview() {
       await updateCaseComment(commentId, newText)
       setCommentsByCaseId((prev) => ({ ...prev, [selectedCase.id]: (prev[selectedCase.id] ?? []).map((c) => c.id === commentId ? { ...c, text: newText } : c) }))
       setFeedbackType('info'); setFeedback('Nota actualizada.')
-    } catch (err) { setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo editar la nota.') }
+    } catch (err) {
+      handleError('AdminReview.updateCaseComment', err, { fallbackMessage: 'No se pudo editar la nota.', toast: false })
+      setFeedbackType('error'); setFeedback(err instanceof Error ? err.message : 'No se pudo editar la nota.')
+    }
     finally { setActionLoading(false) }
   }
 
   return (
     <AdminSidebar>
-      <div className="min-h-screen bg-slate-50">
+      <div className="h-screen bg-slate-50 overflow-hidden flex flex-col">
         <style>{`
           @keyframes fadeUp { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:translateY(0) } }
           .fade-up { animation: fadeUp 0.2s ease both; }
@@ -249,7 +369,7 @@ export default function AdminReview() {
           ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         `}</style>
 
-        <main className="overflow-y-auto">
+        <main className="flex-1 overflow-y-auto min-h-0">
           <div className="max-w-[1400px] mx-auto px-6 py-8 space-y-6">
 
             {/* Header */}

@@ -2,10 +2,14 @@ import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormE
 import { Link } from 'react-router-dom'
 import { AlertTriangle, Calendar, ChevronLeft, Clock3, Edit3, Eye, MapPin, Trash2 } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
+import { useRealtimeCaseComments } from '../../cases/hooks/useRealtimeCaseComments'
+import { useRealtimeSightings } from '../../sightings/hooks/useRealtimeSightings'
 import { Alert, Spinner } from '../../../shared/components/ui'
 import { supabase } from '../../../lib/supabase/client'
-import { createCaseComment, getProfilesBasicByIds } from '../../../lib/supabase/db'
+import { createCaseComment, getProfilesBasicByIds, normalizeCaseCommentRow } from '../../../lib/supabase/db'
 import { uploadFile } from '../../../shared/utils/api'
+import { toAppError } from '../../../shared/utils/errors'
+import { handleError } from '../../../shared/utils/handleError'
 import UserNavbar from '../components/Usernavbar'
 import { type CasoReciente, useMisCasos } from '../hooks/useMisCasos'
 
@@ -334,15 +338,23 @@ async function uploadCaseMediaUpdate(
   if (mediaRows.length === 0) return
 
   const { error } = await supabase.from('media_case').insert(mediaRows)
-  if (error) throw error
+  if (error) {
+    throw toAppError(error, 'No se pudo guardar los archivos del caso. Inténtalo nuevamente.', 'MisCasosPage.uploadCaseMedia')
+  }
 }
 
 async function deleteCaseMedia(meta: MediaMeta) {
-  if (meta.ids.length > 0) {
-    await supabase.from('media_case').delete().in('id', meta.ids)
-  }
-  if (meta.paths.length > 0) {
-    await supabase.storage.from(ACTIVE_CASES_BUCKET).remove(meta.paths)
+  try {
+    if (meta.ids.length > 0) {
+      const { error } = await supabase.from('media_case').delete().in('id', meta.ids)
+      if (error) throw error
+    }
+    if (meta.paths.length > 0) {
+      const { error } = await supabase.storage.from(ACTIVE_CASES_BUCKET).remove(meta.paths)
+      if (error) throw error
+    }
+  } catch (error) {
+    throw toAppError(error, 'No se pudo eliminar la media del caso. Inténtalo nuevamente.', 'MisCasosPage.deleteCaseMedia')
   }
 }
 
@@ -461,7 +473,7 @@ async function fetchSightingsByUser(
       continue
     }
 
-    throw error
+    throw toAppError(error, 'Error al cargar avistamientos. Inténtalo nuevamente.', 'MisCasosPage.fetchSightingsByUser')
   }
 
   return { rows: [] as Record<string, unknown>[], errors }
@@ -568,7 +580,9 @@ async function fetchCaseCommentsByIds(caseIds: string[]) {
     .in('caso_id', caseIds)
     .order('created_at', { ascending: true })
 
-  if (response.error) throw response.error
+  if (response.error) {
+    throw toAppError(response.error, 'Error al cargar los comentarios. Inténtalo nuevamente.', 'MisCasosPage.fetchCaseCommentsByIds')
+  }
 
   return (response.data ?? [])
     .map((row) => normalizeCommentRow(row as Record<string, unknown>))
@@ -710,7 +724,11 @@ export default function MisCasosPage() {
             mapped[profile.id] = fullName || profile.email || `Usuario ${profile.id.slice(0, 8)}`
           })
           setCommentAuthorById(mapped)
-        } catch {
+        } catch (error) {
+          handleError('MisCasosPage.getProfilesBasicByIds', error, {
+            fallbackMessage: 'No se pudieron cargar los autores de comentarios.',
+            toast: false,
+          })
           setCommentAuthorById({})
         }
       } else {
@@ -814,6 +832,87 @@ export default function MisCasosPage() {
   useEffect(() => {
     void loadCaseComments()
   }, [loadCaseComments])
+
+  useRealtimeCaseComments({
+    enabled: myCases.length > 0,
+    onEvent: (payload) => {
+      const caseId = payload.new.caso_id || payload.old.caso_id
+      if (!caseId || !myCases.some((item) => item.id === caseId)) return
+
+      if (payload.eventType === 'DELETE') {
+        setCommentsByCaseId((prev) => ({
+          ...prev,
+          [caseId]: (prev[caseId] ?? []).filter((item) => item.id !== payload.old.id),
+        }))
+        return
+      }
+
+      const normalized = normalizeCaseCommentRow({
+        id: payload.new.id,
+        caso_id: payload.new.caso_id,
+        autor_id: payload.new.autor_id,
+        comentario: payload.new.comentario,
+        created_at: payload.new.created_at,
+      })
+      const nextComment = normalizeCommentRow({
+        id: normalized.id,
+        caso_id: normalized.caso_id,
+        autor_id: normalized.autor_id,
+        comentario: normalized.comentario,
+        created_at: normalized.created_at,
+      })
+
+      setCommentsByCaseId((prev) => {
+        if (!nextComment) {
+          return {
+            ...prev,
+            [caseId]: (prev[caseId] ?? []).filter((item) => item.id !== normalized.id),
+          }
+        }
+
+        return {
+          ...prev,
+          [caseId]: [...(prev[caseId] ?? []).filter((item) => item.id !== nextComment.id), nextComment].sort(
+            (a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime(),
+          ),
+        }
+      })
+    },
+  })
+
+  useRealtimeSightings({
+    enabled: !!user?.id,
+    onEvent: (payload) => {
+      const reporterId =
+        payload.new.reportado_por ||
+        payload.new.user_id ||
+        payload.new.autor_id ||
+        payload.new.created_by ||
+        payload.old.reportado_por ||
+        payload.old.user_id ||
+        payload.old.autor_id ||
+        payload.old.created_by
+
+      if (!user?.id || reporterId !== user.id) return
+
+      const sightingId = payload.new.id || payload.new.avistamiento_id || payload.old.id || payload.old.avistamiento_id
+      if (!sightingId) return
+
+      if (payload.eventType === 'DELETE' || payload.new.eliminado === true) {
+        setSightings((prev) => prev.filter((item) => item.id !== sightingId))
+        return
+      }
+
+      const nextSighting = parseSightingRow(payload.new as Record<string, unknown>, 'case_sightings', 0)
+      if (!nextSighting) return
+
+      setSightings((prev) =>
+        [...prev.filter((item) => item.id !== sightingId), nextSighting].sort(
+          (a, b) => new Date(b.createdAt ?? b.fecha ?? 0).getTime() - new Date(a.createdAt ?? a.fecha ?? 0).getTime(),
+        ),
+      )
+    },
+  })
 
   const openEditModal = async (targetCase: CasoReciente) => {
     if (!user?.id) return

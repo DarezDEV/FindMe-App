@@ -3,6 +3,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../providers/AuthProvider'
 import { Spinner } from '../../shared/components/ui'
 import { supabase } from '../../lib/supabase/client'
+import { handleError } from '../../shared/utils/handleError'
 
 export function GuestRoute() {
   const { user, loading } = useAuth()
@@ -19,6 +20,11 @@ export function GuestRoute() {
         if (isMounted) {
           setHasSession(!!data.session)
         }
+      } catch (error) {
+        handleError('GuestRoute.getSession', error, {
+          fallbackMessage: 'No se pudo validar la sesión. Intenta recargar la página.',
+          toast: false,
+        })
       } finally {
         if (isMounted) {
           setSessionLoading(false)

@@ -9,9 +9,9 @@ interface AppToastOptions {
 
 const DEFAULT_TITLES: Record<AppToastType, string> = {
   error: 'Error',
-  success: 'Exito',
+  success: 'Éxito',
   warning: 'Advertencia',
-  info: 'Informacion',
+  info: 'Información',
 }
 
 const DEFAULT_DURATIONS: Record<AppToastType, number> = {

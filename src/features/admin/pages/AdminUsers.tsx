@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { Plus, RefreshCw } from 'lucide-react'
 import AdminSidebar from '../components/Adminsidebar'
 import { useUsers } from '../../../shared/hooks/useUsers'
-import { appToast } from '../../../shared/components/ui'
+import { appToast, ErrorState } from '../../../shared/components/ui'
+import { handleError } from '../../../shared/utils/handleError'
 import { UsersFilters } from '../components/UsersFilters'
 import { UsersTable } from '../components/UsersTable'
 import { UserFormModal } from '../components/UserFormModal'
@@ -19,6 +20,7 @@ type ModalState =
 export default function AdminUsers() {
   const {
     users, loading, refreshing,
+    error: usersError,
     page, totalPages, totalFiltered, pageSize, setPage,
     search, setSearch,
     filterRole, setFilterRole,
@@ -39,8 +41,7 @@ export default function AdminUsers() {
       appToast.success(`Usuario ${modal.user.name} ${modal.user.last_name} eliminado correctamente.`)
       closeModal()
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'No se pudo eliminar el usuario.'
-      appToast.error(message)
+      handleError('AdminUsers.deleteUser', err, { fallbackMessage: 'No se pudo eliminar el usuario.' })
     } finally {
       setDeleteLoading(false)
     }
@@ -81,18 +82,26 @@ export default function AdminUsers() {
         />
 
         {/* Tabla */}
-        <UsersTable
-          users={users}
-          loading={loading}
-          page={page}
-          totalPages={totalPages}
-          totalFiltered={totalFiltered}
-          pageSize={pageSize}
-          onPageChange={setPage}
-          onEdit={user => setModal({ type: 'edit', user })}
-          onDelete={user => setModal({ type: 'delete', user })}
-          onToggleStatus={toggleActivo}
-        />
+        {usersError && !loading && users.length === 0 ? (
+          <ErrorState
+            title="Error al cargar usuarios"
+            message={usersError}
+            onRetry={() => void load()}
+          />
+        ) : (
+          <UsersTable
+            users={users}
+            loading={loading}
+            page={page}
+            totalPages={totalPages}
+            totalFiltered={totalFiltered}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onEdit={user => setModal({ type: 'edit', user })}
+            onDelete={user => setModal({ type: 'delete', user })}
+            onToggleStatus={toggleActivo}
+          />
+        )}
 
       </div>
 
