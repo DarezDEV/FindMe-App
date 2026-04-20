@@ -50,12 +50,14 @@ function getDateLabel(caso: AuthorityCaseRow): string {
 function getWorkflowStatus(caso: AuthorityCaseRow): WorkflowStatus | null {
   if (caso.workflow_status) {
     if (caso.workflow_status === 'rejected') return null
+    if (caso.workflow_status === 'found') return null
+    if (caso.workflow_status === 'closed') return null
     return caso.workflow_status
   }
 
   // Backward compatibility for datasets that still use only `status`.
-  if (caso.status === 'resuelto') return 'found'
-  if (caso.status === 'cerrado') return 'closed'
+  if (caso.status === 'resuelto') return null
+  if (caso.status === 'cerrado') return null
   if (caso.status === 'activo' || caso.status === 'en_proceso') return 'approved'
   return null
 }

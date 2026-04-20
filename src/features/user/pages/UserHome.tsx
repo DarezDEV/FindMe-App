@@ -141,8 +141,7 @@ export default function UserHome() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Link to="/publish-case" className="btn-primary !px-4 !py-2 text-sm">Publicar caso</Link>
-              <Link to="/cases" className="btn-secondary !px-4 !py-2 text-sm">Ver listado completo</Link>
+
             </div>
           </div>
 
