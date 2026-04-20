@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../auth/hooks'
 import { subscribeToNotificationsRealtime } from '../services/notifications'
+import { subscribeToPush, isPushSupported } from '../services/pushNotifications'
 import { normalizeNotificationRow, type NotificationRow } from '../types'
 import { NOTIFICATIONS_UNREAD_COUNT_QUERY_KEY } from '../hooks/queryKeys'
 
@@ -136,7 +137,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
           if (oldReadAt === null) updateCount(-1)
         }
-      } catch (err) {
+} catch (err) {
         console.error('[NotificationsProvider] Realtime error:', err)
       }
     })
@@ -145,6 +146,43 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       unsubscribe()
     }
   }, [queryClient, userId])
+
+useEffect(() => {
+    if (!userId) return
+
+    const initPush = async () => {
+      try {
+        if (!isPushSupported()) {
+          console.log('[NotificationsProvider] Push not supported')
+          return
+        }
+
+        // Register service worker if needed
+        if ('serviceWorker' in navigator && !navigator.serviceWorker.controller) {
+          console.log('[NotificationsProvider] Registering service worker...')
+          try {
+            await navigator.serviceWorker.register('/sw.js')
+            console.log('[NotificationsProvider] Service worker registered')
+          } catch (swErr) {
+            console.error('[NotificationsProvider] SW registration error:', swErr)
+          }
+        }
+
+        console.log('[NotificationsProvider] Push supported, requesting subscription...')
+
+        try {
+          await subscribeToPush(userId)
+          console.log('[NotificationsProvider] Push subscription completed')
+        } catch (err) {
+          console.error('[NotificationsProvider] Error subscribing to push:', err)
+        }
+      } catch (outerErr) {
+        console.error('[NotificationsProvider] Fatal error in push init:', outerErr)
+      }
+    }
+
+    void initPush()
+  }, [userId])
 
   return <>{children}</>
 }

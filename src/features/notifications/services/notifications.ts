@@ -115,6 +115,100 @@ export async function createNotificationForSelf(input: {
   return id
 }
 
+const SUPABASE_FUNCTIONS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`
+
+async function sendPushNotification(userId: string, title: string, body: string, data?: Record<string, unknown>) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const authToken = session?.access_token
+
+    const response = await fetch(`${SUPABASE_FUNCTIONS_URL}/send-push/send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`,
+        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+      },
+      body: JSON.stringify({ userId, title, body, data }),
+    })
+
+    if (!response.ok) {
+      console.warn('[Notifications] Push send failed:', response.status)
+    }
+  } catch (err) {
+    console.error('[Notifications] Error sending push:', err)
+  }
+}
+
+export async function createNotificationsForUsers(input: {
+  userIds: string[]
+  type: string
+  title: string
+  message: string
+  metadata?: Record<string, unknown>
+}): Promise<string[]> {
+  if (!input.userIds.length) return []
+
+  const payload = input.userIds.map((userId) => ({
+    user_id: userId,
+    type: input.type,
+    title: input.title,
+    message: input.message,
+    metadata: input.metadata ?? {},
+  }))
+
+  const { data, error } = await supabase
+    .from(NOTIFICATIONS_TABLE)
+    .insert(payload)
+    .select('id')
+
+  if (error) {
+    throw new Error(mapDbErrorMessage(error.message))
+  }
+
+  const ids = (data ?? []).map((row) => row.id).filter(Boolean) as string[]
+
+  // Enviar notificaciones push a cada usuario
+  for (const userId of input.userIds) {
+    sendPushNotification(userId, input.title, input.message, input.metadata)
+  }
+
+  return ids
+}
+
+export async function createNotificationForRole(input: {
+  role: 'authority' | 'admin'
+  type: string
+  title: string
+  message: string
+  metadata?: Record<string, unknown>
+}): Promise<string[]> {
+  const { data: profiles, error } = await supabase
+    .from('profiles')
+    .select('id, role')
+    .contains('role', [input.role])
+
+  if (error) {
+    throw new Error(mapDbErrorMessage(error.message))
+  }
+
+  const userIds = (profiles ?? []).map((p) => p.id).filter(Boolean)
+  return createNotificationsForUsers({
+    userIds,
+    type: input.type,
+    title: input.title,
+    message: input.message,
+    metadata: input.metadata,
+  })
+}
+
+export async function markAllNotificationsAsReadForCurrentUser(): Promise<void> {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+  if (sessionError || !sessionData.session?.user) return
+
+  await markAllNotificationsAsRead(sessionData.session.user.id)
+}
+
 export async function markNotificationAsRead(notificationId: string): Promise<void> {
   try {
     const { error } = await supabase

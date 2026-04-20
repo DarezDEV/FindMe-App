@@ -1,138 +1,368 @@
-# FindMe System
+# FindMe - Sistema de Gestión de Personas Desaparecidas
 
-Plataforma web full-stack para reportar, gestionar y dar seguimiento a casos de personas desaparecidas. Desarrollada como proyecto final de curso.
-
----
-
-## Descripción
-
-FindMe conecta a ciudadanos, autoridades y administradores en un sistema estructurado donde cada caso pasa por un flujo de revisión y moderación antes de ser publicado. El objetivo es reemplazar el caos de grupos de WhatsApp y publicaciones desordenadas en redes sociales con una plataforma trazable y segura.
+![FindMe Logo](https://via.placeholder.com/150x50?text=FindMe)  
+*Plataforma tecnológica para la gestión y búsqueda de personas desaparecidas*
 
 ---
 
-## Tecnologías
+## 📋 Descripción del Proyecto
 
-| Capa | Tecnología |
-|------|-----------|
-| Frontend | React 19 + Vite + TypeScript |
-| Estilos | Tailwind CSS v4 |
-| Backend / DB | Supabase (PostgreSQL) |
-| Autenticación | Supabase Auth (OTP por correo, PKCE) |
-| Storage | Supabase Storage |
-| Serverless | Supabase Edge Functions (Deno) |
-| Íconos | Lucide React |
-| Estado servidor | TanStack React Query |
-| PDF / Póster | jsPDF + html2canvas |
+**FindMe** es una plataforma web desarrollada en **React 19** con **TypeScript** que permite a usuarios comunes y autoridades gestionar casos de personas desaparecidas en República Dominicana.
 
----
+El sistema facilita el reporte de casos, la gestión de avistamientos y la colaboración entre familiares y autoridades para aumentar las probabilidades de localización.
 
-## Roles del sistema
+### Objetivo Principal
+Brindar una herramienta centralizada que conecte a familiares de personas desaparecidas con autoridades competentes, permitiendo el reporte inmediato y seguimiento de casos de manera eficiente y organizada.
 
-### 👤 Usuario (ciudadano)
-- Registrarse con verificación OTP por correo
-- Publicar reportes de personas desaparecidas (formulario multi-paso)
-- Ver y gestionar sus propios casos
-- Enviar avistamientos sobre casos activos
-- Descargar póster del caso en PDF
-- Reportar contenido inapropiado
-
-### 👮 Autoridad
-- Revisar y aprobar/rechazar casos pendientes
-- Gestionar avistamientos (validar o rechazar)
-- Actualizar el estado de los casos (encontrado, cerrado)
-- Ver datos de contacto privados de los reportantes
-
-### 🛠 Administrador
-- Crear y gestionar usuarios del sistema
-- Asignar y modificar roles
-- Supervisar todos los casos desde un panel centralizado
-- Ver estadísticas generales del sistema
+### Problema que Resuelve
+- Dificultad para reportar personas desaparecidas
+- Falta de comunicación entre familias y autoridades
+- Descoordinación en el seguimiento de casos
+- Necesidad de visibilidad controlada de información sensible
 
 ---
 
-## Flujo de un caso
+## 🛠 Tecnologías Utilizadas
 
-```
-Usuario publica → [Pendiente] → Autoridad revisa
-                                    ↓              ↓
-                               [Aprobado]      [Rechazado]
-                               (visible al público)
-                                    ↓
-                              [Encontrado]
-                                    ↓
-                               [Cerrado]
-```
+### Frontend
+| Tecnología | Versión | Descripción |
+|------------|---------|-------------|
+| React | 19 | Biblioteca de interfaz de usuario |
+| TypeScript | ^5 | Tipado estático |
+| Vite | ^6 | Herramienta de build |
+| Tailwind CSS | v4 | Framework de estilos |
+| TanStack Query | ^5 | Gestión de estado asíncrono |
+| React Router | v7 | Enrutamiento |
 
----
+### Backend
+| Tecnología | Descripción |
+|------------|-------------|
+| Supabase | Backend como servicio (BaaS) |
+| PostgreSQL | Base de datos relacional |
+| Supabase Auth | Autenticación de usuarios |
+| Supabase Realtime | Notificaciones en tiempo real |
+| Supabase Storage | Almacenamiento de archivos |
 
-## Arquitectura del proyecto
-
-```
-src/
-├── app/
-│   ├── router/          # Rutas, ProtectedRoute, RoleRoute, GuestRoute
-│   └── providers/       # AuthProvider (contexto global de sesión)
-├── lib/
-│   └── supabase/        # client, auth, db, storage
-├── features/
-│   ├── auth/            # Login, Registro, OTP, Recuperación de contraseña
-│   ├── user/            # Dashboard, MisCasos, PublicarCaso, Avistamientos
-│   ├── authority/       # Dashboard, Casos, Avistamientos, Revisión pendiente
-│   ├── admin/           # Dashboard, Usuarios, Casos, Avistamientos, Configuración
-│   └── public/          # Landing page, Casos públicos
-├── shared/
-│   ├── components/ui/   # Spinner, Alert, RoleBadge, StatusBadge, Toast
-│   ├── hooks/           # useUsers
-│   ├── utils/           # api, storage, interceptors
-│   └── constants/       # roles.ts
-└── main.tsx
-```
+### Herramientas de Desarrollo
+| Tecnología | Propósito |
+|------------|----------|
+| ESLint | Linting de código |
+| TypeScript Compiler | Verificación de tipos |
+| Git | Control de versiones |
 
 ---
 
-## Base de datos (Supabase)
+## ✨ Características del Sistema
 
-### Tablas principales
-- `profiles` — datos de perfil de cada usuario
-- `roles` — catálogo de roles (`user`, `authority`, `admin`)
-- `user_roles` — relación usuarios↔roles
-- `cases` — casos de personas desaparecidas
-- `persons` — datos de la persona desaparecida (vinculada al caso)
-- `caso_media` — fotos y videos adjuntos a cada caso
-- `case_sightings` — avistamientos reportados por usuarios
-- `cases_closed` — registro de cierre de casos con nota y responsable
+### 👤 Gestión de Usuarios
+- **Registro de usuarios** con validación de correo electrónico
+- **Inicio de sesión** seguro mediante Supabase Auth
+- **Perfiles de usuario** con información personal y avatar
+- **Recuperación de contraseña** por correo electrónico
 
-### Seguridad
-- Row Level Security (RLS) activa en todas las tablas de datos
-- La gestión de usuarios con roles privilegiados se realiza exclusivamente desde una Edge Function con `service_role`, nunca desde el cliente
-- Los datos de contacto de los reportantes solo son visibles para autoridades autorizadas
+### 🔐 Sistema de Roles
+- **Usuario común**: Puede reportar casos, ver sus propios casos, reportar avistamientos
+- **Autoridad**: Gestionar casos, aprobar/rechazar reportes, cerrar casos
+- **Administrador**: Dashboard completo, reportes, gestión de usuarios
+
+### 📝 Gestión de Casos
+- **Crear caso de persona desaparecida** con múlti fotos y videos
+- **Editar información** del caso
+- **Seguimiento del estado** (pendiente, aprobado, rechazado, encontrado, cerrado)
+- **Comentarios** en cada caso
+
+### 📍 Avistamientos
+- Reportar avistamientos de personas
+- Vincular avistamientos a casos existentes
+- Registro de ubicación y circunstancias
+
+### 🔔 Sistema de Notificaciones
+- **Notificaciones in-app** en tiempo real
+- **Notificaciones push** via Web Push API
+- **Badge de notificaciones** sin leer
+- **Dropdown de notificaciones** con historial
+
+### 📊 Dashboards
+- **Dashboard de Usuario**: Mis casos reportados, estadísticas
+- **Dashboard de Autoridad**: Casos pendientes, casos resueltos, avistamientos
+- **Dashboard de Administrador**: Métricas completas, reportes, gestión
+
+### 📄 Generación de Reportes
+- Reportes en formato **PDF**
+- Filtros por fecha, estado, ciudad
+- Métricas y estadísticas visuales
 
 ---
 
-## Variables de entorno
+## 📌 Requisitos del Sistema
 
-```env
-VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
-VITE_SUPABASE_ANON_KEY=tu-anon-key
-```
+### Software Necesario
+- **Node.js** versión 18 o superior
+- **npm** versión 9 o superior
+- **Git** para control de versiones
+
+### Navegadores Soportados
+- Google Chrome (versión 90+)
+- Mozilla Firefox (versión 88+)
+- Microsoft Edge (versión 90+)
+- Safari (versión 14+)
+
+### Otros Requisitos
+- Conexión a Internet para Supabase
+- Cuenta en [Supabase](https://supabase.com) (gratis)
 
 ---
 
-## Cómo ejecutar el proyecto
+## 🚀 Instalación del Proyecto
+
+### 1. Clonar el Repositorio
 
 ```bash
-# Instalar dependencias
-npm install
-
-# Iniciar servidor de desarrollo
-npm run dev
-
-# Construir para producción
-npm run build
+git clone https://github.com/tu-usuario/findme-app.git
+cd findme-app
 ```
+
+### 2. Instalar Dependencias
+
+```bash
+npm install
+```
+
+### 3. Configurar Variables de Entorno
+
+Crea un archivo `.env` en la raíz del proyecto:
+
+```env
+# Supabase - Credenciales del proyecto
+VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
+VITE_SUPABASE_ANON_KEY=tu-anon-key
+
+# (Opcional) Bucket de storage
+VITE_CASES_BUCKET=casos-media
+```
+
+### 4. Iniciar el Servidor de Desarrollo
+
+```bash
+npm run dev
+```
+
+La aplicación estará disponible en `http://localhost:5173`
 
 ---
 
-## Equipo
+## 📂 Estructura del Proyecto
 
-Proyecto académico desarrollado como entrega final del curso.
+```
+findme-app/
+├── public/                    # Archivos estáticos públicos
+│   └── sw.js                 # Service Worker para Push
+├── src/
+│   ├── app/                 # Componentes de nivel app
+│   │   ├── components/       # Componentes globales
+│   │   ├── providers/       # Context providers
+│   │   └── router/         # Definición de rutas
+│   ├── features/           # Módulos por característica
+│   │   ├── admin/         # Panel de administrador
+│   │   ├── authority/    # Panel de autoridad
+│   │   ├── auth/         # Autenticación
+│   │   ├── cases/        # Gestión de casos
+│   │   ├── notifications/# Sistema de notificaciones
+│   │   ├── public/       # Páginas públicas
+│   │   └── user/        # Panel de usuario
+│   ├── lib/
+│   │   └── supabase/    # Cliente Supabase
+│   └── shared/
+│       ├── components/   # Componentes compartidos
+│       ├── constants/   # Constantes de la app
+│       ├── hooks/       # Hooks personalizados
+│       └── utils/       # Utilidades
+├── supabase/
+│   ├── functions/        # Edge Functions
+│   ├── migrations/      # Migraciones SQL
+│   └── config.toml     # Configuración Supabase
+└── index.html          # Punto de entrada
+```
+
+### Descripción de Carpetas Clave
+
+| Carpeta | Descripción |
+|--------|-------------|
+| `src/app/` | Configuración global de la aplicación |
+| `src/features/` | Módulos de funcionalidad por rol |
+| `src/lib/supabase/` | Cliente e integración con Supabase |
+| `src/shared/` | Código reutilizable |
+| `supabase/` | Recursos de backend (functions, DB) |
+
+---
+
+## 📖 Uso del Sistema
+
+### Flujo de Usuario Común
+
+1. **Registro/Login**
+   - Usuario se registra o inicia sesión
+   - Recibe correo de verificación (primer uso)
+
+2. **Reportar Caso**
+   - Navega a "Publicar Persona Perdida"
+   - Completa datos de la persona
+   - Sube fotos/videos
+   - Proporciona ubicación y circunstancias
+   - Envía para revisión
+
+3. **Seguimiento**
+   - Ve el estado en "Mis Casos"
+   - Recibe notificaciones por actualizaciones
+   - Puede agregar comentarios
+
+### Flujo de Autoridad
+
+1. **Login** con credenciales de autoridad
+2. **Revisar casos pendientes** en panel de revisión
+3. **Aprobar o rechazar** casos con nota
+4. **Gestionar avistamientos** recibidos
+5. **Marcar casos** como encontrados/cerrados
+
+### Flujo de Administrador
+
+1. **Dashboard** con métricas completas
+2. **Gestionar usuarios** y roles
+3. **Generar reportes** en PDF
+4. **Monitorear actividad** del sistema
+
+---
+
+## 🔑 Credenciales de Prueba
+
+### Cuenta de Administrador
+```
+Correo: admin@test.com
+Contraseña: 123456
+```
+
+### Cuenta de Autoridad
+```
+Correo: autoridad@test.com
+Contraseña: 123456
+```
+
+### Cuenta de Usuario
+```
+Correo: usuario@test.com
+Contraseña: 123456
+```
+
+> **Nota**: Estas credenciales son para pruebas. En producción, configúralas en Supabase Dashboard → Authentication → Users.
+
+---
+
+## 🔌 API Utilizada: Supabase
+
+### Integración en el Proyecto
+
+El proyecto usa **Supabase** como backend completamente gestionado. La configuración está en `src/lib/supabase/client.ts`:
+
+```typescript
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+)
+```
+
+### Módulos de Supabase Usados
+
+#### 1. Authentication
+```typescript
+// Iniciar sesión
+const { data, error } = await supabase.auth.signInWithPassword({
+  email: 'usuario@test.com',
+  password: '123456'
+})
+
+// Cerrar sesión
+await supabase.auth.signOut()
+```
+
+#### 2. Base de Datos (PostgreSQL)
+```typescript
+// Consultar casos
+const { data, error } = await supabase
+  .from('cases')
+  .select('*')
+  .eq('status', 'activo')
+
+// Insertar caso
+const { data, error } = await supabase
+  .from('cases')
+  .insert({/* datos del caso */})
+```
+
+#### 3. Realtime (Notificaciones en Tiempo Real)
+```typescript
+const channel = supabase
+  .channel('custom-insert-channel')
+  .on('postgres_changes', {
+    event: 'INSERT',
+    schema: 'public',
+    table: 'notifications'
+  }, (payload) => {
+    console.log('Nueva notificación:', payload)
+  })
+  .subscribe()
+```
+
+#### 4. Storage (Archivos)
+```typescript
+// Subir imagen
+const { data, error } = await supabase.storage
+  .from('casos-media')
+  .upload(ruta, archivo)
+```
+
+### Tablas Principales
+
+| Tabla | Descripción |
+|-------|------------|
+| `users` | Usuarios de Supabase Auth |
+| `profiles` | Perfiles extendidos de usuarios |
+| `cases` | Casos de personas desaparecidas |
+| `case_media` | Fotos y videos de casos |
+| `sightings` | Avistamientos reportados |
+| `notifications` | Notificaciones del sistema |
+| `push_subscriptions` | Suscripciones push |
+
+---
+
+## 👥 Autores
+
+| Rol | Nombre/Usuario |
+|-----|---------------|
+| **Desarrollador Principal** | [Tu nombre] |
+| **Administrador del Proyecto** | Rijo |
+
+---
+
+## 📄 Licencia
+
+Este proyecto está bajo la licencia MIT. Consulta el archivo `LICENSE` para más detalles.
+
+---
+
+## 🤝 Contribuir
+
+1. Fork el repositorio
+2. Crea una rama (`git checkout -b feature/nueva-caracteristica`)
+3. Commit tus cambios (`git commit -m 'Agrega nueva característica'`)
+4. Push a la rama (`git push origin feature/nueva-caracteristica`)
+5. Abre un Pull Request
+
+---
+
+*Desarrollado con ❤️ para ayudar a reunir familias* 🏠
+
+---
+
+**FindMe** - *Donde cada caso cuenta, cada búsqueda importa* 🔍

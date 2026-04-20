@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom'
-import { useState } from 'react'
+import { useEffect } from 'react'
 import { Spinner } from '../../../shared/components/ui'
 import { useNotifications } from '../hooks/useNotifications'
 import { NotificationItem } from './NotificationItem'
+import { markAllNotificationsAsReadForCurrentUser } from '../services/notifications'
 
 export function NotificationsDropdown({
   toAll = '/notificaciones',
@@ -11,42 +12,25 @@ export function NotificationsDropdown({
   toAll?: string
   onNavigate?: () => void
 }) {
-  const { notifications, unreadCount, isLoading, error, refetch, markAllAsRead, markAsRead } = useNotifications({ limit: 6 })
-  const [busy, setBusy] = useState(false)
+  const { notifications, unreadCount, isLoading, error, refetch, markAsRead } = useNotifications({ limit: 6 })
 
-  const handleMarkAll = async () => {
-    if (busy) return
-    setBusy(true)
-    try {
-      await markAllAsRead()
-    } catch {
-      return
-    } finally {
-      setBusy(false)
+  useEffect(() => {
+    if (!isLoading && unreadCount > 0) {
+      markAllNotificationsAsReadForCurrentUser().catch(() => {})
     }
-  }
+  }, [isLoading, unreadCount])
 
   return (
     <div>
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <span className="font-semibold text-sm text-text-primary">Notificaciones</span>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => void handleMarkAll()}
-            disabled={unreadCount === 0 || busy}
-            className="text-xs text-text-secondary hover:text-primary font-medium transition-colors disabled:opacity-50"
-          >
-            Marcar todo
-          </button>
-          <Link
-            to={toAll}
-            onClick={onNavigate}
-            className="text-xs text-primary hover:text-primary-hover font-medium transition-colors"
-          >
-            Ver todas
-          </Link>
-        </div>
+        <Link
+          to={toAll}
+          onClick={onNavigate}
+          className="text-xs text-primary hover:text-primary-hover font-medium transition-colors"
+        >
+          Ver todas
+        </Link>
       </div>
 
       <div className="max-h-72 overflow-y-auto p-3 space-y-2">

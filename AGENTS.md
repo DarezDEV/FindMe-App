@@ -4,6 +4,12 @@
 
 FindMe is a React 19 + TypeScript application for managing missing persons cases. It uses Vite as the build tool, Tailwind CSS v4 for styling, and Supabase for backend services. The app supports three user roles: user, authority, and admin.
 
+## Architecture Notes
+
+- **Service Worker** (`public/sw.js`): Required for push notifications to work. Must be served from root `/`.
+- **Push Notifications**: Uses Web Push API via Supabase Edge Functions. Requires `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` secrets in Supabase.
+- **Realtime**: Uses Supabase Realtime for in-app notifications (not push).
+
 ---
 
 ## Build, Lint, and Test Commands

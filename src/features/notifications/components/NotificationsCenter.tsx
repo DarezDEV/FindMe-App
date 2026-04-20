@@ -1,9 +1,10 @@
-import { Bell, CheckCheck, RefreshCw, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { Bell, RefreshCw, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Alert, Spinner } from '../../../shared/components/ui'
 import { handleError } from '../../../shared/utils/handleError'
 import { useNotifications } from '../hooks/useNotifications'
 import { NotificationItem } from './NotificationItem'
+import { markAllNotificationsAsReadForCurrentUser } from '../services/notifications'
 
 export function NotificationsCenter({ limit = 200 }: { limit?: number }) {
   const {
@@ -13,35 +14,29 @@ export function NotificationsCenter({ limit = 200 }: { limit?: number }) {
     isFetching,
     error,
     refetch,
-    markAllAsRead,
     clearAll,
     markAsRead,
     removeOne,
   } = useNotifications({ limit })
 
   const [actionBusy, setActionBusy] = useState(false)
+  const [hasAutoRead, setHasAutoRead] = useState(false)
+
+  useEffect(() => {
+    if (!hasAutoRead && !isLoading && unreadCount > 0) {
+      setHasAutoRead(true)
+      markAllNotificationsAsReadForCurrentUser().catch(() => {})
+    }
+  }, [isLoading, unreadCount, hasAutoRead])
 
   const handleRefetch = async () => {
     if (actionBusy) return
-
     try {
       await refetch()
     } catch (error) {
       handleError('NotificationsCenter.refetch', error, {
         fallbackMessage: 'No se pudieron actualizar las notificaciones.',
       })
-    }
-  }
-
-  const handleMarkAll = async () => {
-    if (actionBusy) return
-    setActionBusy(true)
-    try {
-      await markAllAsRead()
-    } catch {
-      return
-    } finally {
-      setActionBusy(false)
     }
   }
 
@@ -87,15 +82,6 @@ export function NotificationsCenter({ limit = 200 }: { limit?: number }) {
           >
             <RefreshCw size={16} className={isFetching ? 'animate-spin' : ''} />
             {isFetching ? 'Actualizando...' : 'Recargar'}
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleMarkAll()}
-            disabled={unreadCount === 0 || actionBusy}
-            className="btn-secondary flex items-center gap-2 py-2"
-          >
-            <CheckCheck size={16} />
-            Marcar todo
           </button>
           <button
             type="button"
