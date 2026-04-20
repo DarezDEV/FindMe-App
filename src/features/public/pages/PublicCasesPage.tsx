@@ -158,8 +158,7 @@ export default function PublicCasesPage() {
       const data = await getAuthorityCases({ limit: 200 })
       const publicRows = data.filter((item) => {
         const status = getWorkflowStatus(item)
-        if (!status) return false
-        return status === 'approved' || status === 'found' || status === 'closed'
+        return status === 'approved'
       })
 
       let commentMap: Record<string, PublicComment[]> = {}

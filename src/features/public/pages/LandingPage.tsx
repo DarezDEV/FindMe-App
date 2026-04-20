@@ -9,15 +9,13 @@ type PublicWorkflowStatus = 'approved' | 'found' | 'closed'
 
 function getPublicWorkflowStatus(caso: AuthorityCaseRow): PublicWorkflowStatus | null {
   if (caso.workflow_status) {
-    if (caso.workflow_status === 'approved' || caso.workflow_status === 'found' || caso.workflow_status === 'closed') {
+    if (caso.workflow_status === 'approved') {
       return caso.workflow_status
     }
     return null
   }
 
   // Backward compatibility for datasets that still use only `status`.
-  if (caso.status === 'resuelto') return 'found'
-  if (caso.status === 'cerrado') return 'closed'
   if (caso.status === 'activo' || caso.status === 'en_proceso') return 'approved'
   return null
 }
