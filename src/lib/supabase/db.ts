@@ -6,6 +6,10 @@ interface UserRoleRow {
   role_id: string
 }
 
+interface UserRoleWithUserRow extends UserRoleRow {
+  user_id: string
+}
+
 interface RoleRow {
   name: string
 }
@@ -93,6 +97,13 @@ export interface CaseRealtimePayload {
   eventType: 'INSERT' | 'UPDATE' | 'DELETE'
   new: Partial<CaseRealtimeRow>
   old: Partial<CaseRealtimeRow>
+}
+
+export interface PersonCaseHistoryRow {
+  id: string
+  numero_caso: string
+  workflow_status: CaseWorkflowStatus | null
+  created_at: string | null
 }
 
 export interface AuthoritySightingRow {
@@ -343,6 +354,52 @@ export async function getUserRoles(userId: string): Promise<string[]> {
 
   const names = (roles ?? []).map((r: RoleRow) => r.name)
   return names
+}
+
+export async function getUserRolesByIds(userIds: string[]): Promise<Record<string, string[]>> {
+  if (userIds.length === 0) return {}
+
+  const uniqueIds = [...new Set(userIds.filter(Boolean))]
+  if (uniqueIds.length === 0) return {}
+
+  const { data: userRoles, error: urError } = await withRetry(() =>
+    supabase
+      .from('user_roles')
+      .select('user_id, role_id')
+      .in('user_id', uniqueIds),
+  )
+
+  if (urError) throw urError
+  const rows = (userRoles ?? []) as UserRoleWithUserRow[]
+  if (rows.length === 0) return {}
+
+  const roleIds = Array.from(new Set(rows.map((row) => row.role_id)))
+  if (roleIds.length === 0) return {}
+
+  const { data: roles, error: rError } = await withRetry(() =>
+    supabase
+      .from('roles')
+      .select('id, name')
+      .in('id', roleIds),
+  )
+
+  if (rError) throw rError
+
+  const roleNameById = new Map<string, string>()
+  ;(roles ?? []).forEach((role) => {
+    const id = (role as { id?: string | null }).id ?? ''
+    if (id) roleNameById.set(id, (role as RoleRow).name)
+  })
+
+  const result: Record<string, string[]> = {}
+  rows.forEach((row) => {
+    const name = roleNameById.get(row.role_id)
+    if (!name) return
+    if (!result[row.user_id]) result[row.user_id] = []
+    result[row.user_id].push(name)
+  })
+
+  return result
 }
 
 export async function getProfileWithRoles(userId: string): Promise<UserProfile> {

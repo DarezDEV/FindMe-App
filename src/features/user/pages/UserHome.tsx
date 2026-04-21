@@ -214,6 +214,7 @@ export default function UserHome() {
                       <span className="inline-flex items-center gap-1.5">
                         <Calendar size={13} />
                         {getDateLabel(featuredCase)}
+                        {getDateLabel(featuredCase)}
                       </span>
                     </div>
                   </div>
@@ -397,3 +398,4 @@ export default function UserHome() {
     </>
   )
 }
+
