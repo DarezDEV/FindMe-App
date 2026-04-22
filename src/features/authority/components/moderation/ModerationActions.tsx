@@ -18,10 +18,10 @@ export function ModerationActions({
   onMarkFalse,
 }: ModerationActionsProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
       <button
         type="button"
-        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold border border-emerald-400/25 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/15 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-sm font-semibold text-emerald-300 transition-colors hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
         onClick={onApprove}
         disabled={disabled}
       >
@@ -30,7 +30,7 @@ export function ModerationActions({
       </button>
       <button
         type="button"
-        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold border border-blue-500/30 bg-blue-500/10 text-blue-600 hover:bg-blue-500/15 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm font-semibold text-blue-600 transition-colors hover:bg-blue-500/15 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
         onClick={onReject}
         disabled={disabled}
       >
@@ -39,7 +39,7 @@ export function ModerationActions({
       </button>
       <button
         type="button"
-        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold border border-sky-400/25 bg-sky-400/10 text-sky-300 hover:bg-sky-400/15 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-sky-400/25 bg-sky-400/10 px-3 py-2 text-sm font-semibold text-sky-300 transition-colors hover:bg-sky-400/15 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
         onClick={onAddComment}
         disabled={disabled}
       >
@@ -48,7 +48,7 @@ export function ModerationActions({
       </button>
       <button
         type="button"
-        className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold border border-rose-400/30 bg-rose-400/10 text-rose-300 hover:bg-rose-400/15 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-sm font-semibold text-rose-300 transition-colors hover:bg-rose-400/15 disabled:cursor-not-allowed disabled:opacity-40 sm:ml-auto sm:w-auto"
         onClick={onMarkFalse}
         disabled={disabled}
       >

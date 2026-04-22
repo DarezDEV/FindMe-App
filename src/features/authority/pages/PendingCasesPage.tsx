@@ -328,6 +328,8 @@ export default function PendingCasesPage() {
         .p-in { animation: fadeUp 0.4s ease-out both; }
         .p-in-1 { animation-delay:0.06s; }
         .p-in-2 { animation-delay:0.12s; }
+        .p-review-grid { display:grid; grid-template-columns:minmax(0, 1fr); gap:20px; align-items:start; }
+        .p-review-queue { max-height:none; }
 
         .p-ghost {
           display:inline-flex; align-items:center; gap:7px;
@@ -339,6 +341,11 @@ export default function PendingCasesPage() {
         .p-ghost:hover { border-color:#CBD5E1; color:#334155; }
 
         .feedback-bar { animation: fadeIn 0.25s ease-out; }
+
+        @media (min-width: 1280px) {
+          .p-review-grid { grid-template-columns:360px minmax(0, 1fr); }
+          .p-review-queue { max-height:calc(100dvh - 200px); }
+        }
       `}</style>
 
       <AuthoritySidebar />
@@ -399,10 +406,10 @@ export default function PendingCasesPage() {
               <p style={{ fontSize: 13, color: 'var(--color-text-secondary, #475569)', textAlign: 'center', maxWidth: 320 }}>Todos los casos han sido revisados. El sistema está al día.</p>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: '360px 1fr', gap: 20 }} className="p-in p-in-1">
+            <div className="p-review-grid p-in p-in-1">
 
               {/* ─── PENDING LIST ─── */}
-              <div className="p-card" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 200px)' }}>
+              <div className="p-card p-review-queue" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--color-border, #e2e8f0)' }}>
                   <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary, #0f172a)', marginBottom: 2 }}>Cola de revisión</p>
                   <p style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--color-text-secondary, #475569)' }}>
@@ -415,7 +422,7 @@ export default function PendingCasesPage() {
               </div>
 
               {/* ─── DETAIL COLUMN ─── */}
-              <div className="p-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto', maxHeight: 'calc(100vh - 200px)', minHeight: 0 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minHeight: 0, minWidth: 0 }}>
 
                 {/* Case Detail */}
                 <div className="p-card" style={{ overflow: 'hidden' }}>

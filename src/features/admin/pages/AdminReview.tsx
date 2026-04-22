@@ -431,12 +431,12 @@ export default function AdminReview() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr] gap-5">
+              <div className="grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] items-start gap-5">
 
                 {/* Left: Queue */}
                 <div
                   className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden flex flex-col"
-                  style={{ maxHeight: 'calc(100vh - 180px)' }}
+                  style={{ maxHeight: 'calc(100dvh - 180px)' }}
                 >
                   <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                     <div>
@@ -457,7 +457,7 @@ export default function AdminReview() {
                 </div>
 
                 {/* Right: Detail + Notes + Actions */}
-                <div className="space-y-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 180px)' }}>
+                <div className="min-w-0 space-y-4">
 
                   {/* Case Detail */}
                   <div className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
