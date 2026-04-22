@@ -1,8 +1,14 @@
 // src/features/admin/components/users/UserFormModal.tsx
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js'
 import { X, Check, UserCheck, UserX } from 'lucide-react'
 import { supabase } from '../../../lib/supabase/client'
+import { appToast } from '../../../shared/components/ui'
+import {
+  ADMIN_DASHBOARD_SUMMARY_QUERY_KEY,
+  ADMIN_USERS_QUERY_KEY,
+} from '../hooks/queryKeys'
 import { ROLE_OPTIONS, roleLabel, type Role } from './roles'
 import type { UserRow } from './UserTableRow'
 
@@ -66,7 +72,7 @@ const parseFunctionError = async (error: FunctionsHttpError) => {
   }
 
   if (status === 401) {
-    return 'Tu sesion expiro o no estas autorizado. Inicia sesion nuevamente.'
+    return 'Tu sesión expiró o no estás autorizado. Inicia sesión nuevamente.'
   }
   if (status === 403) {
     return 'Solo los administradores pueden crear usuarios.'
@@ -79,6 +85,7 @@ const parseFunctionError = async (error: FunctionsHttpError) => {
 }
 
 export function UserFormModal({ mode, user, onClose, onSuccess }: Props) {
+  const queryClient = useQueryClient()
   const [form, setForm] = useState({
     name: user?.name ?? '',
     last_name: user?.last_name ?? '',
@@ -132,7 +139,7 @@ export function UserFormModal({ mode, user, onClose, onSuccess }: Props) {
 
         const accessToken = sessionData.session?.access_token
         if (!accessToken) {
-          throw new Error('Tu sesion expiro o no estas autorizado. Inicia sesion nuevamente.')
+          throw new Error('Tu sesión expiró o no estás autorizado. Inicia sesión nuevamente.')
         }
 
         supabase.functions.setAuth(accessToken)
@@ -208,18 +215,31 @@ export function UserFormModal({ mode, user, onClose, onSuccess }: Props) {
         }
       }
 
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ADMIN_USERS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: ADMIN_DASHBOARD_SUMMARY_QUERY_KEY }),
+      ])
+
+      appToast.success(
+        mode === 'create'
+          ? 'Usuario creado y correo de acceso enviado correctamente.'
+          : 'Usuario actualizado correctamente.',
+      )
       onSuccess()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error inesperado.'
       if (message.startsWith('Timeout:')) {
         const step = message.replace('Timeout:', '')
         if (step === 'auth.getSession') {
-          setError('No se pudo validar tu sesion a tiempo. Intenta de nuevo.')
+          setError('No se pudo validar tu sesion a tiempo. Intenta recargar la pagina.')
+          appToast.error('No se pudo validar tu sesion a tiempo. Intenta recargar la pagina.')
         } else {
           setError('La operacion tardo demasiado. Intenta nuevamente.')
+          appToast.error('La operacion tardo demasiado. Intenta nuevamente.')
         }
       } else {
         setError(message)
+        appToast.error(message)
       }
     } finally {
       setLoading(false)

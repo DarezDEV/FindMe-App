@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AlertTriangle, CheckCircle2, ChevronLeft, MapPin } from 'lucide-react'
-import { Alert, Spinner } from '../../../shared/components/ui'
-import UserNavbar from '../components/Usernavbar'
+import { Alert, Spinner, appToast } from '../../../shared/components/ui'
+import UserNavbar from '../components/UserNavbar'
 import { useCasosGenerales } from '../hooks/useMisCasos'
 import { reportarAvistamiento } from '../services/reportes'
 
@@ -72,6 +72,7 @@ export default function ReportarAvistamientoPage() {
       })
 
       setSuccess('Avistamiento enviado correctamente. El equipo de moderacion lo revisara.')
+      appToast.success('Avistamiento enviado correctamente.')
       setLugar('')
       setDescripcion('')
       setContacto('')

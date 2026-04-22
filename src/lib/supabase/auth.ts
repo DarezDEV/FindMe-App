@@ -58,7 +58,7 @@ const mapAuthError = (message: string): string => {
 
 const mapUnexpectedAuthError = (err: unknown): string => {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    return 'No hay conexion a internet. Verifica tu red e intenta de nuevo.'
+    return 'No hay conexión a internet. Verifica tu red e intenta de nuevo.'
   }
 
   if (err instanceof Error) {
@@ -68,13 +68,13 @@ const mapUnexpectedAuthError = (err: unknown): string => {
       msg.includes('networkerror') ||
       msg.includes('internet_disconnected')
     ) {
-      return 'No se pudo conectar con el servidor. Verifica tu conexion a internet.'
+      return 'No se pudo conectar con el servidor. Verifica tu conexión a internet.'
     }
 
     return mapAuthError(err.message)
   }
 
-  return 'Ocurrio un error inesperado. Intenta de nuevo.'
+  return 'Ocurrió un error inesperado. Intenta de nuevo.'
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -93,20 +93,25 @@ const withTimeout = async <T>(promise: Promise<T>, ms = 8000): Promise<T> => {
  * El usuario deberá verificar su correo con OTP antes de iniciar sesión.
  */
 export async function registerUser({ name, last_name, email, password }: RegisterData) {
-  const { data, error } = await withTimeout(
-    supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { name, last_name } },
-    })
-  )
+  try {
+    const { data, error } = await withTimeout(
+      supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { name, last_name } },
+      }),
+    )
 
-  if (error) throw new Error(mapAuthError(error.message))
+    if (error) throw error
 
-  // Cerrar sesión inmediatamente — el usuario debe verificar su correo primero
-  await supabase.auth.signOut()
+    // Cerrar sesión inmediatamente — el usuario debe verificar su correo primero
+    const { error: signOutError } = await supabase.auth.signOut()
+    if (signOutError) throw signOutError
 
-  return data
+    return data
+  } catch (err) {
+    throw new Error(mapUnexpectedAuthError(err))
+  }
 }
 
 /**
@@ -114,52 +119,68 @@ export async function registerUser({ name, last_name, email, password }: Registe
  * Si es correcto, Supabase confirma la cuenta y crea la sesión automáticamente.
  */
 export async function verifyEmailOtp(email: string, token: string) {
-  const { data, error } = await withTimeout(
-    supabase.auth.verifyOtp({
-      email,
-      token,
-      type: 'signup',
-    })
-  )
+  try {
+    const { data, error } = await withTimeout(
+      supabase.auth.verifyOtp({
+        email,
+        token,
+        type: 'signup',
+      }),
+    )
 
-  if (error) throw new Error(mapAuthError(error.message))
+    if (error) throw error
 
-  return data
+    return data
+  } catch (err) {
+    throw new Error(mapUnexpectedAuthError(err))
+  }
 }
 
 /**
  * Reenvía el código OTP al correo del usuario.
  */
 export async function resendVerificationOtp(email: string) {
-  const { error } = await withTimeout(
-    supabase.auth.resend({
-      type: 'signup',
-      email,
-    })
-  )
+  try {
+    const { error } = await withTimeout(
+      supabase.auth.resend({
+        type: 'signup',
+        email,
+      }),
+    )
 
-  if (error) throw new Error(mapAuthError(error.message))
+    if (error) throw error
+  } catch (err) {
+    throw new Error(mapUnexpectedAuthError(err))
+  }
 }
 
 /** Envía un enlace de recuperación de contraseña al correo del usuario */
 export async function sendPasswordResetEmail(email: string) {
-  const redirectTo = `${window.location.origin}/reset-password`
-  const { error } = await withTimeout(
-    supabase.auth.resetPasswordForEmail(email, { redirectTo }),
-    12000
-  )
+  try {
+    const redirectTo = `${window.location.origin}/reset-password`
+    const { error } = await withTimeout(
+      supabase.auth.resetPasswordForEmail(email, { redirectTo }),
+      12000,
+    )
 
-  if (error) throw new Error(mapAuthError(error.message))
+    if (error) throw error
+  } catch (err) {
+    throw new Error(mapUnexpectedAuthError(err))
+  }
 }
 
 /** Intercambia el `code` del enlace por una sesión válida (flujo PKCE) */
 export async function exchangeRecoveryCode(code: string) {
-  const { data, error } = await withTimeout(
-    supabase.auth.exchangeCodeForSession(code)
-  )
+  try {
+    const { data, error } = await withTimeout(
+      supabase.auth.exchangeCodeForSession(code),
+    )
 
-  if (error) throw new Error(mapAuthError(error.message))
-  return data
+    if (error) throw error
+    return data
+  } catch (err) {
+    throw new Error(mapUnexpectedAuthError(err))
+  }
 }
 
 /** Verifica token_hash de recuperacion/invitacion y crea sesion temporal */
@@ -167,37 +188,49 @@ export async function verifyPasswordSetupToken(
   tokenHash: string,
   type: PasswordSetupTokenType
 ) {
-  const { data, error } = await withTimeout(
-    supabase.auth.verifyOtp({
-      token_hash: tokenHash,
-      type,
-    })
-  )
+  try {
+    const { data, error } = await withTimeout(
+      supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type,
+      }),
+    )
 
-  if (error) throw new Error(mapAuthError(error.message))
-  return data
+    if (error) throw error
+    return data
+  } catch (err) {
+    throw new Error(mapUnexpectedAuthError(err))
+  }
 }
 
 /** Actualiza la contraseña del usuario autenticado */
 export async function setSessionFromTokens(accessToken: string, refreshToken: string) {
-  const { data, error } = await withTimeout(
-    supabase.auth.setSession({
-      access_token: accessToken,
-      refresh_token: refreshToken,
-    }),
-    12000
-  )
+  try {
+    const { data, error } = await withTimeout(
+      supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      }),
+      12000,
+    )
 
-  if (error) throw new Error(mapAuthError(error.message))
-  return data
+    if (error) throw error
+    return data
+  } catch (err) {
+    throw new Error(mapUnexpectedAuthError(err))
+  }
 }
 export async function updateUserPassword(password: string) {
-  const { data, error } = await withTimeout(
-    supabase.auth.updateUser({ password })
-  )
+  try {
+    const { data, error } = await withTimeout(
+      supabase.auth.updateUser({ password }),
+    )
 
-  if (error) throw new Error(mapAuthError(error.message))
-  return data
+    if (error) throw error
+    return data
+  } catch (err) {
+    throw new Error(mapUnexpectedAuthError(err))
+  }
 }
 
 /** Inicia sesión con email y contraseña */
@@ -216,14 +249,22 @@ export async function loginUser({ email, password }: LoginData) {
 
 /** Cierra la sesión actual */
 export async function logoutUser() {
-  const { error } = await supabase.auth.signOut()
-  if (error) throw new Error(mapAuthError(error.message))
+  try {
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+  } catch (err) {
+    throw new Error(mapUnexpectedAuthError(err))
+  }
 }
 
 /** Obtiene la sesión activa (puede ser null) */
 export async function getCurrentSession() {
-  const { data, error } = await supabase.auth.getSession()
-  if (error) throw new Error(mapAuthError(error.message))
-  return data.session
+  try {
+    const { data, error } = await supabase.auth.getSession()
+    if (error) throw error
+    return data.session
+  } catch (err) {
+    throw new Error(mapUnexpectedAuthError(err))
+  }
 }
 

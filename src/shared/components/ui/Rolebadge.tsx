@@ -1,4 +1,4 @@
-﻿import type { Role } from '../../../features/auth/types'
+import type { Role } from '../../../features/auth/types'
 import { ROLE_LABELS } from '../../constants/roles'
 
 export function RoleBadge({ role }: { role: Role }) {

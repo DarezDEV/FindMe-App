@@ -11,7 +11,7 @@ const VISIBILIDAD = [
   {
     value: 'publico' as const,
     label: 'Publico',
-    desc: 'Cualquier persona puede ver tu informacion de contacto',
+    desc: 'Cualquier persona puede ver tu información de contacto',
     Icon: Unlock,
   },
   {
@@ -26,7 +26,7 @@ export function StepPreferencias({ data, set }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <Label required>Visibilidad de tu informacion de contacto</Label>
+        <Label required>Visibilidad de tu información de contacto</Label>
         <div className="space-y-2">
           {VISIBILIDAD.map(opt => {
             const active = data.visibilidadContacto === opt.value
@@ -101,7 +101,7 @@ export function StepPreferencias({ data, set }: Props) {
           {data.aceptaTerminos && <Check size={12} className="text-white" strokeWidth={3} />}
         </div>
         <p className="text-sm text-text-secondary leading-snug">
-          Confirmo que la informacion es veridica y acepto los{' '}
+          Confirmo que la información es verídica y acepto los{' '}
           <a href="/terms" className="text-primary hover:underline">terminos de uso</a> y la{' '}
           <a href="/privacy" className="text-primary hover:underline">politica de privacidad</a> de FindMe.
         </p>

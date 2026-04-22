@@ -1,21 +1,21 @@
-﻿import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BadgeCheck, HeartHandshake, LockKeyhole, ShieldCheck, Users, Zap, Search, MapPin, Clock, Eye, ArrowRight, CheckCircle } from 'lucide-react'
-import { getAuthorityCases, subscribeToCasesRealtime, type AuthorityCaseRow } from '../../../lib/supabase/db'
+import { getAuthorityCases, normalizeAuthorityCaseRow, type AuthorityCaseRow } from '../../../lib/supabase/db'
+import { handleError } from '../../../shared/utils/handleError'
+import { useRealtimeCases } from '../../cases/hooks/useRealtimeCases'
 
 type PublicWorkflowStatus = 'approved' | 'found' | 'closed'
 
 function getPublicWorkflowStatus(caso: AuthorityCaseRow): PublicWorkflowStatus | null {
   if (caso.workflow_status) {
-    if (caso.workflow_status === 'approved' || caso.workflow_status === 'found' || caso.workflow_status === 'closed') {
+    if (caso.workflow_status === 'approved') {
       return caso.workflow_status
     }
     return null
   }
 
   // Backward compatibility for datasets that still use only `status`.
-  if (caso.status === 'resuelto') return 'found'
-  if (caso.status === 'cerrado') return 'closed'
   if (caso.status === 'activo' || caso.status === 'en_proceso') return 'approved'
   return null
 }
@@ -28,7 +28,7 @@ function formatShortDate(value: string | null): string {
   if (!value) return 'Fecha no disponible'
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return 'Fecha no disponible'
-  return new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed)
+  return new Intl.DateTimeFormat('es-DO', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed)
 }
 
 function formatReportedAgo(value: string): string {
@@ -57,10 +57,10 @@ export default function LandingPage() {
   const [featuredStatus, setFeaturedStatus] = useState<PublicWorkflowStatus | null>(null)
   const [publicCaseCount, setPublicCaseCount] = useState(0)
   const observerRef = useRef<IntersectionObserver | null>(null)
-  const refreshTimerRef = useRef<number | null>(null)
+  const publicCasesRef = useRef<AuthorityCaseRow[]>([])
 
   useEffect(() => {
-    document.title = 'FindMe | Plataforma de bÃºsqueda de personas'
+    document.title = 'FindMe | Plataforma de búsqueda de personas'
 
     const handleScroll = () => setScrolled(window.scrollY > 20)
     window.addEventListener('scroll', handleScroll)
@@ -106,11 +106,17 @@ export default function LandingPage() {
 
         if (!active) return
 
+        publicCasesRef.current = publicRows
         setFeaturedCase(firstCase)
         setFeaturedStatus(status)
         setPublicCaseCount(publicRows.length)
-      } catch {
+      } catch (error) {
+        handleError('LandingPage.loadPublicCases', error, {
+          fallbackMessage: 'No se pudieron cargar los casos públicos.',
+          toast: false,
+        })
         if (!active) return
+        publicCasesRef.current = []
         setFeaturedCase(null)
         setFeaturedStatus(null)
         setPublicCaseCount(0)
@@ -123,31 +129,45 @@ export default function LandingPage() {
 
     void loadPublicCases()
 
-    const unsubscribe = subscribeToCasesRealtime(() => {
-      if (!active) return
-      if (refreshTimerRef.current) {
-        window.clearTimeout(refreshTimerRef.current)
-      }
-      refreshTimerRef.current = window.setTimeout(() => {
-        void loadPublicCases()
-      }, 250)
-    })
-
     return () => {
       active = false
-      if (refreshTimerRef.current) {
-        window.clearTimeout(refreshTimerRef.current)
-      }
-      unsubscribe()
     }
   }, [])
+
+  useRealtimeCases({
+    onEvent: (payload) => {
+      const caseId = payload.new.id || payload.old.id
+      if (!caseId) return
+
+      const nextRow = normalizeAuthorityCaseRow(payload.new)
+      const shouldShow =
+        payload.eventType !== 'DELETE' &&
+        payload.new.eliminado !== true &&
+        nextRow !== null &&
+        Boolean(getPublicWorkflowStatus(nextRow))
+
+      const currentList = publicCasesRef.current
+      const nextList = !shouldShow || !nextRow
+        ? currentList.filter((item) => item.id !== caseId)
+        : [...currentList.filter((item) => item.id !== caseId), nextRow].sort(
+            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+          )
+
+      publicCasesRef.current = nextList
+      const nextFeaturedCase = nextList[0] ?? null
+      setFeaturedCase(nextFeaturedCase)
+      setFeaturedStatus(nextFeaturedCase ? getPublicWorkflowStatus(nextFeaturedCase) : null)
+      setPublicCaseCount(nextList.length)
+      setLoadingFeaturedCase(false)
+    },
+  })
 
   const isVisible = (id: string) => visibleSections.has(id)
 
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,300;1,9..144,400&family=DM+Sans:wght@300;400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;1,300;1,400&family=Hind:wght@300;400;500;600&display=swap');
 
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -168,8 +188,8 @@ export default function LandingPage() {
           --shadow-sm: 0 1px 3px rgba(14,17,23,0.08), 0 1px 2px rgba(14,17,23,0.04);
           --shadow-md: 0 4px 16px rgba(14,17,23,0.08), 0 2px 6px rgba(14,17,23,0.05);
           --shadow-lg: 0 12px 40px rgba(14,17,23,0.1), 0 4px 12px rgba(14,17,23,0.06);
-          --font-display: 'Fraunces', Georgia, serif;
-          --font-body: 'DM Sans', system-ui, sans-serif;
+          --font-display: 'Montserrat', system-ui, sans-serif;
+          --font-body: 'Hind', system-ui, sans-serif;
           --radius: 14px;
           --radius-sm: 8px;
         }
@@ -605,15 +625,15 @@ export default function LandingPage() {
         </Link>
 
         <nav className="nav">
-          <a href="#mision">Nuestra misiÃ³n</a>
-          <a href="#como-funciona">CÃ³mo funciona</a>
+          <a href="#mision">Nuestra misión</a>
+          <a href="#como-funciona">Cómo funciona</a>
           <a href="#seguridad">Seguridad</a>
           <a href="#impacto">Impacto</a>
         </nav>
 
         <div className="header-actions">
           <Link to="/login" className="btn btn-secondary" style={{ padding: '8px 18px', fontSize: '0.85rem' }}>
-            Iniciar sesiÃ³n
+            Iniciar sesión
           </Link>
           <Link to="/register" className="btn btn-primary" style={{ padding: '8px 18px', fontSize: '0.85rem' }}>
             Crear cuenta
@@ -633,7 +653,7 @@ export default function LandingPage() {
             <h1>
               Cada minuto importa.<br />
               <em>Juntos llegamos</em><br />
-              mÃ¡s lejos.
+              más lejos.
             </h1>
 
             <p className="hero-sub">
@@ -734,15 +754,15 @@ export default function LandingPage() {
               className={`section-inner ${isVisible('mission') ? 'visible' : ''}`}
               data-section="mission"
             >
-              <span className="section-label">Nuestra misiÃ³n</span>
+              <span className="section-label">Nuestra misión</span>
               <h2 className="section-title">
-                TecnologÃ­a al servicio<br />
-                de <em>lo que mÃ¡s importa</em>
+                Tecnología al servicio<br />
+                de <em>lo que más importa</em>
               </h2>
               <p className="section-body">
-                En MÃ©xico y AmÃ©rica Latina, miles de familias enfrentan la angustia de no saber 
-                dÃ³nde estÃ¡ un ser querido. La informaciÃ³n se dispersa, las horas pasan, 
-                y la coordinaciÃ³n entre comunidad y autoridades falla.
+                En México y América Latina, miles de familias enfrentan la angustia de no saber 
+                dónde está un ser querido. La información se dispersa, las horas pasan, 
+                y la coordinación entre comunidad y autoridades falla.
               </p>
               <p className="section-body" style={{ marginTop: 16 }}>
                 FindMe existe para cambiar eso. No somos una red social, ni un grupo de WhatsApp. 
@@ -750,16 +770,16 @@ export default function LandingPage() {
                 protegido y cada persona puede contribuir de forma segura y significativa.
               </p>
               <p className="section-body" style={{ marginTop: 16 }}>
-                Creemos que la tecnologÃ­a, cuando se usa con responsabilidad, puede ser la 
+                Creemos que la tecnología, cuando se usa con responsabilidad, puede ser la 
                 diferencia entre encontrar a alguien a tiempo o no encontrarlo nunca.
               </p>
             </div>
 
             <div style={{ marginTop: 40 }}>
               {[
-                { icon: <HeartHandshake size={18} />, title: 'EmpatÃ­a primero', desc: 'Cada caso representa a una familia real. DiseÃ±amos cada decisiÃ³n pensando en ellos.' },
-                { icon: <ShieldCheck size={18} />, title: 'Responsabilidad total', desc: 'Moderamos, verificamos y protegemos. No publicamos nada sin revisiÃ³n.' },
-                { icon: <Eye size={18} />, title: 'Transparencia activa', desc: 'Las familias saben en todo momento el estado de su caso y quiÃ©n estÃ¡ ayudando.' },
+                { icon: <HeartHandshake size={18} />, title: 'Empatía primero', desc: 'Cada caso representa a una familia real. Diseñamos cada decisión pensando en ellos.' },
+                { icon: <ShieldCheck size={18} />, title: 'Responsabilidad total', desc: 'Moderamos, verificamos y protegemos. No publicamos nada sin revisión.' },
+                { icon: <Eye size={18} />, title: 'Transparencia activa', desc: 'Las familias saben en todo momento el estado de su caso y quién está ayudando.' },
                 { icon: <Users size={18} />, title: 'Comunidad organizada', desc: 'La fuerza colectiva, canalizada con orden, multiplica las posibilidades de encontrar a alguien.' },
               ].map((v, i) => (
                 <div key={i} className="mission-value">
@@ -776,14 +796,14 @@ export default function LandingPage() {
           <div>
             <div className="mission-quote">
               <blockquote>
-                "Los primeros momentos son los mÃ¡s crÃ­ticos. Una hora de difusiÃ³n organizada 
-                vale mÃ¡s que dÃ­as de bÃºsqueda descoordinada."
+                "Los primeros momentos son los más críticos. Una hora de difusión organizada 
+                vale más que días de búsqueda descoordinada."
               </blockquote>
-              <cite>â€” Principio operativo de FindMe</cite>
+              <cite>” Principio operativo de FindMe</cite>
               <div className="mission-stats">
                 <div className="stat-box">
                   <span className="stat-num">+70%</span>
-                  <span className="stat-label">mÃ¡s efectividad en las primeras 6 horas</span>
+                  <span className="stat-label">más efectividad en las primeras 6 horas</span>
                 </div>
                 <div className="stat-box">
                   <span className="stat-num">24/7</span>
@@ -799,7 +819,7 @@ export default function LandingPage() {
                 </div>
               </div>
               <p style={{ fontSize: '0.72rem', color: 'var(--text-quiet)', marginTop: 16 }}>
-                * EstadÃ­sticas referenciales para presentaciÃ³n inicial de la plataforma.
+                * Estadísticas referenciales para presentación inicial de la plataforma.
               </p>
             </div>
           </div>
@@ -811,11 +831,11 @@ export default function LandingPage() {
             className={`section-inner ${isVisible('how') ? 'visible' : ''}`}
             data-section="how"
           >
-            <span className="section-label">CÃ³mo funciona</span>
+            <span className="section-label">Cómo funciona</span>
             <h2 className="section-title">Simple, claro y <em>trazable</em></h2>
             <p className="section-body">
-              Un flujo diseÃ±ado para que cualquier persona pueda actuar rÃ¡pido, 
-              sin perder el control de la informaciÃ³n ni la seguridad del proceso.
+              Un flujo diseñado para que cualquier persona pueda actuar rápido, 
+              sin perder el control de la información ni la seguridad del proceso.
             </p>
 
             <div className="steps">
@@ -823,20 +843,20 @@ export default function LandingPage() {
                 {
                   n: '1',
                   title: 'Publica el caso',
-                  desc: 'Llenas un formulario con los datos esenciales: descripciÃ³n, Ãºltima ubicaciÃ³n conocida y fotografÃ­a. Es rÃ¡pido y guiado.',
-                  detail: 'â†’ El caso entra a revisiÃ³n antes de ser visible.',
+                  desc: 'Llenas un formulario con los datos esenciales: descripción, última ubicación conocida y fotografía. Es rápido y guiado.',
+                  detail: '→ El caso entra a revisión antes de ser visible.',
                 },
                 {
                   n: '2',
                   title: 'La comunidad ayuda',
-                  desc: 'Una vez aprobado, el caso se difunde a personas verificadas. Cualquiera puede compartir informaciÃ³n Ãºtil de forma segura.',
-                  detail: 'â†’ Cada aporte queda registrado con trazabilidad.',
+                  desc: 'Una vez aprobado, el caso se difunde a personas verificadas. Cualquiera puede compartir información útil de forma segura.',
+                  detail: '→ Cada aporte queda registrado con trazabilidad.',
                 },
                 {
                   n: '3',
                   title: 'Recibe seguimiento',
-                  desc: 'La familia y las autoridades tienen acceso a un panel con toda la informaciÃ³n organizada, actualizada en tiempo real.',
-                  detail: 'â†’ El caso se cierra solo cuando hay resoluciÃ³n confirmada.',
+                  desc: 'La familia y las autoridades tienen acceso a un panel con toda la información organizada, actualizada en tiempo real.',
+                  detail: '→ El caso se cierra solo cuando hay resolución confirmada.',
                 },
               ].map((s, i) => (
                 <div key={i} className="step">
@@ -857,34 +877,34 @@ export default function LandingPage() {
             className={`section-inner ${isVisible('security') ? 'visible' : ''}`}
             data-section="security"
           >
-            <span className="section-label">Seguridad y verificaciÃ³n</span>
+            <span className="section-label">Seguridad y verificación</span>
             <h2 className="section-title">No somos una red social.<br />Somos <em>una plataforma responsable.</em></h2>
             <p className="section-body">
-              La informaciÃ³n sobre personas desaparecidas es sensible. Un dato errÃ³neo 
-              puede desviar una bÃºsqueda. Por eso construimos controles reales en cada capa del sistema.
+              La información sobre personas desaparecidas es sensible. Un dato erróneo 
+              puede desviar una búsqueda. Por eso construimos controles reales en cada capa del sistema.
             </p>
 
             <div className="security-grid">
               {[
                 {
                   icon: <ShieldCheck size={20} />,
-                  title: 'ModeraciÃ³n antes de publicar',
-                  desc: 'NingÃºn caso aparece en la plataforma sin pasar por revisiÃ³n de moderadores. Esto evita reportes falsos, duplicados o malintencionados.',
+                  title: 'Moderación antes de publicar',
+                  desc: 'Ningún caso aparece en la plataforma sin pasar por revisión de moderadores. Esto evita reportes falsos, duplicados o malintencionados.',
                 },
                 {
                   icon: <BadgeCheck size={20} />,
                   title: 'Control por roles diferenciados',
-                  desc: 'Ciudadanos, autoridades y administradores tienen permisos distintos. Cada acciÃ³n queda vinculada a un perfil verificado.',
+                  desc: 'Ciudadanos, autoridades y administradores tienen permisos distintos. Cada acción queda vinculada a un perfil verificado.',
                 },
                 {
                   icon: <LockKeyhole size={20} />,
-                  title: 'ProtecciÃ³n de datos sensibles',
+                  title: 'Protección de datos sensibles',
                   desc: 'Los datos de contacto y contexto familiar solo son accesibles para autoridades autorizadas. La comunidad ve lo necesario, no todo.',
                 },
                 {
                   icon: <Eye size={20} />,
                   title: 'Trazabilidad completa',
-                  desc: 'Cada cambio, aporte y actualizaciÃ³n queda registrado. Las familias saben quiÃ©n accediÃ³ a su caso y quÃ© se hizo con la informaciÃ³n.',
+                  desc: 'Cada cambio, aporte y actualización queda registrado. Las familias saben quién accedió a su caso y qué se hizo con la información.',
                 },
               ].map((c, i) => (
                 <div key={i} className="security-card">
@@ -904,10 +924,10 @@ export default function LandingPage() {
             data-section="impact"
           >
             <span className="section-label">Impacto social</span>
-            <h2 className="section-title">Una persona que actÃºa<br /><em>puede cambiar todo.</em></h2>
+            <h2 className="section-title">Una persona que actúa<br /><em>puede cambiar todo.</em></h2>
             <p className="section-body">
-              La bÃºsqueda de personas desaparecidas no es solo trabajo de autoridades. 
-              Es responsabilidad colectiva. Y cuando la comunidad actÃºa con orden, 
+              La búsqueda de personas desaparecidas no es solo trabajo de autoridades. 
+              Es responsabilidad colectiva. Y cuando la comunidad actúa con orden, 
               los resultados son exponencialmente mejores.
             </p>
 
@@ -915,18 +935,18 @@ export default function LandingPage() {
               {[
                 {
                   num: '+70%',
-                  title: 'MÃ¡s efectividad en las primeras horas',
-                  desc: 'La difusiÃ³n organizada en las primeras 6 horas multiplica las probabilidades de localizaciÃ³n.',
+                  title: 'Más efectividad en las primeras horas',
+                  desc: 'La difusión organizada en las primeras 6 horas multiplica las probabilidades de localización.',
                 },
                 {
                   num: '24/7',
                   title: 'Acceso continuo al estado del caso',
-                  desc: 'Familias y autoridades pueden consultar y actualizar informaciÃ³n en cualquier momento.',
+                  desc: 'Familias y autoridades pueden consultar y actualizar información en cualquier momento.',
                 },
                 {
                   num: '3 roles',
-                  title: 'CoordinaciÃ³n estructurada',
-                  desc: 'Ciudadano, autoridad y administrador trabajando en un solo sistema con informaciÃ³n compartida.',
+                  title: 'Coordinación estructurada',
+                  desc: 'Ciudadano, autoridad y administrador trabajando en un solo sistema con información compartida.',
                 },
               ].map((c, i) => (
                 <div key={i} className="impact-card">
@@ -938,7 +958,7 @@ export default function LandingPage() {
             </div>
 
             <p style={{ marginTop: 20, fontSize: '0.78rem', color: 'var(--text-quiet)' }}>
-              * EstadÃ­sticas referenciales de ejemplo para presentaciÃ³n inicial de la plataforma.
+              * Estadísticas referenciales de ejemplo para presentación inicial de la plataforma.
             </p>
           </div>
         </section>
@@ -949,15 +969,15 @@ export default function LandingPage() {
             <div className="cta-content">
               <p className="cta-eyebrow">
                 <Zap size={14} />
-                ActÃºa ahora. No maÃ±ana.
+                Actúa ahora. No mañana.
               </p>
               <h2 className="cta-title">
                 Alguien te necesita.<br />
                 <em>El momento es ahora.</em>
               </h2>
               <p className="cta-sub">
-                RegÃ­strate, publica un caso o apoya a alguien que lo necesita. 
-                Tu participaciÃ³n puede marcar la diferencia que una familia lleva semanas esperando.
+                Regístrate, publica un caso o apoya a alguien que lo necesita. 
+                Tu participación puede marcar la diferencia que una familia lleva semanas esperando.
               </p>
               <div className="cta-actions">
                 <Link to="/register" className="btn btn-cta-primary btn-large">
@@ -981,16 +1001,17 @@ export default function LandingPage() {
           </div>
           <div>
             <strong style={{ fontSize: '0.95rem' }}>FindMe</strong>
-            <p>soporte@findme.app Â· +52 55 0000 0000</p>
+            <p>soporte@findme.app · +52 55 0000 0000</p>
           </div>
         </div>
         <div className="footer-links">
-          <a href="#">PolÃ­tica de privacidad</a>
-          <a href="#">TÃ©rminos y condiciones</a>
+          <a href="#">Política de privacidad</a>
+          <a href="#">Términos y condiciones</a>
           <a href="#">Soporte</a>
         </div>
       </footer>
     </>
   )
 }
+
 

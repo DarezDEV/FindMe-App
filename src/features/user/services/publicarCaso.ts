@@ -1,5 +1,6 @@
 import { supabase } from '../../../lib/supabase/client'
 import { uploadFile } from '../../../shared/utils/api'
+import { toAppError } from '../../../shared/utils/errors'
 import { type FormData } from '../types'
 
 interface CasoInsertRow {
@@ -149,7 +150,7 @@ async function getOrCreatePersonId(
   const { data, error } = await query.maybeSingle()
   if (error) {
     if (isTableMissingError(error)) return null
-    throw error
+    throw toAppError(error, 'No se pudo validar la persona asociada. Inténtalo nuevamente.', 'publicarCaso.getOrCreatePersonId')
   }
 
   if (data?.id) return (data as PersonRow).id
@@ -167,7 +168,7 @@ async function getOrCreatePersonId(
 
   if (createError) {
     if (isTableMissingError(createError)) return null
-    throw createError
+    throw toAppError(createError, 'No se pudo crear la persona asociada. Inténtalo nuevamente.', 'publicarCaso.getOrCreatePersonId')
   }
 
   return (created as PersonRow).id
@@ -559,15 +560,15 @@ export async function publicarCaso(formData: FormData): Promise<PublishCaseResul
   const { data, error: userError } = await withTimeout(
     supabase.auth.getUser(),
     QUERY_TIMEOUT_MS,
-    'Se agoto el tiempo al validar la sesion. Intenta de nuevo.'
+    'Se agotó el tiempo al validar la sesión. Recarga la página e intenta de nuevo.'
   )
   if (userError) {
-    throw new Error('No se pudo validar la sesion del usuario.')
+    throw new Error('No se pudo validar la sesión del usuario.')
   }
 
   const user = data.user
   if (!user?.id) {
-    throw new Error('Debes iniciar sesion para publicar un caso.')
+    throw new Error('Debes iniciar sesión para publicar un caso.')
   }
 
   const caseNumber = buildCaseNumber()
@@ -639,7 +640,7 @@ export async function publicarCaso(formData: FormData): Promise<PublishCaseResul
     await uploadCaseMedia(caseRow.id, user.id, formData)
   } catch (error) {
     await rollbackCase(caseRow.id)
-    throw error
+    throw toAppError(error, 'No se pudo publicar el caso. Inténtalo nuevamente.', 'publicarCaso')
   }
 
   return {

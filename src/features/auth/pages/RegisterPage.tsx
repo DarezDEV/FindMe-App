@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ChangeEvent, type MouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { registerUser } from '../services'
-import { Alert } from '../../../shared/components/ui'
+import { Alert, appToast } from '../../../shared/components/ui'
 import type { RegisterFormData } from '../types'
 import { User, Mail, Lock, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
 import VerifyEmailPage from './Verifyemailpage'
@@ -118,6 +118,7 @@ export default function RegisterPage() {
         email: form.email,
         password: form.password,
       })
+      appToast.success('Cuenta creada. Revisa tu correo para verificarla.', { title: 'Registro completado' })
       // Guardar email y pasar a verificación
       setRegisteredEmail(form.email)
       setStep('verify')

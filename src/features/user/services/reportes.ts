@@ -1,4 +1,5 @@
 import { supabase } from '../../../lib/supabase/client'
+import { getErrorMessage } from '../../../shared/utils/errors'
 
 export interface AvistamientoInput {
   casoId: string
@@ -16,6 +17,14 @@ export interface ReporteContenidoInput {
   evidenciaUrl?: string
 }
 
+export interface ReporteComentarioInput {
+  casoId: string
+  comentarioId: string
+  motivo: string
+  descripcion?: string
+  comentarioTexto?: string
+}
+
 function normalizeText(value: string) {
   const normalized = value.trim()
   return normalized.length > 0 ? normalized : null
@@ -29,7 +38,7 @@ function normalizeOptionalUrl(value: string | undefined) {
     const parsed = new URL(normalized)
     return parsed.toString()
   } catch {
-    throw new Error('La URL de evidencia no es valida.')
+    throw new Error('La URL de evidencia no es válida.')
   }
 }
 
@@ -51,12 +60,12 @@ async function getAuthenticatedUserId() {
   const { data, error } = await supabase.auth.getUser()
 
   if (error) {
-    throw new Error('No se pudo validar la sesion del usuario.')
+    throw new Error('No se pudo validar la sesión del usuario.')
   }
 
   const userId = data.user?.id
   if (!userId) {
-    throw new Error('Debes iniciar sesion para enviar este formulario.')
+    throw new Error('Debes iniciar sesión para enviar este formulario.')
   }
 
   return userId
@@ -78,7 +87,7 @@ async function ensureCaseExists(casoId: string) {
     }
 
     if (lower.includes('no rows')) {
-      throw new Error('El caso seleccionado no existe o no esta disponible.')
+      throw new Error('El caso seleccionado no existe o no está disponible.')
     }
 
     throw new Error('No se pudo validar el caso seleccionado.')
@@ -89,13 +98,17 @@ async function runInsertAttempts(attempts: Array<() => Promise<string | null>>) 
   const errors: string[] = []
 
   for (const attempt of attempts) {
-    const errorMessage = await attempt()
-    if (!errorMessage) return
-    errors.push(errorMessage)
+    try {
+      const errorMessage = await attempt()
+      if (!errorMessage) return
+      errors.push(errorMessage)
+    } catch (error) {
+      errors.push(getErrorMessage(error, 'No se pudo registrar la información. Inténtalo nuevamente.'))
+    }
   }
 
   const lastError = errors[errors.length - 1]
-  throw new Error(lastError ? mapInsertErrorMessage(lastError) : 'No se pudo registrar la informacion.')
+  throw new Error(lastError ? mapInsertErrorMessage(lastError) : 'No se pudo registrar la información.')
 }
 
 export async function reportarAvistamiento(input: AvistamientoInput): Promise<void> {
@@ -127,7 +140,7 @@ export async function reportarAvistamiento(input: AvistamientoInput): Promise<vo
       return error?.message ?? null
     },
     async () => {
-      const { error } = await supabase.from('avistamientos').insert({
+      const { error } = await supabase.from('case_sightings').insert({
         caso_id: casoId,
         user_id: userId,
         fecha,
@@ -188,3 +201,55 @@ export async function reportarContenido(input: ReporteContenidoInput): Promise<v
   ])
 }
 
+export async function reportarComentarioPublico(input: ReporteComentarioInput): Promise<void> {
+  const casoId = normalizeText(input.casoId)
+  const comentarioId = normalizeText(input.comentarioId)
+  const motivo = normalizeText(input.motivo)
+  const descripcionBase = normalizeText(input.descripcion ?? '')
+  const comentarioTexto = normalizeText(input.comentarioTexto ?? '')
+
+  if (!casoId || !comentarioId || !motivo) {
+    throw new Error('Completa los campos obligatorios para reportar el comentario.')
+  }
+
+  const userId = await getAuthenticatedUserId()
+  await ensureCaseExists(casoId)
+
+  const descripcion = [
+    `Comentario ID: ${comentarioId}`,
+    comentarioTexto ? `Texto: ${comentarioTexto}` : null,
+    descripcionBase ? `Detalle: ${descripcionBase}` : null,
+  ]
+    .filter(Boolean)
+    .join(' | ')
+
+  await runInsertAttempts([
+    async () => {
+      const { error } = await supabase.from('reportes_contenido').insert({
+        caso_id: casoId,
+        reportado_por: userId,
+        motivo: `Comentario: ${motivo}`,
+        descripcion,
+      })
+      return error?.message ?? null
+    },
+    async () => {
+      const { error } = await supabase.from('contenido_reportes').insert({
+        caso_id: casoId,
+        user_id: userId,
+        razon: `Comentario: ${motivo}`,
+        detalle: descripcion,
+      })
+      return error?.message ?? null
+    },
+    async () => {
+      const { error } = await supabase.from('caso_reportes').insert({
+        caso_id: casoId,
+        autor_id: userId,
+        motivo: `Comentario: ${motivo}`,
+        descripcion,
+      })
+      return error?.message ?? null
+    },
+  ])
+}

@@ -1,4 +1,5 @@
-﻿import { supabase } from '../../lib/supabase/client'
+import { supabase } from '../../lib/supabase/client'
+import { toAppError } from './errors'
 
 /**
  * Helper genérico para queries de Supabase con manejo de errores consistente.
@@ -12,15 +13,20 @@ export function query(table: string) {
 export async function uploadFile(
   bucket: string,
   path: string,
-  file: File
+  file: File,
 ): Promise<string> {
-  const { error } = await supabase.storage.from(bucket).upload(path, file, {
-    upsert: false,
-    cacheControl: '3600',
-    contentType: file.type || undefined,
-  })
-  if (error) throw error
+  try {
+    const { error } = await supabase.storage.from(bucket).upload(path, file, {
+      upsert: false,
+      cacheControl: '3600',
+      contentType: file.type || undefined,
+    })
 
-  const { data } = supabase.storage.from(bucket).getPublicUrl(path)
-  return data.publicUrl
+    if (error) throw error
+
+    const { data } = supabase.storage.from(bucket).getPublicUrl(path)
+    return data.publicUrl
+  } catch (error) {
+    throw toAppError(error, 'No se pudo subir el archivo. Inténtalo nuevamente.', 'uploadFile')
+  }
 }

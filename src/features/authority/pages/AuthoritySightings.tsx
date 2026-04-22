@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Eye, MapPin, RefreshCw, Search, UserRound, Calendar, AlertCircle, CheckCircle2, XCircle } from 'lucide-react'
 import { AuthoritySidebar } from '../components/AuthoritySidebar'
+import AuthorityTopbar from '../components/AuthorityTopbar'
 import {
   getAuthoritySightings,
+  normalizeAuthoritySightingRow,
   updateAuthoritySightingStatus,
   type AuthoritySightingRow,
   type SightingModerationStatus,
 } from '../../../lib/supabase/db'
+import { useRealtimeSightings } from '../../sightings/hooks/useRealtimeSightings'
 
 type SightingStatus = 'all' | 'pending' | 'approved' | 'rejected'
 
@@ -26,9 +29,9 @@ function formatDate(value: string): string {
 }
 
 const STATUS_META: Record<Exclude<SightingStatus, 'all'>, { label: string; color: string; bg: string; dot: string }> = {
-  pending:  { label: 'Pendiente',  color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  dot: '#f59e0b' },
-  approved: { label: 'Aceptado',   color: '#10b981', bg: 'rgba(16,185,129,0.08)',  dot: '#10b981' },
-  rejected: { label: 'Rechazado',  color: '#ef4444', bg: 'rgba(239,68,68,0.08)',  dot: '#ef4444' },
+  pending:  { label: 'Pendiente',  color: 'var(--color-primary, #3266db)', bg: 'rgba(43,92,230,0.08)',  dot: '#2B5CE6' },
+  approved: { label: 'Aceptado',   color: '#059669', bg: 'rgba(5,150,105,0.08)',  dot: '#059669' },
+  rejected: { label: 'Rechazado',  color: '#DC2626', bg: 'rgba(220,38,38,0.08)',  dot: '#DC2626' },
 }
 
 export default function AuthoritySightings() {
@@ -47,6 +50,25 @@ export default function AuthoritySightings() {
   }, [])
 
   useEffect(() => { void loadSightings() }, [loadSightings])
+
+  useRealtimeSightings({
+    onEvent: (payload) => {
+      const sightingId = payload.new.id || payload.new.avistamiento_id || payload.old.id || payload.old.avistamiento_id
+      if (!sightingId) return
+
+      if (payload.eventType === 'DELETE' || payload.new.eliminado === true) {
+        setSightings((prev) => prev.filter((item) => item.id !== sightingId))
+        return
+      }
+
+      const nextRow = normalizeAuthoritySightingRow(payload.new as Record<string, unknown>)
+      setSightings((prev) =>
+        [...prev.filter((item) => item.id !== sightingId), nextRow].sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        ),
+      )
+    },
+  })
 
   const filteredSightings = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -70,22 +92,26 @@ export default function AuthoritySightings() {
     setActionLoadingId(sightingId)
     try {
       await updateAuthoritySightingStatus(sightingId, status)
-      setSightings((prev) => prev.map((item) => item.id === sightingId ? { ...item, status } : item))
+      setSightings((prev) => {
+        if (status === 'rejected' && statusFilter !== 'rejected') {
+          return prev.filter((item) => item.id !== sightingId)
+        }
+        return prev.map((item) => item.id === sightingId ? { ...item, status } : item)
+      })
     } catch (err) { setError(err instanceof Error ? err.message : 'No se pudo actualizar el estado.') }
     finally { setActionLoadingId(null) }
   }
 
   const statCards = [
-    { label: 'Total', value: summary.total, color: '#111827', bg: '#ffffff', border: '#e5e7eb' },
-    { label: 'Pendientes', value: summary.pending, color: '#f59e0b', bg: '#ffffff', border: '#e5e7eb' },
-    { label: 'Aceptados', value: summary.approved, color: '#10b981', bg: '#ffffff', border: '#e5e7eb' },
-    { label: 'Rechazados', value: summary.rejected, color: '#ef4444', bg: '#ffffff', border: '#e5e7eb' },
+    { label: 'Total', value: summary.total, color: 'var(--color-text-primary, #0f172a)', bg: '#F8F9FB', border: '#E4E7EC' },
+    { label: 'Pendientes', value: summary.pending, color: 'var(--color-primary, #3266db)', bg: 'rgba(43,92,230,0.05)', border: 'rgba(43,92,230,0.2)' },
+    { label: 'Aceptados', value: summary.approved, color: '#059669', bg: 'rgba(5,150,105,0.05)', border: 'rgba(5,150,105,0.2)' },
+    { label: 'Rechazados', value: summary.rejected, color: '#DC2626', bg: 'rgba(220,38,38,0.05)', border: 'rgba(220,38,38,0.2)' },
   ]
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#f5f7fb', fontFamily: "'Geist', 'Inter', sans-serif" }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--color-background, #f8fafc)', fontFamily: 'system-ui, sans-serif' }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
         @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
         @keyframes dotPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.75)} }
         @keyframes rowIn { from { opacity:0; transform:translateX(-4px); } to { opacity:1; transform:translateX(0); } }
@@ -94,78 +120,79 @@ export default function AuthoritySightings() {
         .sight-scroll::-webkit-scrollbar { width: 5px; }
         .sight-scroll::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.2); border-radius: 999px; }
 
-        .si-card { background:#fff; border:1px solid #e5e7eb; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.05); }
+        .si-card { background:#fff; border:1px solid #E4E7EC; border-radius:10px; box-shadow:0 1px 2px rgba(0,0,0,0.04),0 1px 4px rgba(0,0,0,0.03); }
         .si-in { animation: fadeUp 0.4s ease-out both; }
         .si-in-1 { animation-delay:0.05s; }
         .si-in-2 { animation-delay:0.1s; }
         .si-in-3 { animation-delay:0.15s; }
 
         .sight-row { animation: rowIn 0.3s ease-out both; transition: background 0.15s; }
-        .sight-row:hover { background: #f9fafb !important; }
+        .sight-row:hover { background: rgba(43,92,230,0.025) !important; }
 
         .filter-pill {
           display:inline-flex; align-items:center; gap:6px;
           padding:5px 13px; border-radius:999px;
-          border:1px solid #e5e7eb; background:#fff;
-          font-size:12px; font-family:'Geist',sans-serif; font-weight:500;
-          color:#6B7280; cursor:pointer; transition:all 0.15s;
+          border:1px solid #E4E7EC; background:#fff;
+          font-size:12px; font-family: system-ui, sans-serif; font-weight:500;
+          color:#64748B; cursor:pointer; transition:all 0.15s;
         }
         .filter-pill:hover { border-color:#CBD5E1; color:#334155; }
-        .filter-pill.active { background:rgba(37,99,235,0.06); border-color:rgba(37,99,235,0.3); color:#2563eb; }
+        .filter-pill.active { background:rgba(43,92,230,0.06); border-color:rgba(43,92,230,0.3); color:#2B5CE6; }
 
         .si-input {
-          background:#fff; border:1px solid #e5e7eb; color:#111827;
+          background:#fff; border:1px solid #E4E7EC; color:#111827;
           border-radius:8px; padding:9px 14px 9px 36px; width:100%; outline:none;
-          font-size:13px; font-family:'Geist',sans-serif;
+          font-size:13px; font-family: system-ui, sans-serif;
           transition:border-color 0.15s, box-shadow 0.15s;
         }
-        .si-input:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,0.1); }
-        .si-input::placeholder { color:#6B7280; }
+        .si-input:focus { border-color:#2B5CE6; box-shadow:0 0 0 3px rgba(43,92,230,0.1); }
+        .si-input::placeholder { color:#9CA3AF; }
 
         .si-btn-approve {
           display:inline-flex; align-items:center; gap:5px;
           padding:6px 12px; border-radius:7px;
-          font-size:12px; font-family:'Geist',sans-serif; font-weight:500;
-          color:#10b981; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.2);
+          font-size:12px; font-family: system-ui, sans-serif; font-weight:500;
+          color:#059669; background:rgba(5,150,105,0.08); border:1px solid rgba(5,150,105,0.2);
           cursor:pointer; transition:all 0.15s;
         }
-        .si-btn-approve:hover { background:rgba(16,185,129,0.14); }
+        .si-btn-approve:hover { background:rgba(5,150,105,0.14); }
         .si-btn-approve:disabled { opacity:0.4; cursor:not-allowed; }
 
         .si-btn-reject {
           display:inline-flex; align-items:center; gap:5px;
           padding:6px 12px; border-radius:7px;
-          font-size:12px; font-family:'Geist',sans-serif; font-weight:500;
-          color:#ef4444; background:transparent; border:1px solid rgba(239,68,68,0.25);
+          font-size:12px; font-family: system-ui, sans-serif; font-weight:500;
+          color:#DC2626; background:transparent; border:1px solid rgba(220,38,38,0.25);
           cursor:pointer; transition:all 0.15s;
         }
-        .si-btn-reject:hover { background:rgba(239,68,68,0.06); }
+        .si-btn-reject:hover { background:rgba(220,38,38,0.06); }
         .si-btn-reject:disabled { opacity:0.4; cursor:not-allowed; }
       `}</style>
 
       <AuthoritySidebar />
 
       <main className="sight-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+        <AuthorityTopbar />
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '40px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
           {/* ─── HEADER ─── */}
-          <div className="si-card si-in" style={{ padding: '28px 32px', background: 'linear-gradient(135deg, #fff 0%, #f9fafb 100%)' }}>
+          <div className="si-card si-in" style={{ padding: '28px 32px', background: 'linear-gradient(135deg, #fff 0%, #F8F9FF 100%)' }}>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
               <div>
-                <p style={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", fontWeight: 500, color: '#2563eb', letterSpacing: '0.28em', textTransform: 'uppercase', marginBottom: 8 }}>
+                <p style={{ fontSize: 10, fontFamily: 'monospace', fontWeight: 500, color: 'var(--color-primary, #3266db)', letterSpacing: '0.28em', textTransform: 'uppercase', marginBottom: 8 }}>
                   Sistema de Gestión · Avistamientos
                 </p>
-                <h1 style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 32, color: '#111827', fontWeight: 400, letterSpacing: '-0.03em', marginBottom: 6 }}>
+                <h1 style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 32, color: 'var(--color-text-primary, #0f172a)', fontWeight: 400, letterSpacing: '-0.03em', marginBottom: 6 }}>
                   Avistamientos
                 </h1>
-                <p style={{ fontSize: 13, color: '#6B7280' }}>
+                <p style={{ fontSize: 13, color: 'var(--color-text-secondary, #475569)' }}>
                   Revisa reportes de posibles ubicaciones relacionadas a casos activos.
                 </p>
               </div>
               <button type="button" onClick={() => void loadSightings()} style={{
                 display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 16px',
-                borderRadius: 8, border: '1px solid #e5e7eb', background: '#fff',
-                color: '#6B7280', fontSize: 12, fontFamily: "'Geist', sans-serif", fontWeight: 500,
+                borderRadius: 8, border: '1px solid var(--color-border, #e2e8f0)', background: 'var(--color-card, #ffffff)',
+                color: '#64748B', fontSize: 12, fontFamily: 'system-ui, sans-serif', fontWeight: 500,
                 cursor: 'pointer', transition: 'all 0.15s',
               }}>
                 <RefreshCw size={12} /> Actualizar
@@ -176,9 +203,9 @@ export default function AuthoritySightings() {
           {/* ─── STAT CARDS ─── */}
           <div className="si-in si-in-1" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
             {statCards.map((s) => (
-              <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 12, padding: '18px 20px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-                <p style={{ fontSize: 11, color: '#6B7280', fontWeight: 500, marginBottom: 8 }}>{s.label}</p>
-                <p style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontSize: 30, color: s.color, fontWeight: 400, lineHeight: 1 }}>{s.value}</p>
+              <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, padding: '18px 20px' }}>
+                <p style={{ fontSize: 11, color: 'var(--color-text-secondary, #475569)', fontWeight: 500, marginBottom: 8 }}>{s.label}</p>
+                <p style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: 30, color: s.color, fontWeight: 400, lineHeight: 1 }}>{s.value}</p>
               </div>
             ))}
           </div>
@@ -187,12 +214,12 @@ export default function AuthoritySightings() {
           <div className="si-card si-in si-in-1" style={{ padding: '18px 22px' }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
               <div style={{ position: 'relative', flex: 1, minWidth: 240, maxWidth: 380 }}>
-                <Search size={13} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#6B7280', pointerEvents: 'none' }} />
+                <Search size={13} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-secondary, #475569)', pointerEvents: 'none' }} />
                 <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por caso, persona o ubicación..." className="si-input" />
               </div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {(['all', 'pending', 'approved', 'rejected'] as SightingStatus[]).map((s) => {
-                  const meta = s === 'all' ? { dot: '#6B7280', label: 'Todos' } : STATUS_META[s]
+                  const meta = s === 'all' ? { dot: '#94A3B8', label: 'Todos' } : STATUS_META[s]
                   return (
                     <button key={s} type="button" onClick={() => setStatusFilter(s)} className={`filter-pill ${statusFilter === s ? 'active' : ''}`}>
                       <span style={{ width: 6, height: 6, borderRadius: '50%', background: meta.dot }} />
@@ -206,8 +233,8 @@ export default function AuthoritySightings() {
 
           {/* ─── ERROR ─── */}
           {error && (
-            <div className="si-card" style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(239,68,68,0.04)', borderColor: 'rgba(239,68,68,0.2)' }}>
-              <AlertCircle size={14} style={{ color: '#ef4444', flexShrink: 0 }} />
+            <div className="si-card" style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(220,38,38,0.04)', borderColor: 'rgba(220,38,38,0.2)' }}>
+              <AlertCircle size={14} style={{ color: '#DC2626', flexShrink: 0 }} />
               <span style={{ fontSize: 13, color: '#B91C1C' }}>{error}</span>
             </div>
           )}
@@ -216,16 +243,16 @@ export default function AuthoritySightings() {
           <div className="si-card si-in si-in-2" style={{ overflow: 'hidden' }}>
             {loading ? (
               <div style={{ padding: '64px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 22, height: 22, border: '2px solid rgba(37,99,235,0.2)', borderTopColor: '#2563eb', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                <p style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#6B7280' }}>Cargando avistamientos...</p>
+                <div style={{ width: 22, height: 22, border: '2px solid rgba(43,92,230,0.2)', borderTopColor: '#2B5CE6', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                <p style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--color-text-secondary, #475569)' }}>Cargando avistamientos...</p>
               </div>
             ) : filteredSightings.length === 0 ? (
               <div style={{ padding: '64px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 48, height: 48, borderRadius: 12, background: '#f9fafb', border: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Eye size={20} style={{ color: '#6B7280' }} />
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--color-background, #f8fafc)', border: '1px solid var(--color-border, #e2e8f0)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Eye size={20} style={{ color: 'var(--color-text-secondary, #475569)' }} />
                 </div>
-                <p style={{ fontSize: 14, color: '#6B7280', fontWeight: 500 }}>No hay avistamientos disponibles.</p>
-                <p style={{ fontSize: 12, color: '#6B7280', textAlign: 'center', maxWidth: 320 }}>Si tus compañeros ya crearon la tabla, esta vista la detecta automáticamente.</p>
+                <p style={{ fontSize: 14, color: 'var(--color-text-secondary, #475569)', fontWeight: 500 }}>No hay avistamientos disponibles.</p>
+                <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #475569)', textAlign: 'center', maxWidth: 320 }}>Si tus compañeros ya crearon la tabla, esta vista la detecta automáticamente.</p>
               </div>
             ) : (
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
@@ -234,7 +261,7 @@ export default function AuthoritySightings() {
                   const meta = STATUS_META[status]
                   const rowLoading = actionLoadingId === item.id
                   return (
-                    <li key={item.id} className="sight-row" style={{ padding: '20px 24px', borderBottom: '1px solid #e5e7eb', animationDelay: `${idx * 20}ms`, background: idx % 2 !== 0 ? '#f9fafb' : '#fff', position: 'relative' }}>
+                    <li key={item.id} className="sight-row" style={{ padding: '20px 24px', borderBottom: '1px solid var(--color-border, #e2e8f0)', animationDelay: `${idx * 20}ms`, background: idx % 2 !== 0 ? '#FAFBFC' : '#fff', position: 'relative' }}>
                       {/* Left accent */}
                       <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: meta.color, opacity: 0.5, borderRadius: '0 2px 2px 0' }} />
 
@@ -244,39 +271,39 @@ export default function AuthoritySightings() {
                           display: 'inline-flex', alignItems: 'center', gap: 6,
                           padding: '3px 10px', borderRadius: 999,
                           background: meta.bg, color: meta.color,
-                          fontSize: 10, fontFamily: "'JetBrains Mono', monospace",
+                          fontSize: 10, fontFamily: 'monospace',
                           fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.12em',
                         }}>
                           <span style={{ width: 5, height: 5, borderRadius: '50%', background: meta.dot, animation: status === 'pending' ? 'dotPulse 2s ease-in-out infinite' : 'none' }} />
                           {meta.label}
                         </span>
                         {item.caseNumber && (
-                          <span style={{ fontSize: 11, fontFamily: "'JetBrains Mono', monospace", color: '#2563eb', background: 'rgba(37,99,235,0.07)', border: '1px solid rgba(37,99,235,0.15)', padding: '3px 9px', borderRadius: 6 }}>
+                          <span style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--color-primary, #3266db)', background: 'rgba(43,92,230,0.07)', border: '1px solid rgba(43,92,230,0.15)', padding: '3px 9px', borderRadius: 6 }}>
                             Caso {item.caseNumber}
                           </span>
                         )}
-                        <span style={{ fontSize: 11, color: '#6B7280', fontFamily: "'JetBrains Mono', monospace" }}>
+                        <span style={{ fontSize: 11, color: 'var(--color-text-secondary, #475569)', fontFamily: 'monospace' }}>
                           {item.sourceTable}
                         </span>
                       </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: '#111827' }}>
-                          <UserRound size={13} style={{ color: '#6B7280', flexShrink: 0 }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--color-text-primary, #0f172a)' }}>
+                          <UserRound size={13} style={{ color: 'var(--color-text-secondary, #475569)', flexShrink: 0 }} />
                           {item.missingPersonName ?? 'Persona no identificada'}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: '#111827' }}>
-                          <MapPin size={13} style={{ color: '#6B7280', flexShrink: 0 }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--color-text-primary, #0f172a)' }}>
+                          <MapPin size={13} style={{ color: 'var(--color-text-secondary, #475569)', flexShrink: 0 }} />
                           {item.location ?? 'Ubicación no especificada'}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: '#6B7280', gridColumn: '1 / -1' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'var(--color-text-secondary, #475569)', gridColumn: '1 / -1' }}>
                           <Calendar size={11} />
                           {formatDate(item.created_at)}
-                          {item.reporterName && <span style={{ color: '#6B7280' }}>· Reportado por {item.reporterName}</span>}
+                          {item.reporterName && <span style={{ color: 'var(--color-text-secondary, #475569)' }}>· Reportado por {item.reporterName}</span>}
                         </div>
                       </div>
 
-                      <p style={{ fontSize: 13, lineHeight: 1.65, color: '#111827', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: '10px 14px', marginBottom: 14 }}>
+                      <p style={{ fontSize: 13, lineHeight: 1.65, color: 'var(--color-text-primary, #0f172a)', background: 'var(--color-background, #f8fafc)', border: '1px solid var(--color-border, #e2e8f0)', borderRadius: 8, padding: '10px 14px', marginBottom: 14 }}>
                         {item.details}
                       </p>
 

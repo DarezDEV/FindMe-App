@@ -15,35 +15,10 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../auth/hooks";
 import { logoutUser } from "../../auth/services";
-
-const navItems = [
-  {
-    section: "General",
-    items: [
-      { label: "Dashboard", icon: LayoutDashboard, href: "/admin/dashboard", badge: null },
-    ],
-  },
-  {
-    section: "Gestión",
-    items: [
-      { label: "Usuarios", icon: Users, href: "/admin/users", badge: null },
-    ],
-  },
-  {
-    section: "Casos",
-    items: [
-      { label: "Casos", icon: FileSearch, href: "/authority/cases", badge: { count: 12, type: "primary" } },
-      { label: "Avistamientos", icon: Eye, href: "/authority/sightings", badge: { count: 3, type: "warning" } },
-      { label: "Moderacion", icon: AlertTriangle, href: "/authority/cases/pending", badge: { count: 2, type: "error" } },
-    ],
-  },
-  {
-    section: "Sistema",
-    items: [
-      { label: "Configuracion", icon: Settings, href: "/admin/users", badge: null },
-    ],
-  },
-];
+import { appToast, ProfileAvatar } from "../../../shared/components/ui";
+import { handleError } from "../../../shared/utils/handleError";
+import { useAdminDashboardSummary } from "../hooks/useAdminDashboardSummary";
+import { useNotifications } from "../../notifications/hooks/useNotifications";
 
 const badgeClass: Record<string, string> = {
   primary: "bg-primary/10 text-primary border border-primary/20",
@@ -57,20 +32,69 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ children }: AdminSidebarProps) {
   const [open, setOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { data: summary } = useAdminDashboardSummary();
+  const { unreadCount } = useNotifications({ includeList: false });
 
-  const initials = user
-    ? `${user.name?.[0] ?? ""}${user.last_nmae?.[0] ?? ""}`.toUpperCase()
-    : "AD";
+  const navItems = [
+    {
+      section: "General",
+      items: [
+        { label: "Dashboard", icon: LayoutDashboard, href: "/admin/dashboard", badge: null },
+      ],
+    },
+    {
+      section: "Gestión",
+      items: [
+        { label: "Usuarios", icon: Users, href: "/admin/users", badge: null },
+      ],
+    },
+    {
+      section: "Casos",
+      items: [
+        {
+          label: "Casos",
+          icon: FileSearch,
+          href: "/admin/cases",
+          badge: summary && summary.total > 0 ? { count: summary.total, type: "primary" } : null,
+        },
+        {
+          label: "Avistamientos",
+          icon: Eye,
+          href: "/admin/sightings",
+          badge: null,
+        },
+        {
+          label: "Revisión",
+          icon: AlertTriangle,
+          href: "/admin/revision",
+          badge: summary && summary.pending > 0 ? { count: summary.pending, type: "error" } : null,
+        },
+      ],
+    },
+    {
+      section: "Sistema",
+      items: [
+        { label: "Configuración", icon: Settings, href: "/admin/settings", badge: null },
+      ],
+    },
+  ];
 
   const handleLogout = async () => {
+    if (loggingOut) return
+    setLoggingOut(true)
     try {
       await logoutUser();
+      appToast.success("Sesión cerrada correctamente.");
+      setOpen(false)
       navigate("/login");
     } catch (err) {
-      console.error("Error al cerrar sesión:", err);
+      handleError("AdminSidebar.logout", err, { fallbackMessage: "No se pudo cerrar la sesión." });
+    } finally {
+      setLoggingOut(false)
     }
   };
 
@@ -189,44 +213,62 @@ export default function AdminSidebar({ children }: AdminSidebarProps) {
         {/* Footer */}
         <div className="px-3 py-4 border-t border-border space-y-1">
           <a
-            href="/authority/cases/pending"
-            onClick={(e) => { e.preventDefault(); navigate("/authority/cases/pending"); }}
+            href="/admin/notificaciones"
+            onClick={(e) => { e.preventDefault(); navigate("/admin/notificaciones"); setOpen(false); }}
             className="flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm
                        text-text-secondary hover:bg-background hover:text-text-primary
                        transition-all group"
           >
             <Bell size={17} className="shrink-0" />
             <span className="flex-1">Notificaciones</span>
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full
-                             bg-error/10 text-error border border-error/20">
-              5
-            </span>
+            {unreadCount > 0 && (
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full
+                               bg-error/10 text-error border border-error/20">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
           </a>
 
           {/* User card */}
-          <div className="mt-2 flex items-center gap-3 px-2.5 py-2.5 rounded-lg
-                          bg-background border border-border">
-            <div className="w-8 h-8 rounded-full bg-primary-soft border border-primary/20
-                            flex items-center justify-center shrink-0">
-              <span className="text-xs font-bold text-primary">{initials}</span>
-            </div>
+          <a
+            href="/admin/perfil"
+            onClick={(e) => {
+              e.preventDefault()
+              navigate('/admin/perfil')
+              setOpen(false)
+            }}
+            className="mt-2 flex items-center gap-3 px-2.5 py-2.5 rounded-lg
+                          bg-background border border-border hover:bg-card transition-colors cursor-pointer"
+          >
+            <ProfileAvatar
+              name={user?.name ?? null}
+              lastName={user?.last_nmae ?? null}
+              src={user?.avatar_url ?? null}
+              size={32}
+              rounded="full"
+              className="shrink-0"
+            />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-text-primary truncate">
-                {user ? `${user.name} ${user.last_nmae}` : "Admin"}
+                {user ? [user.name, user.last_nmae].filter(Boolean).join(' ') : 'Admin'}
               </p>
               <p className="text-[11px] text-text-secondary truncate">
                 {user?.email ?? "admin@findme.com"}
               </p>
             </div>
-            <button
-              onClick={handleLogout}
-              className="p-1 rounded-md text-text-secondary hover:text-error
-                         hover:bg-error/10 transition-all"
-              title="Cerrar sesión"
-            >
-              <LogOut size={15} />
-            </button>
-          </div>
+            <ChevronRight size={16} className="text-text-secondary opacity-60" />
+          </a>
+
+          <button
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="mt-2 flex items-center gap-3 px-2.5 py-2 rounded-lg text-sm w-full
+                       text-text-secondary hover:bg-error/8 hover:text-error
+                       transition-all duration-150 group disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <LogOut size={17} className="shrink-0 group-hover:text-error transition-colors" />
+            <span>{loggingOut ? 'Cerrando sesión...' : 'Cerrar sesión'}</span>
+          </button>
         </div>
       </aside>
 

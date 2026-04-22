@@ -1,46 +1,25 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
-  AlertTriangle,
   Bell,
   CheckCircle,
   ChevronDown,
   Flag,
-  LogOut,
   MapPin,
   Menu,
-  MessageCircle,
   Plus,
   Search,
-  Settings,
-  User,
   UserSearch,
   X,
 } from 'lucide-react'
 import { useAuth } from '../../auth/hooks'
-import { supabase } from '../../../lib/supabase/client'
-import { type CasoReciente, useMisCasos } from '../hooks/useMisCasos'
+import { logoutUser } from '../../auth/services'
+import { appToast, ProfileAvatar } from '../../../shared/components/ui'
+import { handleError } from '../../../shared/utils/handleError'
+import { NotificationsDropdown } from '../../notifications/components/NotificationsDropdown'
+import { useNotifications } from '../../notifications/hooks/useNotifications'
 
-type DropdownKey = 'notifications' | 'messages' | 'user' | 'publish' | null
-
-type NotificationType = 'info' | 'warning' | 'success'
-
-interface NavbarNotification {
-  id: string
-  text: string
-  time: string
-  unread: boolean
-  type: NotificationType
-}
-
-interface NavbarMessage {
-  id: string
-  from: string
-  avatar: string
-  preview: string
-  time: string
-  unread: boolean
-}
+type DropdownKey = 'notifications' | 'user' | 'publish' | null
 
 interface PublishOption {
   key: string
@@ -60,107 +39,7 @@ const publishOptions: PublishOption[] = [
     color: 'text-error',
     icon: <UserSearch size={16} />,
   },
-  {
-    key: 'avistamiento',
-    label: 'Avistamiento',
-    desc: 'Registrar informacion de avistamiento',
-    to: '/avistamiento',
-    color: 'text-primary',
-    icon: <MapPin size={16} />,
-  },
-  {
-    key: 'contenido',
-    label: 'Reportar contenido',
-    desc: 'Denunciar contenido inapropiado',
-    to: '/reportar',
-    color: 'text-warning',
-    icon: <Flag size={16} />,
-  },
 ]
-
-function getInitials(name: string, lastName: string) {
-  const first = name.trim().charAt(0).toUpperCase()
-  const second = lastName.trim().charAt(0).toUpperCase()
-  return `${first}${second}`.trim() || 'U'
-}
-
-function formatTime(value: string | null) {
-  if (!value) return 'Reciente'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Reciente'
-
-  const diff = Date.now() - date.getTime()
-  const minute = 60 * 1000
-  const hour = 60 * minute
-  const day = 24 * hour
-
-  if (diff < minute) return 'Hace un momento'
-  if (diff < hour) return `Hace ${Math.max(1, Math.floor(diff / minute))} min`
-  if (diff < day) return `Hace ${Math.max(1, Math.floor(diff / hour))} h`
-  return date.toLocaleDateString()
-}
-
-function buildNotifications(cases: CasoReciente[]): NavbarNotification[] {
-  return cases.slice(0, 5).map(caso => {
-    if (caso.status === 'avistado') {
-      return {
-        id: `notif-${caso.id}`,
-        text: `Nuevo avistamiento en ${caso.numero_caso}.`,
-        time: formatTime(caso.created_at),
-        unread: true,
-        type: 'warning' as const,
-      }
-    }
-
-    if (caso.status === 'encontrado') {
-      return {
-        id: `notif-${caso.id}`,
-        text: `El caso ${caso.numero_caso} fue marcado como encontrado.`,
-        time: formatTime(caso.created_at),
-        unread: false,
-        type: 'success' as const,
-      }
-    }
-
-    if (caso.status === 'en_revision') {
-      return {
-        id: `notif-${caso.id}`,
-        text: `El caso ${caso.numero_caso} esta en revision de autoridad.`,
-        time: formatTime(caso.created_at),
-        unread: true,
-        type: 'info' as const,
-      }
-    }
-
-    return {
-      id: `notif-${caso.id}`,
-      text: `Caso ${caso.numero_caso} activo.`,
-      time: formatTime(caso.created_at),
-      unread: false,
-      type: 'info' as const,
-    }
-  })
-}
-
-function buildMessages(cases: CasoReciente[]): NavbarMessage[] {
-  return cases
-    .filter(caso => caso.total_fotos > 0)
-    .slice(0, 5)
-    .map(caso => ({
-      id: `msg-${caso.id}`,
-      from: `${caso.nombres} ${caso.apellidos}`.trim(),
-      avatar: getInitials(caso.nombres, caso.apellidos),
-      preview: `${caso.total_fotos} archivo(s) multimedia en ${caso.numero_caso}.`,
-      time: formatTime(caso.created_at),
-      unread: caso.status !== 'encontrado',
-    }))
-}
-
-function notifIcon(type: NotificationType) {
-  if (type === 'warning') return <AlertTriangle size={14} className="text-warning" />
-  if (type === 'success') return <CheckCircle size={14} className="text-success" />
-  return <MapPin size={14} className="text-primary" />
-}
 
 function Badge({ count }: { count: number }) {
   if (!count) return null
@@ -214,21 +93,15 @@ export default function UserNavbar() {
   const [open, setOpen] = useState<DropdownKey>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
-  const [loggingOut, setLoggingOut] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
   const ref = useRef<HTMLDivElement>(null)
+  const location = useLocation()
 
-  const { data: myCases = [], isLoading: casesLoading } = useMisCasos(user?.id ?? '', 6)
-
-  const notifications = useMemo(() => buildNotifications(myCases), [myCases])
-  const messages = useMemo(() => buildMessages(myCases), [myCases])
-
-  const unreadNotifs = notifications.filter(item => item.unread).length
-  const unreadMsgs = messages.filter(item => item.unread).length
+  const { unreadCount: unreadNotifs } = useNotifications({ includeList: false })
 
   const userName = user?.name ?? 'Usuario'
   const userLastName = user?.last_nmae ?? ''
   const userEmail = user?.email ?? 'sin-correo'
-  const userInitials = getInitials(userName, userLastName)
 
   const toggle = (key: DropdownKey) => setOpen(prev => (prev === key ? null : key))
 
@@ -237,13 +110,27 @@ export default function UserNavbar() {
     setMobileOpen(false)
   }
 
+  const handleSearchSubmit = (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault()
+    const trimmed = searchTerm.trim()
+    if (trimmed) {
+      navigate(`/user?q=${encodeURIComponent(trimmed)}`)
+    } else {
+      navigate('/user')
+    }
+    closeAll()
+  }
+
   const handleLogout = async () => {
     if (loggingOut) return
     setLoggingOut(true)
     try {
-      await supabase.auth.signOut()
+      await logoutUser()
+      appToast.success('Sesion cerrada correctamente.')
       closeAll()
       navigate('/login', { replace: true })
+    } catch (err) {
+      handleError('UserNavbar.logout', err, { fallbackMessage: 'No se pudo cerrar la sesión.' })
     } finally {
       setLoggingOut(false)
     }
@@ -264,6 +151,12 @@ export default function UserNavbar() {
     return () => window.removeEventListener('scroll', handler)
   }, [])
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const q = params.get('q') ?? ''
+    setSearchTerm(q)
+  }, [location.pathname, location.search])
+
   return (
     <>
       <style>{`
@@ -283,15 +176,29 @@ export default function UserNavbar() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-16 gap-3">
             <Link to="/user" className="flex items-center gap-2 shrink-0 group" onClick={closeAll}>
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center group-hover:bg-primary-hover transition-colors duration-200">
-                <MapPin size={16} className="text-white" strokeWidth={2.5} />
-              </div>
+              <img
+                src="/findMeLogo.svg"
+                alt="FindMe System"
+                className="w-9 h-9 object-contain"
+                onError={(event) => {
+                  event.currentTarget.style.display = 'none'
+                  event.currentTarget.nextElementSibling?.classList.remove('hidden')
+                }}
+              />
+              <svg className="w-8 h-8 text-primary hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2.5}
+                  d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
+                />
+              </svg>
               <span className="font-bold text-lg text-text-primary tracking-tight hidden sm:block">
-                Find<span className="text-primary">Me</span>
+                FindMe System
               </span>
             </Link>
 
-            <div className="flex-1 max-w-md hidden md:block">
+            <form className="flex-1 max-w-md hidden md:block" onSubmit={handleSearchSubmit}>
               <div className="relative">
                 <Search
                   size={15}
@@ -301,9 +208,11 @@ export default function UserNavbar() {
                   type="text"
                   placeholder="Buscar casos por nombre o numero"
                   className="input-field pl-9 py-2 text-sm"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
                 />
               </div>
-            </div>
+            </form>
 
             <div className="flex items-center gap-0.5">
               
@@ -361,100 +270,7 @@ export default function UserNavbar() {
 
                 {open === 'notifications' && (
                   <DropdownPanel className="right-0 w-80">
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                      <span className="font-semibold text-sm text-text-primary">Notificaciones</span>
-                      <Link
-                        to="/notificaciones"
-                        onClick={closeAll}
-                        className="text-xs text-primary hover:text-primary-hover font-medium transition-colors"
-                      >
-                        Ver todas
-                      </Link>
-                    </div>
-                    <div className="max-h-72 overflow-y-auto divide-y divide-border">
-                      {casesLoading && <p className="px-4 py-3 text-xs text-text-secondary">Cargando...</p>}
-                      {!casesLoading && notifications.length === 0 && (
-                        <p className="px-4 py-3 text-xs text-text-secondary">No hay notificaciones recientes.</p>
-                      )}
-                      {!casesLoading &&
-                        notifications.map(item => (
-                          <div
-                            key={item.id}
-                            className={`flex items-start gap-3 px-4 py-3 hover:bg-background transition-colors ${
-                              item.unread ? 'bg-primary-soft/40' : ''
-                            }`}
-                          >
-                            <div className="mt-0.5 shrink-0">{notifIcon(item.type)}</div>
-                            <div className="flex-1 min-w-0">
-                              <p
-                                className={`text-xs leading-snug ${
-                                  item.unread ? 'font-medium text-text-primary' : 'text-text-secondary'
-                                }`}
-                              >
-                                {item.text}
-                              </p>
-                              <p className="text-[11px] text-text-secondary mt-1">{item.time}</p>
-                            </div>
-                            {item.unread && <div className="w-2 h-2 rounded-full bg-primary mt-1 shrink-0" />}
-                          </div>
-                        ))}
-                    </div>
-                  </DropdownPanel>
-                )}
-              </div>
-
-              <div className="relative ml-0.5">
-                <IconBtn
-                  active={open === 'messages'}
-                  onClick={() => toggle('messages')}
-                  badge={unreadMsgs}
-                  title="Mensajes"
-                >
-                  <MessageCircle size={18} />
-                </IconBtn>
-
-                {open === 'messages' && (
-                  <DropdownPanel className="right-0 w-80">
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                      <span className="font-semibold text-sm text-text-primary">Mensajes</span>
-                      <Link
-                        to="/mensajes"
-                        onClick={closeAll}
-                        className="text-xs text-primary hover:text-primary-hover font-medium transition-colors"
-                      >
-                        Ver todos
-                      </Link>
-                    </div>
-                    <div className="max-h-72 overflow-y-auto divide-y divide-border">
-                      {casesLoading && <p className="px-4 py-3 text-xs text-text-secondary">Cargando...</p>}
-                      {!casesLoading && messages.length === 0 && (
-                        <p className="px-4 py-3 text-xs text-text-secondary">No hay mensajes recientes.</p>
-                      )}
-                      {!casesLoading &&
-                        messages.map(message => (
-                          <div
-                            key={message.id}
-                            className={`flex items-start gap-3 px-4 py-3 hover:bg-background transition-colors ${
-                              message.unread ? 'bg-primary-soft/40' : ''
-                            }`}
-                          >
-                            <div className="w-8 h-8 rounded-full bg-primary-soft text-primary text-[11px] font-bold flex items-center justify-center shrink-0">
-                              {message.avatar}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p
-                                className={`text-xs ${
-                                  message.unread ? 'font-semibold text-text-primary' : 'text-text-secondary'
-                                }`}
-                              >
-                                {message.from}
-                              </p>
-                              <p className="text-xs text-text-secondary truncate mt-0.5">{message.preview}</p>
-                            </div>
-                            <div className="shrink-0 text-[11px] text-text-secondary">{message.time}</div>
-                          </div>
-                        ))}
-                    </div>
+                    <NotificationsDropdown onNavigate={closeAll} />
                   </DropdownPanel>
                 )}
               </div>
@@ -472,9 +288,14 @@ export default function UserNavbar() {
                     open === 'user' ? 'bg-background' : ''
                   }`}
                 >
-                  <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
-                    <span className="text-white text-xs font-bold select-none">{userInitials}</span>
-                  </div>
+                  <ProfileAvatar
+                    name={userName}
+                    lastName={userLastName}
+                    src={user?.avatar_url ?? null}
+                    size={32}
+                    rounded="full"
+                    className="shrink-0"
+                  />
                   <ChevronDown
                     size={14}
                     className={`text-text-secondary hidden sm:block transition-transform duration-200 ${
@@ -496,7 +317,6 @@ export default function UserNavbar() {
                       {[
                         { icon: <User size={15} />, label: 'Mi perfil', to: '/perfil' },
                         { icon: <CheckCircle size={15} />, label: 'Mis casos', to: '/mis-casos' },
-                        { icon: <Settings size={15} />, label: 'Configuracion', to: '/configuracion' },
                       ].map(item => (
                         <Link
                           key={item.label}
@@ -516,7 +336,7 @@ export default function UserNavbar() {
                         className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-error hover:bg-error/5 transition-colors duration-150 disabled:opacity-60"
                       >
                         <LogOut size={15} />
-                        {loggingOut ? 'Cerrando...' : 'Cerrar sesion'}
+                        {loggingOut ? 'Cerrando...' : 'Cerrar sesión'}
                       </button>
                     </div>
                   </DropdownPanel>
@@ -536,13 +356,19 @@ export default function UserNavbar() {
 
         {mobileOpen && (
           <div className="md:hidden border-t border-border bg-card px-4 py-3 space-y-1">
-            <div className="relative mb-3">
+            <form className="relative mb-3" onSubmit={handleSearchSubmit}>
               <Search
                 size={15}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none"
               />
-              <input type="text" placeholder="Buscar casos" className="input-field pl-9 py-2 text-sm" />
-            </div>
+              <input
+                type="text"
+                placeholder="Buscar casos"
+                className="input-field pl-9 py-2 text-sm"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+              />
+            </form>
             {[
               { icon: <UserSearch size={16} />, label: 'Nuevo reporte', to: '/publicar' },
               { icon: <MapPin size={16} />, label: 'Reportar avistamiento', to: '/avistamiento' },
@@ -557,7 +383,12 @@ export default function UserNavbar() {
                 className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-secondary hover:bg-background hover:text-text-primary transition-colors duration-150"
               >
                 {item.icon}
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.to === '/notificaciones' && unreadNotifs > 0 && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-error/10 text-error border border-error/20">
+                    {unreadNotifs > 99 ? '99+' : unreadNotifs}
+                  </span>
+                )}
               </Link>
             ))}
           </div>

@@ -4,10 +4,11 @@ import { FileSearch, CheckCircle2, Clock3, XCircle, RefreshCw, Eye, MapPin, Cale
 import { useAuth } from '../../auth/hooks'
 import {
   getAuthorityDashboardSummary,
-  subscribeToCasesRealtime,
   type AuthorityCaseRow,
   type AuthorityDashboardSummary,
 } from '../../../lib/supabase/db'
+import { useRealtimeCases } from '../../cases/hooks/useRealtimeCases'
+import { applyCaseSummaryRealtime, shouldReloadCaseSummary } from '../../cases/utils/summaryRealtime'
 
 const EMPTY_SUMMARY: AuthorityDashboardSummary = {
   total: 0,
@@ -38,16 +39,24 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const loadSummary = useCallback(async () => {
-    setLoading(true)
+  const loadSummary = useCallback(async (options: { quiet?: boolean } = {}) => {
+    const quiet = options.quiet ?? false
+
+    if (!quiet) {
+      setLoading(true)
+    }
+
     setError(null)
+
     try {
       const data = await getAuthorityDashboardSummary()
       setSummary(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar el dashboard de admin.')
     } finally {
-      setLoading(false)
+      if (!quiet) {
+        setLoading(false)
+      }
     }
   }, [])
 
@@ -55,13 +64,16 @@ export default function AdminDashboard() {
     void loadSummary()
   }, [loadSummary])
 
-  useEffect(() => {
-    const unsubscribe = subscribeToCasesRealtime(() => {
-      void loadSummary()
-    })
+  useRealtimeCases({
+    onEvent: (payload) => {
+      if (shouldReloadCaseSummary(payload)) {
+        void loadSummary({ quiet: true })
+        return
+      }
 
-    return unsubscribe
-  }, [loadSummary])
+      setSummary((current) => applyCaseSummaryRealtime(current, payload))
+    },
+  })
 
   const approvalRate = useMemo(() => {
     if (summary.total === 0) return 0
@@ -128,7 +140,7 @@ export default function AdminDashboard() {
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-text-primary">Casos recientes (en vivo)</h2>
-            <Link to="/authority/cases" className="text-xs font-medium text-primary hover:underline">Ver modulo</Link>
+                  <Link to="/admin/cases" className="text-xs font-medium text-primary hover:underline">Ver modulo</Link>
           </div>
           {summary.recentCases.length === 0 ? (
             <p className="text-sm text-text-secondary">Sin casos recientes.</p>
