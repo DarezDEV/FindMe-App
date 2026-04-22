@@ -5,6 +5,8 @@ export interface RegisterData {
   last_name: string
   email: string
   password: string
+  accepted_terms_at: string
+  sensitive_data_consent_at: string
 }
 
 export interface LoginData {
@@ -92,13 +94,29 @@ const withTimeout = async <T>(promise: Promise<T>, ms = 8000): Promise<T> => {
  * El perfil y el rol se crean automáticamente via trigger en Supabase.
  * El usuario deberá verificar su correo con OTP antes de iniciar sesión.
  */
-export async function registerUser({ name, last_name, email, password }: RegisterData) {
+export async function registerUser({
+  name,
+  last_name,
+  email,
+  password,
+  accepted_terms_at,
+  sensitive_data_consent_at,
+}: RegisterData) {
   try {
     const { data, error } = await withTimeout(
       supabase.auth.signUp({
         email,
         password,
-        options: { data: { name, last_name } },
+        options: {
+          data: {
+            name,
+            last_name,
+            accepted_terms: true,
+            sensitive_data_consent: true,
+            accepted_terms_at,
+            sensitive_data_consent_at,
+          },
+        },
       }),
     )
 

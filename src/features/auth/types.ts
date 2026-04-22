@@ -22,4 +22,5 @@ export interface RegisterFormData {
   email: string
   password: string
   confirm: string
+  acceptTerms: boolean
 }
