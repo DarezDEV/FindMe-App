@@ -23,22 +23,22 @@ export function CommentModal({ open, caseName, onClose, onSave }: CommentModalPr
         }}
         aria-label="Cerrar modal de comentario"
       />
-      <div className="relative w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl space-y-4">
-        <h2 className="text-base font-bold text-slate-900">Comentario de moderacion</h2>
-        <p className="text-sm text-slate-500">
-          Caso seleccionado: <span className="font-medium text-blue-600">{caseName}</span>
+      <div className="relative w-full max-w-xl rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4">
+        <h2 className="text-base font-bold text-text-primary">Comentario de moderacion</h2>
+        <p className="text-sm text-text-secondary">
+          Caso seleccionado: <span className="font-medium text-primary">{caseName}</span>
         </p>
         <textarea
           value={value}
           onChange={(e) => setValue(e.target.value)}
           rows={5}
           placeholder="Escribe una observacion para la revision..."
-          className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-relaxed text-slate-900 placeholder:text-slate-600 focus:border-blue-500/40 focus:outline-none"
+          className="w-full resize-none rounded-xl border border-border bg-card px-4 py-3 text-sm leading-relaxed text-text-primary placeholder:text-text-secondary focus:border-primary/40 focus:outline-none"
         />
         <div className="flex items-center justify-end gap-2">
           <button
             type="button"
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+            className="rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
             onClick={() => {
               setValue('')
               onClose()
@@ -48,7 +48,7 @@ export function CommentModal({ open, caseName, onClose, onSave }: CommentModalPr
           </button>
           <button
             type="button"
-            className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-2.5 text-sm font-semibold text-blue-600 hover:bg-blue-500/15 transition-colors disabled:opacity-40"
+            className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-2.5 text-sm font-semibold text-primary hover:bg-primary/15 transition-colors disabled:opacity-40"
             onClick={() => {
               onSave(value.trim())
               setValue('')

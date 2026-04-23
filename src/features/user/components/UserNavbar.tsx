@@ -5,12 +5,10 @@ import {
   CheckCircle,
   ChevronDown,
   Flag,
-  LogOut,
   MapPin,
   Menu,
   Plus,
   Search,
-  User,
   UserSearch,
   X,
 } from 'lucide-react'
@@ -95,7 +93,6 @@ export default function UserNavbar() {
   const [open, setOpen] = useState<DropdownKey>(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
-  const [loggingOut, setLoggingOut] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const ref = useRef<HTMLDivElement>(null)
   const location = useLocation()

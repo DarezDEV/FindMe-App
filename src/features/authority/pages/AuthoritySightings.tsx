@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Eye, MapPin, RefreshCw, Search, UserRound, Calendar, AlertCircle, CheckCircle2, XCircle } from 'lucide-react'
 import { appToast } from '../../../shared/components/ui'
 import { AuthoritySidebar } from '../components/AuthoritySidebar'
+import AuthorityTopbar from '../components/AuthorityTopbar'
 import {
   getAuthoritySightings,
   normalizeAuthoritySightingRow,
@@ -179,6 +180,7 @@ export default function AuthoritySightings() {
       <AuthoritySidebar />
 
       <main className="sight-scroll" style={{ flex: 1, overflowY: 'auto' }}>
+        <AuthorityTopbar />
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '40px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
           {/* ─── HEADER ─── */}

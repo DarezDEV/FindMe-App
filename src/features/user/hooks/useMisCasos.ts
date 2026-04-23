@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import type { PostgrestError } from '@supabase/supabase-js'
 import { supabase } from '../../../lib/supabase/client'
 import { toAppError } from '../../../shared/utils/errors'
 
@@ -732,3 +733,4 @@ export function useMisEstadisticas(userId: string) {
     staleTime: CASES_QUERY_STALE_TIME,
   })
 }
+
