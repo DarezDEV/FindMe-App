@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertCircle, Calendar, Eye, MapPin, RefreshCw, Search, UserRound, CheckCircle2, XCircle, Clock } from 'lucide-react'
+import { appToast } from '../../../shared/components/ui'
 import AdminSidebar from '../components/Adminsidebar'
 import {
   getAuthoritySightings,
@@ -39,6 +40,12 @@ const STATUS_BADGE: Record<Exclude<SightingStatus, 'all'>, string> = {
 
 const STATUS_DOT: Record<Exclude<SightingStatus, 'all'>, string> = {
   pending: 'bg-amber-400', approved: 'bg-emerald-400', rejected: 'bg-red-400',
+}
+
+function getStatusToastMessage(status: SightingModerationStatus) {
+  if (status === 'approved') return 'Avistamiento validado correctamente.'
+  if (status === 'rejected') return 'Avistamiento descartado correctamente.'
+  return 'Avistamiento marcado como pendiente.'
 }
 
 export default function AdminSightings() {
@@ -107,11 +114,15 @@ export default function AdminSightings() {
 
   const applyStatus = async (sightingId: string, status: SightingModerationStatus) => {
     setActionLoadingId(sightingId)
+    setError(null)
     try {
       await updateAuthoritySightingStatus(sightingId, status)
       setSightings((prev) => prev.map((item) => (item.id === sightingId ? { ...item, status } : item)))
+      appToast.success(getStatusToastMessage(status))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo actualizar el estado.')
+      const message = err instanceof Error ? err.message : 'No se pudo actualizar el estado.'
+      setError(message)
+      appToast.error(message)
     } finally {
       setActionLoadingId(null)
     }

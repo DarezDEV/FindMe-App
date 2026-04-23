@@ -309,6 +309,66 @@ function isColumnMissingError(error: unknown): boolean {
   )
 }
 
+function isStatusValueError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+
+  const candidate = error as { code?: unknown; message?: unknown }
+  const code = typeof candidate.code === 'string' ? candidate.code : ''
+  const message = typeof candidate.message === 'string' ? candidate.message.toLowerCase() : ''
+
+  return (
+    code === '22P02'
+    || code === '23514'
+    || message.includes('invalid input value for enum')
+    || message.includes('enum')
+    || message.includes('check constraint')
+  )
+}
+
+async function tryUpdateSightingStatusVariants(
+  sightingId: string,
+  updatePayload: Record<string, string>,
+  attempts: Array<{ idColumn: string; statusColumn: string }>,
+  statusCandidates: string[],
+) {
+  for (const attempt of attempts) {
+    let shouldContinue = false
+
+    for (const candidateStatus of statusCandidates) {
+      const { data, error } = await withRetry(
+        () =>
+          supabase
+            .from(SIGHTING_TABLE)
+            .update({
+              ...updatePayload,
+              [attempt.statusColumn]: candidateStatus,
+            })
+            .eq(attempt.idColumn, sightingId)
+            .select(attempt.idColumn)
+            .maybeSingle(),
+        { timeoutMs: 30000, retries: 0 },
+      )
+
+      if (error) {
+        if (isColumnMissingError(error)) {
+          shouldContinue = true
+          break
+        }
+        if (isStatusValueError(error)) {
+          continue
+        }
+        throwDbError('updateAuthoritySightingStatus', error, 'No se pudo actualizar el avistamiento. IntÃ©ntalo nuevamente.')
+      }
+
+      if (data) return true
+    }
+
+    if (shouldContinue) continue
+  }
+
+  return false
+}
+
 export async function getProfile(userId: string) {
   const { data, error } = await withRetry(() =>
     supabase
@@ -922,6 +982,13 @@ export async function updateAuthoritySightingStatus(
     updated_at: new Date().toISOString(),
   }
 
+  const statusCandidates =
+    status === 'approved'
+      ? ['approved', 'aprobado', 'aceptado', 'validado', 'confirmado']
+      : status === 'rejected'
+        ? ['rejected', 'rechazado', 'descartado']
+        : ['pending', 'pendiente', 'en_revision', 'en revision']
+
   const attempts: Array<{ idColumn: string; statusColumn: string }> = [
     { idColumn: 'id', statusColumn: 'estado' },
     { idColumn: 'id', statusColumn: 'status' },
@@ -930,6 +997,10 @@ export async function updateAuthoritySightingStatus(
     { idColumn: 'avistamiento_id', statusColumn: 'status' },
     { idColumn: 'avistamiento_id', statusColumn: 'workflow_status' },
   ]
+
+  if (await tryUpdateSightingStatusVariants(sightingId, updatePayload, attempts, statusCandidates)) {
+    return
+  }
 
   for (const attempt of attempts) {
     const { data, error } = await withRetry(

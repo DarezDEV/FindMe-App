@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Eye, MapPin, RefreshCw, Search, UserRound, Calendar, AlertCircle, CheckCircle2, XCircle } from 'lucide-react'
+import { appToast } from '../../../shared/components/ui'
 import { AuthoritySidebar } from '../components/AuthoritySidebar'
 import AuthorityTopbar from '../components/AuthorityTopbar'
 import {
@@ -32,6 +33,12 @@ const STATUS_META: Record<Exclude<SightingStatus, 'all'>, { label: string; color
   pending:  { label: 'Pendiente',  color: 'var(--color-primary, #3266db)', bg: 'rgba(43,92,230,0.08)',  dot: '#2B5CE6' },
   approved: { label: 'Aceptado',   color: '#059669', bg: 'rgba(5,150,105,0.08)',  dot: '#059669' },
   rejected: { label: 'Rechazado',  color: '#DC2626', bg: 'rgba(220,38,38,0.08)',  dot: '#DC2626' },
+}
+
+function getStatusToastMessage(status: SightingModerationStatus) {
+  if (status === 'approved') return 'Avistamiento validado correctamente.'
+  if (status === 'rejected') return 'Avistamiento rechazado correctamente.'
+  return 'Avistamiento marcado como pendiente.'
 }
 
 export default function AuthoritySightings() {
@@ -90,15 +97,16 @@ export default function AuthoritySightings() {
 
   const applyStatus = async (sightingId: string, status: SightingModerationStatus) => {
     setActionLoadingId(sightingId)
+    setError(null)
     try {
       await updateAuthoritySightingStatus(sightingId, status)
-      setSightings((prev) => {
-        if (status === 'rejected' && statusFilter !== 'rejected') {
-          return prev.filter((item) => item.id !== sightingId)
-        }
-        return prev.map((item) => item.id === sightingId ? { ...item, status } : item)
-      })
-    } catch (err) { setError(err instanceof Error ? err.message : 'No se pudo actualizar el estado.') }
+      setSightings((prev) => prev.map((item) => item.id === sightingId ? { ...item, status } : item))
+      appToast.success(getStatusToastMessage(status))
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo actualizar el estado.'
+      setError(message)
+      appToast.error(message)
+    }
     finally { setActionLoadingId(null) }
   }
 

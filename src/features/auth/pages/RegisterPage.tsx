@@ -12,6 +12,7 @@ const INITIAL_FORM: RegisterFormData = {
   email: '',
   password: '',
   confirm: '',
+  acceptTerms: false,
 }
 
 function PasswordStrength({ password }: { password: string }) {
@@ -97,9 +98,17 @@ export default function RegisterPage() {
   const handleChange = (e: ChangeEvent<HTMLInputElement>) =>
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
 
+  const handleTermsChange = (e: ChangeEvent<HTMLInputElement>) =>
+    setForm((prev) => ({ ...prev, acceptTerms: e.target.checked }))
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
+
+    if (!form.acceptTerms) {
+      setError('Debes aceptar los términos y el tratamiento de datos sensibles para crear la cuenta.')
+      return
+    }
 
     if (form.password !== form.confirm) {
       setError('Las contraseñas no coinciden.')
@@ -112,11 +121,14 @@ export default function RegisterPage() {
 
     setLoading(true)
     try {
+      const consentTimestamp = new Date().toISOString()
       await registerUser({
         name: form.name,
         last_name: form.last_name,
         email: form.email,
         password: form.password,
+        accepted_terms_at: consentTimestamp,
+        sensitive_data_consent_at: consentTimestamp,
       })
       appToast.success('Cuenta creada. Revisa tu correo para verificarla.', { title: 'Registro completado' })
       // Guardar email y pasar a verificación
@@ -322,6 +334,36 @@ export default function RegisterPage() {
                 <p className="text-error text-xs mt-1">Las contraseñas no coinciden</p>
               )}
             </div>
+
+            <label
+              className={`flex items-start gap-3 rounded-xl border p-4 transition-colors ${
+                !form.acceptTerms && error?.toLowerCase().includes('términos')
+                  ? 'border-error bg-error/5'
+                  : 'border-border bg-card hover:border-primary/30'
+              }`}
+            >
+              <input
+                name="acceptTerms"
+                type="checkbox"
+                checked={form.acceptTerms}
+                onChange={handleTermsChange}
+                className="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                required
+              />
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium text-text-primary">
+                  Acepto los términos de uso y el tratamiento de datos sensibles <span className="text-error">*</span>
+                </p>
+                <p className="text-xs leading-relaxed text-text-secondary">
+                  Autorizo a FindMe a tratar información sensible relacionada con identidad, contacto y contexto de casos
+                  exclusivamente para registro, búsqueda, verificación, moderación y notificación dentro de la plataforma.
+                </p>
+                <p className="text-xs leading-relaxed text-text-secondary">
+                  Al continuar, aceptas los <a href="/terms" className="text-primary hover:underline">términos de uso</a> y la{' '}
+                  <a href="/privacy" className="text-primary hover:underline">política de privacidad</a>.
+                </p>
+              </div>
+            </label>
 
             <button type="submit" disabled={loading} className="btn-primary w-full mt-2">
               {loading ? (
