@@ -3,10 +3,10 @@ import {
   AlertCircle,
   Calendar,
   CheckCircle2,
-  Clock4,
+  Clock3,
   Copy,
-  Mail,
   FileText,
+  Mail,
   MapPin,
   Phone,
   UserCircle2,
@@ -32,8 +32,8 @@ function getUrgency(missingDateIso?: string | null): UrgencyInfo {
     return {
       days: 0,
       label: 'Sin fecha confirmada',
-      toneClass: 'bg-primary-soft/50 border-border text-text-secondary',
-      icon: <Clock4 size={13} />,
+      toneClass: 'border-border bg-primary-soft/60 text-text-secondary',
+      icon: <Clock3 size={13} />,
     }
   }
 
@@ -42,8 +42,8 @@ function getUrgency(missingDateIso?: string | null): UrgencyInfo {
     return {
       days: 0,
       label: 'Fecha invalida',
-      toneClass: 'bg-primary-soft/50 border-border text-text-secondary',
-      icon: <Clock4 size={13} />,
+      toneClass: 'border-border bg-primary-soft/60 text-text-secondary',
+      icon: <Clock3 size={13} />,
     }
   }
 
@@ -54,7 +54,7 @@ function getUrgency(missingDateIso?: string | null): UrgencyInfo {
     return {
       days: diffDays,
       label: 'Maxima prioridad',
-      toneClass: 'bg-error/10 border-error/30 text-error',
+      toneClass: 'border-error/20 bg-error/8 text-error',
       icon: <AlertCircle size={13} />,
     }
   }
@@ -63,7 +63,7 @@ function getUrgency(missingDateIso?: string | null): UrgencyInfo {
     return {
       days: diffDays,
       label: 'Alta prioridad',
-      toneClass: 'bg-warning/10 border-warning/30 text-warning',
+      toneClass: 'border-warning/20 bg-warning/8 text-warning',
       icon: <AlertCircle size={13} />,
     }
   }
@@ -71,7 +71,7 @@ function getUrgency(missingDateIso?: string | null): UrgencyInfo {
   return {
     days: diffDays,
     label: 'Seguimiento activo',
-    toneClass: 'bg-info/10 border-info/30 text-info',
+    toneClass: 'border-info/20 bg-info/8 text-info',
     icon: <CheckCircle2 size={13} />,
   }
 }
@@ -79,8 +79,7 @@ function getUrgency(missingDateIso?: string | null): UrgencyInfo {
 function buildPrompt(caseData: PendingCaseItem, urgency: UrgencyInfo): string {
   const phone = caseData.contactPhone ?? 'No disponible'
   const email = caseData.contactEmail ?? 'No disponible'
-  const since =
-    urgency.days === 0 ? 'hoy' : urgency.days === 1 ? 'hace 1 dia' : `hace ${urgency.days} dias`
+  const since = urgency.days === 0 ? 'hoy' : urgency.days === 1 ? 'hace 1 dia' : `hace ${urgency.days} dias`
 
   return `Telefono de contacto: ${phone}. Correo de contacto: ${email}. Urgencia: ${urgency.label} (${since}).`
 }
@@ -91,11 +90,14 @@ export function CaseDetailPanel({ selectedCase }: CaseDetailPanelProps) {
 
   if (!selectedCase) {
     return (
-      <div className="min-h-[460px] flex flex-col items-center justify-center gap-3 p-8 text-center rounded-xl border border-slate-200 bg-slate-50">
-        <div className="w-12 h-12 rounded-full bg-sky-400/10 border border-sky-400/20 flex items-center justify-center">
-          <FileText size={20} className="text-sky-300/80" />
+      <div className="flex min-h-[460px] flex-col items-center justify-center rounded-[24px] border border-dashed border-border bg-slate-50 px-8 py-10 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-info/20 bg-info/8">
+          <FileText size={22} className="text-info" />
         </div>
-        <p className="text-sm text-slate-500">Selecciona un caso para ver su informacion completa.</p>
+        <p className="mt-4 text-base font-semibold text-text-primary">Selecciona un caso</p>
+        <p className="mt-2 max-w-sm text-sm leading-6 text-text-secondary">
+          Aqui aparecera la ficha completa del caso con datos clave, contacto y contexto para la decision.
+        </p>
       </div>
     )
   }
@@ -119,117 +121,168 @@ export function CaseDetailPanel({ selectedCase }: CaseDetailPanelProps) {
 
   return (
     <>
-      {lightboxOpen && selectedCase.photoUrl && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm p-4" onClick={() => setLightboxOpen(false)}>
+      {lightboxOpen && selectedCase.photoUrl ? (
+        <div className="fixed inset-0 z-50 bg-black/85 p-4 backdrop-blur-sm" onClick={() => setLightboxOpen(false)}>
           <button
             type="button"
             aria-label="Cerrar visor"
             onClick={() => setLightboxOpen(false)}
-            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
           >
-            <X size={18} className="mx-auto" />
+            <X size={18} />
           </button>
-          <div className="w-full h-full flex items-center justify-center">
+          <div className="flex h-full w-full items-center justify-center">
             <img
               src={selectedCase.photoUrl}
               alt={selectedCase.name}
-              className="max-w-full max-h-[92vh] object-contain rounded-xl shadow-2xl"
+              className="max-h-[92vh] max-w-full rounded-2xl object-contain shadow-2xl"
               onClick={(event) => event.stopPropagation()}
             />
           </div>
         </div>
-      )}
+      ) : null}
 
-      <div className="min-h-[460px] overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-        <button
-          type="button"
-          className="w-full relative group bg-white border-b border-slate-200"
-          style={{ aspectRatio: '16/10' }}
-          onClick={() => selectedCase.photoUrl && setLightboxOpen(true)}
-          disabled={!selectedCase.photoUrl}
-          aria-label="Abrir foto completa"
-        >
-          {selectedCase.photoUrl ? (
-            <>
-              <img
-                src={selectedCase.photoUrl}
-                alt={selectedCase.name}
-                className="absolute inset-0 w-full h-full object-contain p-3 transition-all duration-300 group-hover:scale-[1.01]"
-              />
-              <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <ZoomIn size={12} />
-                Ver mejor
-              </span>
-            </>
-          ) : (
-            <span className="absolute inset-0 flex items-center justify-center text-sm text-slate-500">
-              Foto pendiente
-            </span>
-          )}
-        </button>
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+          <div className="overflow-hidden rounded-[24px] border border-border bg-slate-50">
+            <button
+              type="button"
+              className="group relative block w-full overflow-hidden border-b border-border bg-card"
+              style={{ aspectRatio: '16 / 13' }}
+              onClick={() => selectedCase.photoUrl && setLightboxOpen(true)}
+              disabled={!selectedCase.photoUrl}
+              aria-label="Abrir foto completa"
+            >
+              {selectedCase.photoUrl ? (
+                <>
+                  <img
+                    src={selectedCase.photoUrl}
+                    alt={selectedCase.name}
+                    className="absolute inset-0 h-full w-full object-contain p-4 transition-transform duration-300 group-hover:scale-[1.02]"
+                  />
+                  <span className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-medium text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                    <ZoomIn size={12} />
+                    Ampliar
+                  </span>
+                </>
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-text-secondary">
+                  Foto pendiente
+                </div>
+              )}
+            </button>
 
-        <div className="p-6 space-y-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">{selectedCase.name}</h2>
-              <p className="text-sm text-slate-500 mt-1">
-                Caso {selectedCase.caseNumber} · {selectedCase.age} anos
-              </p>
+            <div className="space-y-4 p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-xl font-semibold text-text-primary">{selectedCase.name}</h3>
+                  <p className="mt-1 text-sm text-text-secondary">
+                    Caso {selectedCase.caseNumber} · {selectedCase.age} anos
+                  </p>
+                </div>
+                <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${urgency.toneClass}`}>
+                  {urgency.icon}
+                  {urgency.label}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <SummaryCard label="Publicado" value={selectedCase.createdAt} />
+                <SummaryCard label="Desaparicion" value={selectedCase.missingDate} />
+                <SummaryCard label="Genero" value={selectedCase.gender || 'No indicado'} />
+                <SummaryCard label="Estado" value={selectedCase.caseStatusLabel} />
+              </div>
             </div>
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium ${urgency.toneClass}`}>
-              {urgency.icon}
-              {urgency.label}
-            </span>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2 text-sm">
-            <MetaRow icon={<Clock4 size={13} />} label="Tiempo" value={urgency.days === 0 ? 'Hoy' : `Hace ${urgency.days} dias`} />
-            <MetaRow icon={<UserCircle2 size={13} />} label="Genero" value={selectedCase.gender || 'No especificado'} />
-            <MetaRow icon={<Calendar size={13} />} label="Fecha nacimiento" value={selectedCase.birthDate || 'No disponible'} />
-            <MetaRow icon={<MapPin size={13} />} label="Ubicacion" value={selectedCase.location} />
-            <MetaRow icon={<MapPin size={13} />} label="Ultima vez visto" value={selectedCase.lastSeenPlace} />
-            <MetaRow icon={<Calendar size={13} />} label="Fecha desaparicion" value={selectedCase.missingDate} />
-            <MetaRow icon={<Calendar size={13} />} label="Publicado" value={selectedCase.createdAt} />
-            <MetaRow icon={<UserCircle2 size={13} />} label="Publicado por" value={selectedCase.createdBy} />
-            <MetaRow icon={<Phone size={13} />} label="Telefono contacto" value={selectedCase.contactPhone ?? 'No disponible'} />
-            <MetaRow icon={<Mail size={13} />} label="Correo contacto" value={selectedCase.contactEmail ?? 'No disponible'} />
-          </div>
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <InfoGroup
+              title="Informacion principal"
+              items={[
+                { icon: <Clock3 size={14} />, label: 'Tiempo transcurrido', value: urgency.days === 0 ? 'Hoy' : `Hace ${urgency.days} dias` },
+                { icon: <UserCircle2 size={14} />, label: 'Publicado por', value: selectedCase.createdBy },
+                { icon: <Calendar size={14} />, label: 'Fecha de nacimiento', value: selectedCase.birthDate || 'No disponible' },
+                { icon: <MapPin size={14} />, label: 'Ubicacion general', value: selectedCase.location },
+                { icon: <MapPin size={14} />, label: 'Ultima vez visto', value: selectedCase.lastSeenPlace },
+                { icon: <Calendar size={14} />, label: 'Fecha de desaparicion', value: selectedCase.missingDate },
+              ]}
+            />
 
-          <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500"> Contacto</h3>
-              <button
-                type="button"
-                onClick={() => void handleCopyPrompt()}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border border-slate-200 bg-white text-slate-700 hover:text-blue-600 transition-colors"
-              >
-                <Copy size={12} />
-                {copied ? 'Copiado' : 'Copiar'}
-              </button>
-            </div>
-            <p className="text-sm text-slate-700 leading-relaxed">{promptText}</p>
+            <InfoGroup
+              title="Canales de contacto"
+              items={[
+                { icon: <Phone size={14} />, label: 'Telefono', value: selectedCase.contactPhone ?? 'No disponible' },
+                { icon: <Mail size={14} />, label: 'Correo', value: selectedCase.contactEmail ?? 'No disponible' },
+                { icon: <FileText size={14} />, label: 'Flujo', value: selectedCase.workflowStatusLabel },
+                { icon: <UserCircle2 size={14} />, label: 'Numero de caso', value: selectedCase.caseNumber },
+              ]}
+              footer={
+                <div className="rounded-2xl border border-border bg-slate-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary">Resumen util</p>
+                      <p className="mt-1 text-sm text-text-secondary">Copia un texto corto con el contexto de contacto.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleCopyPrompt()}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-text-primary transition-all hover:border-primary/25 hover:text-primary"
+                    >
+                      <Copy size={13} />
+                      {copied ? 'Copiado' : 'Copiar'}
+                    </button>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-text-primary">{promptText}</p>
+                </div>
+              }
+            />
           </div>
+        </div>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Descripcion</h3>
-            <p className="text-sm text-slate-700 leading-relaxed">{selectedCase.description}</p>
-          </div>
+        <div className="rounded-[24px] border border-border bg-slate-50 p-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-text-secondary">Descripcion</p>
+          <p className="mt-3 text-sm leading-7 text-text-primary">{selectedCase.description}</p>
         </div>
       </div>
     </>
   )
 }
 
-function MetaRow({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+function SummaryCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-start gap-2.5">
-      <span className="mt-0.5 text-slate-500">{icon}</span>
-      <div className="min-w-0">
-        <p className="text-xs text-slate-500">{label}</p>
-        <p className="text-sm text-slate-700 break-words">{value}</p>
-      </div>
+    <div className="rounded-2xl border border-border bg-card px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-secondary">{label}</p>
+      <p className="mt-1 text-sm font-medium text-text-primary">{value}</p>
     </div>
   )
 }
 
-
+function InfoGroup({
+  title,
+  items,
+  footer,
+}: {
+  title: string
+  items: Array<{ icon: ReactNode; label: string; value: string }>
+  footer?: ReactNode
+}) {
+  return (
+    <div className="rounded-[24px] border border-border bg-slate-50 p-5">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-text-secondary">{title}</p>
+      <div className="mt-4 space-y-3">
+        {items.map((item) => (
+          <div key={item.label} className="rounded-2xl border border-border bg-card px-4 py-3">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 text-text-secondary">{item.icon}</span>
+              <div className="min-w-0">
+                <p className="text-xs text-text-secondary">{item.label}</p>
+                <p className="mt-0.5 break-words text-sm font-medium text-text-primary">{item.value}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {footer ? <div className="mt-4">{footer}</div> : null}
+    </div>
+  )
+}
