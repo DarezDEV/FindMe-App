@@ -6,16 +6,78 @@ interface UserRoleRow {
   role_id: string
 }
 
-interface UserRoleWithUserRow extends UserRoleRow {
-  user_id: string
-}
-
 interface RoleRow {
   name: string
 }
 
 export type CaseStatus = 'activo' | 'en_proceso' | 'resuelto' | 'cerrado'
 export type CaseWorkflowStatus = 'pending' | 'approved' | 'rejected' | 'found' | 'closed'
+
+export interface LoginStats {
+  activeCases: number
+  resolvedCases: number
+  authorities: number
+}
+
+export async function getLoginPageStats(): Promise<LoginStats> {
+  const [{ activeCases, resolvedCases }, authorities] = await Promise.all([
+    (async () => {
+      const { data: allData } = await withRetry(() =>
+        supabase
+          .from('cases')
+          .select('id, status, workflow_status')
+          .eq('eliminado', false),
+      )
+
+      const rows = allData ?? []
+      
+      let active = 0
+      let resolved = 0
+      
+      rows.forEach((row) => {
+        const status = (row as Record<string, unknown>).status as string
+        const workflowStatus = (row as Record<string, unknown>).workflow_status as string
+        
+        if (status === 'cerrado') return
+        if (workflowStatus === 'found' || workflowStatus === 'closed') {
+          resolved += 1
+        } else {
+          active += 1
+        }
+      })
+
+      return { activeCases: active, resolvedCases: resolved }
+    })(),
+    (async () => {
+      const { data: rolesData } = await withRetry(() =>
+        supabase.from('roles').select('id').eq('name', 'authority'),
+      )
+
+      if (!rolesData || rolesData.length === 0) return 0
+
+      const authorityRoleId = rolesData[0].id
+
+      const { data } = await withRetry(() =>
+        supabase
+          .from('user_roles')
+          .select('user_id')
+          .eq('role_id', authorityRoleId),
+      )
+
+      if (!data) return 0
+
+      const uniqueAuthorities = new Set<string>()
+      data.forEach((row) => {
+        const userId = (row as Record<string, unknown>).user_id as string
+        if (userId) uniqueAuthorities.add(userId)
+      })
+
+      return uniqueAuthorities.size
+    })(),
+  ])
+
+  return { activeCases, resolvedCases, authorities }
+}
 
 export interface AuthorityCaseRow {
   id: string
@@ -414,52 +476,6 @@ export async function getUserRoles(userId: string): Promise<string[]> {
 
   const names = (roles ?? []).map((r: RoleRow) => r.name)
   return names
-}
-
-export async function getUserRolesByIds(userIds: string[]): Promise<Record<string, string[]>> {
-  if (userIds.length === 0) return {}
-
-  const uniqueIds = [...new Set(userIds.filter(Boolean))]
-  if (uniqueIds.length === 0) return {}
-
-  const { data: userRoles, error: urError } = await withRetry(() =>
-    supabase
-      .from('user_roles')
-      .select('user_id, role_id')
-      .in('user_id', uniqueIds),
-  )
-
-  if (urError) throw urError
-  const rows = (userRoles ?? []) as UserRoleWithUserRow[]
-  if (rows.length === 0) return {}
-
-  const roleIds = Array.from(new Set(rows.map((row) => row.role_id)))
-  if (roleIds.length === 0) return {}
-
-  const { data: roles, error: rError } = await withRetry(() =>
-    supabase
-      .from('roles')
-      .select('id, name')
-      .in('id', roleIds),
-  )
-
-  if (rError) throw rError
-
-  const roleNameById = new Map<string, string>()
-  ;(roles ?? []).forEach((role) => {
-    const id = (role as { id?: string | null }).id ?? ''
-    if (id) roleNameById.set(id, (role as RoleRow).name)
-  })
-
-  const result: Record<string, string[]> = {}
-  rows.forEach((row) => {
-    const name = roleNameById.get(row.role_id)
-    if (!name) return
-    if (!result[row.user_id]) result[row.user_id] = []
-    result[row.user_id].push(name)
-  })
-
-  return result
 }
 
 export async function getProfileWithRoles(userId: string): Promise<UserProfile> {
