@@ -4,7 +4,7 @@ import { Shield, Users, FileSearch, Database, Globe, Lock, Bell, Info } from 'lu
 const SYSTEM_INFO = [
   { label: 'Nombre del sistema', value: 'FindMe System' },
   { label: 'Versión', value: '1.0.0' },
-  { label: 'Entorno', value: 'Producción' },
+  { label: 'Entorno', value: 'Desarrollo' },
   { label: 'Base de datos', value: 'Supabase (PostgreSQL)' },
   { label: 'Autenticación', value: 'Supabase Auth con OTP por correo' },
   { label: 'Almacenamiento', value: 'Supabase Storage (casos-media, avatars)' },
